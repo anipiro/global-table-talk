@@ -88,7 +88,18 @@ export function PollCard({
     >
       <p className="mb-1 flex items-center justify-between gap-2 text-sm font-semibold text-primary">
         <span className="flex items-center gap-2"><BarChart3 className="h-4 w-4" aria-hidden /> The agents are asking</span>
-        {open && <Countdown closesAt={poll.closes_at} />}
+        <span className="flex items-center gap-2">
+          {open && <Countdown closesAt={poll.closes_at} />}
+          {onDismiss && (
+            <button
+              aria-label="Dismiss poll"
+              onClick={() => onDismiss(poll.id)}
+              className="-m-1 rounded-full p-1 text-muted-foreground transition hover:text-foreground active:scale-90"
+            >
+              <X className="h-4 w-4" aria-hidden />
+            </button>
+          )}
+        </span>
       </p>
       <p className="mb-3 font-semibold leading-snug">{pollText(poll.question_by_language, lang)}</p>
       <div className="flex flex-col gap-2">
