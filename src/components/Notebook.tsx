@@ -1,9 +1,10 @@
 import { useRef } from "react";
-import { BarChart3 } from "lucide-react";
-import type { Media, Member, NotebookEntry } from "@/lib/room";
+import { BarChart3, Users } from "lucide-react";
+import type { AgentMessage, Card, Media, Member, NotebookEntry } from "@/lib/room";
+import { renderBold } from "@/lib/richText";
 import { agentName } from "./AgentFeed";
 import { isTonightMedia, MediaCard } from "./Media";
-import { pollText, type Poll } from "./Polls";
+import { pollOptions, pollText, VoteDots, type Poll, type PollVote } from "./Polls";
 
 export const NOTEBOOK_SECTIONS: { kind: string; label: string }[] = [
   { kind: "person", label: "People" },
@@ -24,16 +25,94 @@ function AddedBy({ owner }: { owner: Member | undefined }) {
   return <p className="mt-1 text-xs text-muted-foreground">added by <span style={{ color: owner?.color }}>{owner ? agentName(owner) : "an agent"}</span></p>;
 }
 
-/** Notebook grouped into People, Glossary, Decisions, Moments, with counts. Media shows inside its entry, plus a Media section. Closed polls appear under Decisions. */
-export function NotebookSections({ entries, byId, media = [], lang = "en", polls = [] }: { entries: NotebookEntry[]; byId: Map<string, Member>; media?: Media[]; lang?: string; polls?: Poll[] }) {
+function SectionTitle({ label, n }: { label: string; n: number }) {
+  return (
+    <h3 className="mb-2 flex items-center gap-2 text-sm uppercase tracking-widest text-muted-foreground">
+      {label} <span className="rounded-full bg-secondary px-2 text-xs tabular-nums normal-case tracking-normal">{n}</span>
+    </h3>
+  );
+}
+
+/** Every poll of the night, open or closed, with vote counts and the result. */
+function PollHistory({ polls, votes, byId, lang }: { polls: Poll[]; votes: PollVote[]; byId: Map<string, Member>; lang: string }) {
+  const sorted = [...polls].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+  return (
+    <section>
+      <SectionTitle label="Polls" n={sorted.length} />
+      <div className="flex flex-col gap-2">
+        {sorted.map((p) => {
+          const pv = votes.filter((v) => v.poll_id === p.id);
+          const open = p.status === "open";
+          return (
+            <div key={p.id} className="rounded-2xl bg-secondary p-3">
+              <p className="flex items-center justify-between gap-2 font-semibold">
+                <span className="flex items-center gap-2"><BarChart3 className="h-4 w-4 shrink-0 text-primary" aria-hidden /> {pollText(p.question_by_language, lang)}</span>
+                <span className={`shrink-0 rounded-full px-2 text-xs ${open ? "bg-primary text-primary-foreground" : "bg-online/15 text-online"}`}>{open ? "Voting" : "Closed"}</span>
+              </p>
+              <ul className="mt-2 flex flex-col gap-1 text-sm">
+                {pollOptions(p).map((o) => (
+                  <li key={o.id} className={`flex items-center justify-between gap-2 ${!open && p.result_option_id === o.id ? "font-semibold text-online" : "text-muted-foreground"}`}>
+                    <span>{pollText(o.label_by_language, lang)}</span>
+                    <VoteDots votes={pv} optionId={o.id} byId={byId} />
+                  </li>
+                ))}
+              </ul>
+              {!open && <p className="mt-2 text-sm">{p.result_text_by_language ? pollText(p.result_text_by_language, lang) : "No decision yet"}</p>}
+              <AddedBy owner={byId.get(p.created_by_member_id ?? "")} />
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/** Common ground the agents found: public 🤝 notes for the table, plus my own private "shared" cards. */
+function CommonGround({ notes, cards, byId }: { notes: AgentMessage[]; cards: Card[]; byId: Map<string, Member> }) {
+  return (
+    <section>
+      <SectionTitle label="Common ground" n={notes.length} />
+      <div className="flex flex-col gap-2">
+        {cards.map((c) => (
+          <div key={c.id} className="rounded-2xl border border-primary/50 bg-secondary p-3">
+            <p className="flex items-center gap-2 text-sm font-semibold text-online"><Users className="h-4 w-4" aria-hidden /> {c.title} · for you</p>
+            <p>{renderBold(c.body)}</p>
+          </div>
+        ))}
+        {notes.map((n) => {
+          const a = byId.get(n.from_member_id ?? ""), b = byId.get(n.to_member_id ?? "");
+          return (
+            <div key={n.id} className="flex items-center gap-3 rounded-2xl bg-secondary p-3">
+              <span className="flex shrink-0 items-center">
+                {[a, b].map((m, i) => (
+                  <span key={i} className="flex items-center">
+                    {i > 0 && <span className="mx-0.5 h-0.5 w-3 rounded-full bg-primary" />}
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold text-primary-foreground" style={{ background: m?.color ?? "var(--muted)" }}>{m?.name.slice(0, 1).toUpperCase() ?? "?"}</span>
+                  </span>
+                ))}
+              </span>
+              <p className="text-sm">{n.content.replace(/^🤝\s*/, "")}</p>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/** Notebook grouped into People, Glossary, Decisions, Moments, with counts. Media shows inside its entry, plus a Media section. Closed polls appear under Decisions; every poll and every common-ground find also has its own section. */
+export function NotebookSections({ entries, byId, media = [], lang = "en", polls = [], pollVotes = [], agentMessages = [], myCards = [] }: { entries: NotebookEntry[]; byId: Map<string, Member>; media?: Media[]; lang?: string; polls?: Poll[]; pollVotes?: PollVote[]; agentMessages?: AgentMessage[]; myCards?: Card[] }) {
   const isNew = useIsNew(entries);
   const isNewMedia = useIsNew(media);
   const linked = new Set(media.filter((m) => m.notebook_id).map((m) => m.id));
   const loose = media.filter((m) => !linked.has(m.id) && !isTonightMedia(m));
   const closedPolls = polls.filter((p) => p.status === "closed");
-  if (!entries.length && !media.length && !closedPolls.length) return <p className="pt-4 text-muted-foreground">The agents will jot down people, words, decisions and moments here.</p>;
+  const groundNotes = agentMessages.filter((m) => m.type === "note" && m.content.startsWith("🤝"));
+  if (!entries.length && !media.length && !polls.length && !groundNotes.length && !myCards.length) return <p className="pt-4 text-muted-foreground">The agents will jot down people, words, decisions and moments here.</p>;
   return (
     <div className="flex flex-col gap-5 pt-2">
+      {(groundNotes.length > 0 || myCards.length > 0) && <CommonGround notes={groundNotes} cards={myCards} byId={byId} />}
+      {polls.length > 0 && <PollHistory polls={polls} votes={pollVotes} byId={byId} lang={lang} />}
       {NOTEBOOK_SECTIONS.map(({ kind, label }) => {
         const list = entries.filter((e) => e.kind === kind);
         const sectionPolls = kind === "decision" ? closedPolls : [];
