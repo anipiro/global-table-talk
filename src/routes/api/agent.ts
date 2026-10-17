@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { aiStream, db, LANG_NAME } from "@/lib/ai.server";
+import { aiStream, db, LANG_NAME, transcribeAudio } from "@/lib/ai.server";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -30,7 +30,22 @@ async function transcript(supa: ReturnType<typeof db>, roomId: string, lang: str
   return { members: members ?? [], text };
 }
 
+async function handleTranscribe(request: Request) {
+  try {
+    const form = await request.formData();
+    const file = form.get("file");
+    if (!(file instanceof File)) return json({ error: "Missing audio file" }, 400);
+    const hint = String(form.get("language") ?? "") || undefined;
+    const { text, language } = await transcribeAudio(request, file, hint);
+    return json({ text, language: language ?? hint ?? null });
+  } catch (e) {
+    console.error("transcribe error", e);
+    return aiError(e);
+  }
+}
+
 async function handle(request: Request) {
+  if ((request.headers.get("content-type") ?? "").includes("multipart/form-data")) return handleTranscribe(request);
   const body = (await request.json()) as { task: string; lineId: string; memberId: string; photoId: string; roomId: string };
   const supa = db();
   try {
