@@ -511,15 +511,24 @@ function IconBtn({ children, label, active, onClick }: { children: React.ReactNo
 
 /** Chat-bubble caption feed: other people's lines sit on the left, mine on the right. Each bubble shows
  *  the original spoken text on top, a subtle divider, and the translation in my language underneath. */
-function Feed({ lines, byId, textFor, interim, me, talking, onFix }: {
+function Feed({ lines, byId, textFor, interim, me, talking, onFix, media, lang, onOpenMedia }: {
   lines: Line[]; byId: Map<string, Member>; textFor: (l: Line) => string | null; interim: string; me: Member; talking: string[]; onFix: (l: Line) => void;
+  media: Media[]; lang: string; onOpenMedia: (id: string) => void;
 }) {
+  const isNewMedia = useIsNew(media);
+  // Pictures an agent fetched for something someone said, keyed by the line that triggered them.
+  const byLine = useMemo(() => {
+    const m = new Map<string, Media[]>();
+    for (const x of media) if (x.line_id) m.set(x.line_id, [...(m.get(x.line_id) ?? []), x]);
+    return m;
+  }, [media]);
+
   const ref = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
   const [showOrig, setShowOrig] = useState<Set<string>>(new Set());
   useEffect(() => {
     if (atBottom) ref.current?.scrollTo({ top: ref.current.scrollHeight, behavior: "smooth" });
-  }, [lines.length, interim, atBottom]);
+  }, [lines.length, media.length, interim, atBottom]);
   return (
     <div className="relative flex-1 overflow-hidden">
       <div ref={ref} onScroll={(e) => { const el = e.currentTarget; setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 60); }}
@@ -579,6 +588,11 @@ function Feed({ lines, byId, textFor, interim, me, talking, onFix }: {
                     {pending && <p className="mt-1 text-[0.55em] text-muted-foreground">translating…</p>}
                     {tr && showOrig.has(l.id) && <p className="mt-1 text-[0.55em] text-muted-foreground">original · tap for translation</p>}
                   </button>
+                  {(byLine.get(l.id) ?? []).map((m) => (
+                    <div key={m.id} className={`mt-2 w-full ${isNewMedia(m.id) ? "animate-glow rounded-2xl" : ""}`}>
+                      <MediaCard media={m} lang={lang} onOpen={() => onOpenMedia(m.id)} />
+                    </div>
+                  ))}
                 </div>
               </li>
             );
