@@ -70,9 +70,11 @@ const describe = (m: AgentMessage, byId: Map<string, Member>, meId?: string | nu
 /** Chat between the agents at the table: newest at the bottom; follows new messages while you're at the
  *  bottom, and shows an unread marker + "new messages" pill when you've scrolled up.
  *  Keyboard: focus the feed, ↑/↓ moves between messages, Home/End jump to oldest/newest. */
-export function AgentFeed({ msgs, byId, meId, large = false, status = "live", retryIn, onRetry }: {
+export function AgentFeed({ msgs, byId, meId, large = false, status = "live", retryIn, onRetry, media, onOpenMedia }: {
   msgs: AgentMessage[]; byId: Map<string, Member>; meId?: string | null; large?: boolean;
   status?: FeedStatus; retryIn?: number | null; onRetry?: () => void;
+  /** Lets notes like "added a photo of…" open that picture/meme on tap. */
+  media?: Media[]; onOpenMedia?: (id: string) => void;
 }) {
   const ready = status !== "loading" && status !== "error";
   const { isShown, typing, isNew } = useTypingReveal(msgs, ready);
