@@ -21,7 +21,8 @@ export function MediaCard({ media, lang, large = false, onOpen }: {
   return (
     <figure className={`overflow-hidden rounded-2xl bg-card ${large ? "" : "max-w-sm"}`}>
       <div className="relative">
-        <img src={media.url} alt={caption || media.query} className="w-full object-contain" loading="lazy" />
+        <img src={media.url} alt={caption || media.query} loading="lazy"
+          className={`w-full ${isMeme ? "max-h-[70dvh] object-contain" : large ? "max-h-[70dvh] object-contain" : "aspect-[4/3] object-cover"} rounded-2xl`} />
         {isMeme && (
           <>
             <p className="meme-text absolute inset-x-2 top-2 text-center">{caption.split("\n")[0] ?? media.query}</p>
@@ -67,12 +68,8 @@ export function MediaViewer({ media, lang, by, onClose }: {
       <div className="flex min-h-0 flex-1 items-center justify-center px-2" onClick={onClose}>
         <MediaCard media={media} lang={lang} large />
       </div>
-      {media.kind !== "meme" && (caption || media.credit) && (
-        <div className="px-5 py-4">
-          {caption && <p className="text-[1.1em] font-semibold">{caption}</p>}
-          {media.credit && <p className="mt-1 text-xs text-muted-foreground">{media.credit}</p>}
-        </div>
-      )}
+      {/* the card under the picture already carries the caption and credit */}
     </div>
   );
 }
+
