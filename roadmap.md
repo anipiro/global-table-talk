@@ -10,3 +10,6 @@
 - [x] Define pass criteria: Georgian transcript accuracy, chunk latency, iPhone Safari recording — before wiring into the app
 - [x] List iPhone Safari recording risks to test: audio/mp4 support, interruptions, permissions, chunk boundaries
 - [x] Turn pass criteria into a repeatable test protocol: Georgian sample phrases, device conditions, chunk latency measurement
+- [ ] /test/mic: pass/fail per protocol thresholds (≥90% word accuracy, median ≤3s, p90 ≤6s chunk latency)
+- [ ] /test/mic: CSV + JSON export of sessions (device, chunk timing, transcripts, pass/fail)
+- [ ] /test/mic: session comparison view (latency, accuracy, reliability deltas across devices)
