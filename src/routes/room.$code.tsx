@@ -558,7 +558,7 @@ function Feed({ lines, byId, textFor, interim, me, talking, onFix }: {
                       mine
                         ? "rounded-br-md border-primary/30 bg-primary/15"
                         : "rounded-bl-md border-border bg-card"
-                    } ${isTalking ? "ring-2 ring-primary/40" : ""}`}
+                    } ${isTalking ? "ring-2 ring-speaking/60" : ""}`}
                     onClick={() => tr && setShowOrig((s) => { const n = new Set(s); n.has(l.id) ? n.delete(l.id) : n.add(l.id); return n; })}
                   >
                     <p className={`break-words leading-snug ${pending ? "text-muted-foreground" : ""}`} style={{ fontWeight: 400 + Math.round(l.loudness * 3) * 100 }}>
