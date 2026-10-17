@@ -30,3 +30,6 @@
 - [ ] Reassign an ambiguous line to the right speaker; apply the correction to nearby overlapping flagged lines
 - [ ] Overlap view: timeline with a lane per speaker, timestamps, overlaps and unsure lines highlighted
 - [ ] Speaker evaluation report: labeled overlapping-speech samples vs predicted speakers, accuracy tracked over time
+- [ ] Undoable history of manual speaker corrections (see and revert propagated changes)
+- [ ] Overlap view: synced playback with solo/mute per lane (reads captions aloud — no audio is stored)
+- [ ] Overlap view keyboard shortcuts: scrub, switch lane, apply reassignment
