@@ -19,3 +19,4 @@
 - [ ] Make loudest-phone arbitration atomic via a database function (rpc insert_line)
 - [ ] Recovery states: mic denial, device disconnect, unsupported speech recognition
 - [ ] Store voice_level calibration time + device; flag recalibration after phone change
+- [ ] Automated tests for recovery states: denial, disconnect, unsupported speech, phone-change recalibration flag
