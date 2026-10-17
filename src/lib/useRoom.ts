@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { AgentMessage, Card, Line, Member, NotebookEntry, Photo, PhotoCaption, Room, SpeakerCorrection, Translation } from "./room";
+import type { AgentMessage, Card, Line, Media, Member, NotebookEntry, Photo, PhotoCaption, Room, SpeakerCorrection, Translation } from "./room";
 
 type Row = { id: string; created_at?: string };
 function apply<R extends Row>(list: R[], p: { eventType: string; new: unknown; old: unknown }): R[] {
