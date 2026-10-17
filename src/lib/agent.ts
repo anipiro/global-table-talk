@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Lang, Member } from "./room";
-import { cleanTranscript, isLoudestFrame, keepByConfidence, keepByLanguage, ownsChunk, passesVoiceGate, speakingLevel, VOICE_GATE } from "./crosstalk";
+import { attribute, cleanTranscript, isLoudestFrame, keepByConfidence, keepByLanguage, ownVoiceRef, speakingLevel } from "./crosstalk";
 
 /** Calls the agent server endpoint; throws with a readable message on failure. */
 async function call(body: Record<string, string>) {
@@ -69,6 +69,24 @@ export function setMicDebug(cb: typeof debugCb) {
   if (cb) cb({ rms: 0, threshold: 0, dropped: droppedCount });
 }
 export const getDroppedCount = () => droppedCount;
+
+/** This phone's recent keep/drop decisions, for the diagnostics tab. */
+export type Decision = {
+  at: number; text: string; level: number; ref: number | null; share: number; confidence: number;
+  outcome: "kept" | "unknown" | "dropped"; reason: string; delayMs: number | null;
+};
+const decisions: Decision[] = [];
+let decisionCb: ((d: Decision[]) => void) | null = null;
+export function watchDecisions(cb: typeof decisionCb) {
+  decisionCb = cb;
+  cb?.([...decisions]);
+}
+function logDecision(d: Omit<Decision, "at">) {
+  decisions.push({ ...d, at: Date.now() });
+  if (decisions.length > 60) decisions.shift();
+  if (d.outcome === "dropped") droppedCount++;
+  decisionCb?.([...decisions]);
+}
 
 function noteDrop(threshold: number) {
   droppedCount++;
@@ -146,13 +164,15 @@ export async function openMic(): Promise<MediaStream> {
 
 /** Inserts a line through the atomic server-side arbitration (loudest phone wins).
  *  Returns the new line id, or null when another phone's line won and ours was dropped. */
-async function insertLine(member: Member, text: string, loudness: number): Promise<string | null> {
+async function insertLine(member: Member, text: string, loudness: number, confidence: number, delayMs: number): Promise<string | null> {
   const { data, error } = await supabase.rpc("insert_line", {
     p_room_id: member.room_id,
     p_speaker_id: member.id,
     p_text: text,
     p_language: member.language,
     p_loudness: loudness,
+    p_confidence: confidence,
+    p_delay_ms: Math.round(delayMs),
   });
   if (error) throw error;
   return data;
@@ -166,35 +186,110 @@ export const micSupported = (lang?: Lang) =>
 
 type Frame = { rms: number; speech: boolean; loudest: boolean };
 let voiceChannel: ReturnType<typeof supabase.channel> | null = null;
+let voiceRoom: string | null = null;
 let shareTimer: ReturnType<typeof setInterval> | null = null;
+const others = new Map<string, { level: number; at: number }[]>();
+let talkingCb: ((ids: string[]) => void) | null = null;
+const talkingAt = new Map<string, number>();
+let watchingTalk = false;
+
+/** One broadcast channel per room for live mic levels + "is talking" (not a room table, so outside useRoom). */
+function ensureVoiceChannel(roomId: string) {
+  if (voiceChannel && voiceRoom === roomId) return voiceChannel;
+  if (voiceChannel) void supabase.removeChannel(voiceChannel);
+  others.clear();
+  voiceRoom = roomId;
+  voiceChannel = supabase.channel(`voice-${roomId}`, { config: { broadcast: { self: false } } });
+  voiceChannel
+    .on("broadcast", { event: "level" }, ({ payload }) => {
+      const p = payload as { id: string; level: number; talking?: boolean };
+      if (!p?.id) return;
+      const now = performance.now();
+      const list = (others.get(p.id) ?? []).filter((x) => now - x.at < 600);
+      list.push({ level: p.level, at: now });
+      others.set(p.id, list);
+      if (p.talking) talkingAt.set(p.id, now);
+    })
+    .subscribe();
+  return voiceChannel;
+}
+function releaseVoiceChannel() {
+  if (wanted || watchingTalk || !voiceChannel) return;
+  void supabase.removeChannel(voiceChannel);
+  voiceChannel = null;
+  voiceRoom = null;
+}
+
+/** Live "who is talking right now" for the room (shown instantly, before the caption arrives). */
+export function watchTalking(roomId: string, cb: (ids: string[]) => void) {
+  watchingTalk = true;
+  talkingCb = cb;
+  ensureVoiceChannel(roomId);
+  const t = setInterval(() => {
+    const now = performance.now();
+    talkingCb?.([...talkingAt.entries()].filter(([, at]) => now - at < 700).map(([id]) => id));
+  }, 200);
+  return () => { clearInterval(t); watchingTalk = false; talkingCb = null; releaseVoiceChannel(); };
+}
 
 /** Shares this phone's live mic level with the other phones at the table and tracks theirs,
  *  so each phone knows, moment by moment, whether it is the one closest to whoever is talking. */
 function joinVoiceLevels(member: Member) {
-  const others = new Map<string, { level: number; at: number }[]>();
-  voiceChannel = supabase.channel(`voice-${member.room_id}`, { config: { broadcast: { self: false } } });
-  voiceChannel
-    .on("broadcast", { event: "level" }, ({ payload }) => {
-      const p = payload as { id: string; level: number };
-      if (!p?.id || p.id === member.id) return;
-      const list = (others.get(p.id) ?? []).filter((x) => performance.now() - x.at < 600);
-      list.push({ level: p.level, at: performance.now() });
-      others.set(p.id, list);
-    })
-    .subscribe();
+  const ch = ensureVoiceChannel(member.room_id);
   let windowMax = 0;
+  let talking = false;
   shareTimer = setInterval(() => {
-    voiceChannel?.send({ type: "broadcast", event: "level", payload: { id: member.id, level: windowMax } });
+    ch.send({ type: "broadcast", event: "level", payload: { id: member.id, level: windowMax, talking } });
+    if (talking) talkingAt.set(member.id, performance.now());
     windowMax = 0;
+    talking = false;
   }, 150);
   return {
-    note: (rms: number) => { windowMax = Math.max(windowMax, rms); },
+    note: (f: Frame) => { windowMax = Math.max(windowMax, f.rms); if (f.speech && f.loudest) talking = true; },
     /** Loudest level each other phone reported in the last ~450ms (covers network delay). */
     othersNow: () => {
       const now = performance.now();
-      return [...others.values()].map((l) => Math.max(0, ...l.filter((x) => now - x.at < 450).map((x) => x.level)));
+      return [...others.entries()].filter(([id]) => id !== member.id)
+        .map(([, l]) => Math.max(0, ...l.filter((x) => now - x.at < 450).map((x) => x.level)));
     },
   };
+}
+
+/** Decides and saves one captured utterance. Shared by both speech engines. */
+const ownLevels: number[] = [];
+async function handleUtterance(
+  member: Member, frames: Frame[], speechEnd: number, transcribe: () => Promise<{ text: string; language: string | null } | null>,
+  onError: (msg: string) => void,
+) {
+  const speech = frames.filter((x) => x.speech);
+  const level = speakingLevel(speech.map((x) => x.rms));
+  const share = speech.length ? speech.filter((x) => x.loudest).length / speech.length : 0;
+  const ref = ownVoiceRef(member.voice_level, ownLevels);
+  const verdict = attribute(level, ref, share);
+  const base = { level, ref, share, confidence: verdict.confidence };
+  if (verdict.decision === "drop") {
+    logDecision({ ...base, text: "", outcome: "dropped", reason: share < 0.4 ? "another phone was closer" : "too faint — room noise", delayMs: null });
+    debugCb?.({ rms: lastPeak, threshold: ref ? 0.3 * ref : 0, dropped: droppedCount });
+    return;
+  }
+  try {
+    const res = await transcribe();
+    if (!res) return;
+    const clean = cleanTranscript(res.text, member.language);
+    if (!clean) return;
+    if (!keepByLanguage(res.language, member.language)) {
+      logDecision({ ...base, text: res.text, outcome: "dropped", reason: `other language (${res.language})`, delayMs: null });
+      return;
+    }
+    const lineId = await insertLine(member, clean, level, verdict.confidence, performance.now() - speechEnd);
+    const delayMs = performance.now() - speechEnd;
+    if (!lineId) { logDecision({ ...base, text: clean, outcome: "dropped", reason: "another phone had it louder", delayMs }); return; }
+    if (verdict.decision === "keep") { ownLevels.push(level); if (ownLevels.length > 30) ownLevels.shift(); }
+    logDecision({ ...base, text: clean, outcome: verdict.decision === "keep" ? "kept" : "unknown", reason: verdict.decision === "keep" ? "sounds like you" : "not sure it was you", delayMs });
+    call({ task: "translate", lineId }).catch((err) => onError(err.message));
+  } catch (e) {
+    onError(e instanceof Error ? e.message : "Couldn't save what you said.");
+  }
 }
 
 /** Listens on this phone's mic, writes each finished sentence as a line, and asks the agents to translate it. */
@@ -220,9 +315,10 @@ export async function startMic(
   const analyser = audioCtx.createAnalyser();
   audioCtx.createMediaStreamSource(micStream).connect(analyser);
   const buf = new Float32Array(analyser.fftSize);
-  const threshold = member.voice_level ? VOICE_GATE * member.voice_level : 0;
+  const threshold = member.voice_level ? 0.3 * member.voice_level : 0;
   // A frame counts as speech above this level (never below a fixed silence floor).
   const speechLevel = Math.max(0.01, threshold * 0.8);
+  let lastSpeechAt = performance.now();
   const levels = joinVoiceLevels(member);
   let recent: number[] = []; // my last ~150ms of frames, compared with the other phones' 150ms maxima
   let frames: Frame[] = [];
@@ -232,10 +328,11 @@ export async function startMic(
     if (!audioCtx) return;
     analyser.getFloatTimeDomainData(buf);
     const rms = Math.sqrt(buf.reduce((s, v) => s + v * v, 0) / buf.length);
-    levels.note(rms);
     recent.push(rms);
     if (recent.length > 9) recent = recent.slice(-9);
     const f: Frame = { rms, speech: rms >= speechLevel, loudest: isLoudestFrame(Math.max(...recent), levels.othersNow()) };
+    levels.note(f);
+    if (f.speech) lastSpeechAt = performance.now();
     frames.push(f);
     if (frames.length > 1200) frames.shift();
     onFrame?.(f);
@@ -246,7 +343,7 @@ export async function startMic(
   sample();
 
   if (engine === "gemini") {
-    onFrame = startGeminiMic(member, micStream, takeFrames, speechLevel, threshold, onError);
+    onFrame = startGeminiMic(member, micStream, takeFrames, onError);
     return;
   }
 
@@ -264,18 +361,11 @@ export async function startMic(
       if (!r.isFinal) { interim += text + " "; continue; }
       if (!text) continue;
       const f = takeFrames();
-      const loudness = speakingLevel(f.filter((x) => x.speech).map((x) => x.rms));
-      if (!keepByConfidence(r[0].confidence ?? 0) || !passesVoiceGate(loudness, member.voice_level) || !ownsChunk(f)) {
-        noteDrop(threshold);
+      if (!keepByConfidence(r[0].confidence ?? 0)) {
+        logDecision({ text, level: 0, ref: null, share: 0, confidence: 0, outcome: "dropped", reason: "low recognition confidence", delayMs: null });
         continue;
       }
-      try {
-        const lineId = await insertLine(member, text, loudness);
-        if (!lineId) { noteDrop(threshold); continue; } // another phone's line won the arbitration
-        call({ task: "translate", lineId }).catch((err) => onError(err.message));
-      } catch {
-        onError("Couldn't save what you said.");
-      }
+      void handleUtterance(member, f, lastSpeechAt, async () => ({ text, language: null }), onError);
     }
     onInterim(interim.trim());
   };
@@ -286,16 +376,13 @@ export async function startMic(
   rec.start();
 }
 
-/** Gemini recorder, cut by voice activity: a chunk ends ~0.6s after the speaker pauses (or at 8s),
- *  so short phrases go out right away instead of waiting for a fixed 3s boundary, and words aren't split.
+/** Gemini recorder, cut by voice activity: a chunk ends ~0.4s after the speaker pauses (or at 4.5s, so long
+ *  talkers get captions as they go), so phrases go out right away and words aren't split.
  *  A phone only uploads chunks it "owns" — it was the loudest phone for enough of the speech. */
-const PAUSE_MS = 600;
-const MAX_CHUNK_MS = 8000;
+const PAUSE_MS = 400;
+const MAX_CHUNK_MS = 4500;
 const IDLE_RECYCLE_MS = 4000;
-function startGeminiMic(
-  member: Member, stream: MediaStream, takeFrames: () => Frame[], speechLevel: number, threshold: number,
-  onError: (msg: string) => void,
-): (f: Frame) => void {
+function startGeminiMic(member: Member, stream: MediaStream, takeFrames: () => Frame[], onError: (msg: string) => void): (f: Frame) => void {
   wanted = true;
   const mime = pickAudioMime();
   let cur: { r: MediaRecorder; chunks: Blob[]; startedAt: number; spoke: boolean; lastSpeech: number } | null = null;
@@ -312,27 +399,10 @@ function startGeminiMic(
   };
 
   const finish = (c: NonNullable<typeof cur>, frames: Frame[]) => {
-    c.r.onstop = async () => {
+    c.r.onstop = () => {
       if (!wanted || !c.chunks.length) return;
-      const loudness = speakingLevel(frames.filter((x) => x.speech).map((x) => x.rms));
-      if (!ownsChunk(frames)) { noteDrop(threshold); return; } // another phone was closer — not my owner talking
-      if (!passesVoiceGate(loudness, member.voice_level)) { noteDrop(threshold); return; }
       const blob = new Blob(c.chunks, { type: mime || "audio/webm" });
-      try {
-        const { text, language } = await transcribeChunk(blob, member.language as Lang);
-        const clean = cleanTranscript(text, member.language);
-        if (!clean) return;
-        if (!keepByLanguage(language, member.language)) { noteDrop(threshold); return; }
-        try {
-          const lineId = await insertLine(member, clean, loudness);
-          if (!lineId) { noteDrop(threshold); return; } // another phone's line won the arbitration
-          call({ task: "translate", lineId }).catch((err) => onError(err.message));
-        } catch {
-          onError("Couldn't save what you said.");
-        }
-      } catch (e) {
-        onError(e instanceof Error ? e.message : "Transcription failed");
-      }
+      void handleUtterance(member, frames, c.lastSpeech, () => transcribeChunk(blob, member.language as Lang), onError);
     };
     if (c.r.state !== "inactive") c.r.stop();
   };
@@ -362,7 +432,7 @@ function startGeminiMic(
 export async function stopMic() {
   wanted = false;
   if (shareTimer) { clearInterval(shareTimer); shareTimer = null; }
-  if (voiceChannel) { void supabase.removeChannel(voiceChannel); voiceChannel = null; }
+  releaseVoiceChannel();
   if (chunkTimer) { clearTimeout(chunkTimer); chunkTimer = null; }
   if (recorder && recorder.state !== "inactive") recorder.stop();
   recorder = null;
