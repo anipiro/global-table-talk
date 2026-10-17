@@ -7,7 +7,9 @@ export type Step =
   | { type: "line"; who: "ka" | "en"; text: string; tr: string }
   | { type: "agent"; from: "ka" | "en"; to: "ka" | "en" | null; kind: "ask" | "answer" | "note" | "missed" | "bridge"; content: string }
   | { type: "notebook"; owner: "ka" | "en"; kind: "person" | "glossary" | "decision" | "moment"; title: string; body: string }
-  | { type: "card"; to: "ka" | "en"; kind: "context" | "catchup" | "recap"; title: string; body: string };
+  | { type: "card"; to: "ka" | "en"; kind: "context" | "catchup" | "recap"; title: string; body: string }
+  /** A picture an agent found for the thing just said — attaches to the line before it. */
+  | { type: "media"; who: "ka" | "en"; subject: string; url: string; caps: Record<string, string>; credit: string };
 
 export const DEMO_SPEAKERS = { ka: "Nika", en: "You" } as const;
 
@@ -24,11 +26,13 @@ export const DEMO_SCRIPT: Step[] = [
   { type: "notebook", owner: "ka", kind: "glossary", title: "Rtveli (რთველი)", body: "The grape harvest — a family celebration every autumn." },
   { type: "line", who: "en", text: "I'd love to see a harvest one day.", tr: "ერთ დღეს რთველის ნახვა ძალიან მინდა." },
   { type: "line", who: "ka", text: "მაშინ შემოდგომაზე კახეთში წაგიყვანთ.", tr: "Then I'll take you to Kakheti in the autumn." },
+  { type: "media", who: "ka", subject: "Kakheti", url: "https://upload.wikimedia.org/wikipedia/commons/1/17/Black_Rock_Lake_%E1%83%90.jpg",
+    caps: { en: "Kakheti — Georgia's eastern wine region", ka: "კახეთი — ღვინის რეგიონი აღმოსავლეთ საქართველოში" }, credit: "Wikipedia" },
   { type: "line", who: "en", text: "Deal! To Kakheti!", tr: "შევთანხმდით! გაუმარჯოს კახეთს!" },
 ];
 
 /** Inserts one scripted step. `at` sets created_at (seed uses past times; replay uses now). */
-export async function insertStep(roomId: string, step: Step, cast: Record<"ka" | "en", Member>, at?: string) {
+export async function insertStep(roomId: string, step: Step, cast: Record<"ka" | "en", Member>, at?: string, lineId?: string | null): Promise<string | null> {
   const ts = at ? { created_at: at } : {};
   if (step.type === "line") {
     const sp = cast[step.who];
@@ -39,6 +43,7 @@ export async function insertStep(roomId: string, step: Step, cast: Record<"ka" |
       .single();
     if (error) throw error;
     await supabase.from("translations").insert({ line_id: line.id, language: step.who === "ka" ? "en" : "ka", text: step.tr });
+    return line.id;
   } else if (step.type === "agent") {
     await supabase.from("agent_messages").insert({
       room_id: roomId, from_member_id: cast[step.from].id, to_member_id: step.to ? cast[step.to].id : null,
