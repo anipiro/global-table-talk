@@ -5,6 +5,7 @@ import type { Member, Room } from "@/lib/room";
 import { checkInvite, createInvite, inviteLink, revokeInvite, shareLink, type Invite } from "@/lib/invites";
 import { fmtTime } from "@/lib/useRoom";
 import { Button } from "@/components/ui/button";
+import { findSharedGround } from "@/lib/agent";
 
 export function useInvites(roomId: string | undefined) {
   const [invites, setInvites] = useState<Invite[]>([]);
