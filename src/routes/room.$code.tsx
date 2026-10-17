@@ -5,7 +5,7 @@ import { Mic, MicOff, Headphones, Sparkles, Type, Camera, ImagePlus, History, Sh
 import { supabase } from "@/integrations/supabase/client";
 import { getMemberId, inviteUrl, type Lang, type Line, type Member } from "@/lib/room";
 import { fmtTime, useRoom, useSignedUrls, useWakeLock } from "@/lib/useRoom";
-import { watchTalking, describePhoto, deviceLabel, generateRecap, listMics, micDeviceId, micSupported, playWhisper, requestCatchUp, setMicDebug, setMicDeviceId, startMic, stopMic } from "@/lib/agent";
+import { learnCorrection, loadLearning, watchTalking, describePhoto, deviceLabel, generateRecap, listMics, micDeviceId, micSupported, playWhisper, requestCatchUp, setMicDebug, setMicDeviceId, startMic, stopMic } from "@/lib/agent";
 import { classifyMicError, needsRecalibration } from "@/lib/crosstalk";
 import { VoiceCalibration } from "@/components/JoinForm";
 import { shareLink } from "@/lib/invites";
@@ -35,7 +35,7 @@ function RoomPage() {
   const { code } = Route.useParams();
   const nav = useNavigate();
   const data = useRoom(code);
-  const { room, members, lines, translations, agentMessages, notebook, photos, captions, cards } = data;
+  const { room, members, lines, translations, agentMessages, notebook, photos, captions, cards, corrections } = data;
   const meId = getMemberId(code);
   const me = members.find((m) => m.id === meId);
   const isHost = !!room && room.host_member_id === meId;
@@ -52,6 +52,21 @@ function RoomPage() {
   const [fixLine, setFixLine] = useState<Line | null>(null);
   const [talking, setTalking] = useState<string[]>([]);
   const roomId = room?.id;
+  // Learn from speaker fixes on lines this phone captured: moved to me = my voice; moved away = not my owner.
+  useEffect(() => {
+    if (!meId) return;
+    const seen = new Set(loadLearning(meId).seen);
+    for (const c of corrections) {
+      if (c.undone_at || seen.has(c.id)) continue;
+      const changed = ((c.changes as { line_id: string; from_speaker_id: string | null }[]) ?? []);
+      for (const ch of changed) {
+        const l = lines.find((x) => x.id === ch.line_id);
+        if (!l || l.heard_by !== meId) continue;
+        const was = ch.from_speaker_id === meId, now = c.to_speaker_id === meId;
+        if (was !== now) learnCorrection(meId, c.id, l.loudness, now);
+      }
+    }
+  }, [corrections, lines, meId]);
   useEffect(() => {
     if (!roomId) return;
     return watchTalking(roomId, (ids) => setTalking((prev) => (prev.join() === ids.join() ? prev : ids)));
@@ -459,8 +474,11 @@ function Feed({ lines, byId, textFor, interim, me, onFix }: {
                     <HelpCircle className="h-3.5 w-3.5" /> Not sure who said this · tap to fix
                   </button>
                 )}
-                <button className="w-full text-left" onClick={() => tr && setShowOrig((s) => { const n = new Set(s); n.has(l.id) ? n.delete(l.id) : n.add(l.id); return n; })}>
-                  <p className="text-[0.7em] font-semibold" style={{ color: sp?.color }}>{sp?.name ?? "Unknown speaker"}{l.ambiguous ? "?" : ""} <span className="font-normal text-muted-foreground">· {fmtTime(l.created_at)}</span></p>
+                <button onClick={() => onFix(l)} aria-label={`Change speaker: ${sp?.name ?? "Unknown speaker"}`}
+                  className={`text-left text-[0.7em] font-semibold ${sp ? "" : "italic text-muted-foreground"}`} style={{ color: sp?.color }}>
+                  {sp?.name ?? "Unknown speaker"}{l.ambiguous ? "?" : ""} <span className="font-normal text-muted-foreground">· {fmtTime(l.created_at)}</span>
+                </button>
+                <button className="block w-full text-left" onClick={() => tr && setShowOrig((s) => { const n = new Set(s); n.has(l.id) ? n.delete(l.id) : n.add(l.id); return n; })}>
                   <p className={`leading-snug ${pending ? "text-muted-foreground" : ""}`} style={{ fontWeight: 400 + Math.round(l.loudness * 3) * 100 }}>
                     {orig ? l.text : tr}
                   </p>
