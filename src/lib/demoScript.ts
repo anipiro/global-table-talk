@@ -51,9 +51,17 @@ export async function insertStep(roomId: string, step: Step, cast: Record<"ka" |
     });
   } else if (step.type === "notebook") {
     await supabase.from("notebook").insert({ room_id: roomId, kind: step.kind, title: step.title, body: step.body, owner_member_id: cast[step.owner].id, ...ts });
+  } else if (step.type === "media") {
+    // Same shape the agent loop writes: kind reference_image, captions per language, credit, owning agent.
+    await supabase.from("media").insert({
+      room_id: roomId, line_id: lineId ?? null, notebook_id: null, kind: "reference_image",
+      query: step.subject, url: step.url, caption_by_language: step.caps, credit: step.credit,
+      created_by_member_id: cast[step.who].id, ...ts,
+    });
   } else {
     await supabase.from("cards").insert({ room_id: roomId, member_id: cast[step.to].id, kind: step.kind, title: step.title, body: step.body, ...ts });
   }
+  return null;
 }
 
 /** Finds (or adds) the Georgian and English speakers of the scene in a room. */
