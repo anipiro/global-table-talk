@@ -112,6 +112,22 @@ export function deviceLabel(): string {
   return `${iphone ? "iPhone/iPad" : /Android/.test(ua) ? "Android" : "Desktop"} · ${safari ? "Safari" : "Chromium"}`;
 }
 
+/** Chosen microphone (localStorage "gamige-mic-device"); null = system default. */
+export const micDeviceId = () => (typeof localStorage === "undefined" ? null : localStorage.getItem("gamige-mic-device"));
+export const setMicDeviceId = (id: string | null) =>
+  id ? localStorage.setItem("gamige-mic-device", id) : localStorage.removeItem("gamige-mic-device");
+
+/** Lists available microphones (labels need mic permission first). */
+export async function listMics(): Promise<{ deviceId: string; label: string }[]> {
+  const devs = await navigator.mediaDevices.enumerateDevices();
+  return devs.filter((d) => d.kind === "audioinput").map((d, i) => ({ deviceId: d.deviceId, label: d.label || `Microphone ${i + 1}` }));
+}
+
+const audioConstraints = () => {
+  const id = micDeviceId();
+  return { audio: id ? { deviceId: { exact: id } } : true };
+};
+
 /** Inserts a line through the atomic server-side arbitration (loudest phone wins).
  *  Returns the new line id, or null when another phone's line won and ours was dropped. */
 async function insertLine(member: Member, text: string, loudness: number): Promise<string | null> {
