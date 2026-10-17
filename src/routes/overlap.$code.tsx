@@ -218,14 +218,14 @@ function OverlapPage() {
             const isActive = active.has(l.id), isSel = selected === l.id, isOverlap = overlaps.has(l.id);
             const laneAudible = audible.has(l.speaker_id ?? "");
             return (
-              <div key={l.id} className="absolute inset-x-0 flex" style={{ top: at * PX_PER_MS + 8 }}>
+              <div key={l.id} className="pointer-events-none absolute inset-x-0 flex" style={{ top: at * PX_PER_MS + 8 }}>
                 <span className="w-16 shrink-0 px-1 pt-1 text-[11px] tabular-nums text-muted-foreground">{fmtSec(l.created_at)}</span>
                 <div className="relative flex-1">
                   <button
                     onClick={() => { setSelected(l.id); setPos(at); if (lane >= 0) setLaneIdx(lane); }}
                     onDoubleClick={() => setFixLine(l)}
                     data-active={isActive || undefined}
-                    className={`absolute rounded-2xl border bg-card p-2 text-left text-sm leading-snug shadow-sm transition
+                    className={`pointer-events-auto absolute rounded-2xl border bg-card p-2 text-left text-sm leading-snug shadow-sm transition
                       ${isActive ? "border-primary bg-primary/15 scale-[1.02]" : ""} ${isSel ? "ring-2 ring-primary" : ""}
                       ${isOverlap ? "border-dashed" : ""} ${!laneAudible ? "opacity-50" : ""}`}
                     style={{ left: `calc(${laneW} * ${Math.max(0, lane)} + 2px)`, width: `calc(${laneW} - 4px)`, borderLeftColor: sp?.color, borderLeftWidth: 4 }}
