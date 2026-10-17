@@ -22,7 +22,7 @@ async function transcript(supa: ReturnType<typeof db>, roomId: string, lang: str
   const { data: tr } = ids.length
     ? await supa.from("translations").select("line_id, language, text").in("line_id", ids).eq("language", lang)
     : { data: [] };
-  const name = (id: string | null) => members?.find((m) => m.id === id)?.name ?? "Someone";
+  const name = (id: string | null) => members?.find((m) => m.id === id)?.name ?? "Unknown speaker";
   const text = (lines ?? []).reverse().map((l) => {
     const t = l.language === lang ? null : tr?.find((x) => x.line_id === l.id)?.text;
     return `${name(l.speaker_id)}: ${l.text}${t ? ` (= ${t})` : ""}`;

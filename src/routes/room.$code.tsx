@@ -5,13 +5,14 @@ import { Mic, MicOff, Headphones, Sparkles, Type, Camera, ImagePlus, History, Sh
 import { supabase } from "@/integrations/supabase/client";
 import { getMemberId, inviteUrl, type Lang, type Line, type Member } from "@/lib/room";
 import { fmtTime, useRoom, useSignedUrls, useWakeLock } from "@/lib/useRoom";
-import { describePhoto, deviceLabel, generateRecap, listMics, micDeviceId, micSupported, playWhisper, requestCatchUp, setMicDebug, setMicDeviceId, startMic, stopMic } from "@/lib/agent";
+import { learnCorrection, loadLearning, watchTalking, describePhoto, deviceLabel, generateRecap, listMics, micDeviceId, micSupported, playWhisper, requestCatchUp, setMicDebug, setMicDeviceId, startMic, stopMic } from "@/lib/agent";
 import { classifyMicError, needsRecalibration } from "@/lib/crosstalk";
 import { VoiceCalibration } from "@/components/JoinForm";
 import { shareLink } from "@/lib/invites";
 import { GuestList, InvitePanel } from "@/components/HostControls";
 import { Screen } from "@/components/JoinForm";
 import { ReassignSheet } from "@/components/Reassign";
+import { Diagnostics } from "@/components/Diagnostics";
 
 export const Route = createFileRoute("/room/$code")({
   ssr: false,
@@ -28,13 +29,13 @@ export const Route = createFileRoute("/room/$code")({
   component: RoomPage,
 });
 
-type Tab = "notebook" | "agents" | "photos" | "guests";
+type Tab = "notebook" | "agents" | "photos" | "guests" | "diagnostics";
 
 function RoomPage() {
   const { code } = Route.useParams();
   const nav = useNavigate();
   const data = useRoom(code);
-  const { room, members, lines, translations, agentMessages, notebook, photos, captions, cards } = data;
+  const { room, members, lines, translations, agentMessages, notebook, photos, captions, cards, corrections } = data;
   const meId = getMemberId(code);
   const me = members.find((m) => m.id === meId);
   const isHost = !!room && room.host_member_id === meId;
@@ -49,6 +50,27 @@ function RoomPage() {
   const [debug, setDebug] = useState({ rms: 0, threshold: 0, dropped: 0 });
   const [recalibrating, setRecalibrating] = useState(false);
   const [fixLine, setFixLine] = useState<Line | null>(null);
+  const [talking, setTalking] = useState<string[]>([]);
+  const roomId = room?.id;
+  // Learn from speaker fixes on lines this phone captured: moved to me = my voice; moved away = not my owner.
+  useEffect(() => {
+    if (!meId) return;
+    const seen = new Set(loadLearning(meId).seen);
+    for (const c of corrections) {
+      if (c.undone_at || seen.has(c.id)) continue;
+      const changed = ((c.changes as { line_id: string; from_speaker_id: string | null }[]) ?? []);
+      for (const ch of changed) {
+        const l = lines.find((x) => x.id === ch.line_id);
+        if (!l || l.heard_by !== meId) continue;
+        const was = ch.from_speaker_id === meId, now = c.to_speaker_id === meId;
+        if (was !== now) learnCorrection(meId, c.id, l.loudness, now);
+      }
+    }
+  }, [corrections, lines, meId]);
+  useEffect(() => {
+    if (!roomId) return;
+    return watchTalking(roomId, (ids) => setTalking((prev) => (prev.join() === ids.join() ? prev : ids)));
+  }, [roomId]);
   const [interim, setInterim] = useState("");
   const [tab, setTab] = useState<Tab>("notebook");
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -256,7 +278,7 @@ function RoomPage() {
       )}
 
       {/* debug overlay */}
-      {debugOn && (
+      {debugOn && !(sheetOpen && tab === "diagnostics") && (
         <div className="pointer-events-none fixed bottom-40 left-3 z-40 rounded-2xl bg-background/90 p-3 font-mono text-xs shadow-lg backdrop-blur">
           <p>RMS {debug.rms.toFixed(4)}</p>
           <p>threshold {debug.threshold ? debug.threshold.toFixed(4) : "off"}</p>
@@ -287,6 +309,16 @@ function RoomPage() {
       </div>
 
       <Feed lines={lines} byId={byId} textFor={textFor} interim={micOn ? interim : ""} me={me} onFix={setFixLine} />
+      {talking.length > 0 && (
+        <div className="flex flex-wrap gap-2 px-4 pb-2 text-sm" aria-live="polite">
+          {talking.map((id) => byId.get(id)).filter(Boolean).map((m) => (
+            <span key={m!.id} className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1">
+              <span className="h-2 w-2 animate-pulse rounded-full" style={{ background: m!.color }} />
+              {m!.id === me.id ? "You're" : `${m!.name} is`} talking…
+            </span>
+          ))}
+        </div>
+      )}
       {fixLine && <ReassignSheet line={fixLine} members={members} me={me} onClose={() => setFixLine(null)} />}
 
       {/* action row */}
@@ -337,12 +369,12 @@ function RoomPage() {
       {/* bottom sheet */}
       <section className={`border-t bg-card text-base transition-all ${sheetOpen ? "h-[55dvh]" : "h-14"}`}>
         <div className="flex h-14 items-center gap-1 px-2">
-          {(["notebook", "agents", "photos", ...(isHost ? ["guests"] : [])] as Tab[]).map((t) => {
+          {(["notebook", "agents", "photos", ...(isHost ? ["guests"] : []), ...(debugOn ? ["diagnostics"] : [])] as Tab[]).map((t) => {
             const pending = t === "guests" ? members.filter((m) => !m.approved).length : 0;
             return (
               <button key={t} onClick={() => { setTab(t); setSheetOpen(true); }}
                 className={`flex-1 rounded-full py-2 font-semibold capitalize ${sheetOpen && tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>
-                {t}{pending > 0 && <span className="ml-1 rounded-full bg-destructive px-1.5 text-xs text-destructive-foreground">{pending}</span>}
+                {t === "diagnostics" ? "Diag." : t}{pending > 0 && <span className="ml-1 rounded-full bg-destructive px-1.5 text-xs text-destructive-foreground">{pending}</span>}
               </button>
             );
           })}
@@ -355,6 +387,7 @@ function RoomPage() {
             {tab === "notebook" && <NotebookTab entries={notebook} />}
             {tab === "agents" && <AgentsTab msgs={agentMessages} byId={byId} />}
             {tab === "photos" && <PhotosTab photos={photos} captions={captions} lang={me.language} />}
+            {tab === "diagnostics" && debugOn && <Diagnostics lines={lines} members={members} />}
             {tab === "guests" && isHost && (
               <div className="flex flex-col gap-6 pt-2">
                 <GuestList room={room} members={members} />
@@ -441,8 +474,11 @@ function Feed({ lines, byId, textFor, interim, me, onFix }: {
                     <HelpCircle className="h-3.5 w-3.5" /> Not sure who said this · tap to fix
                   </button>
                 )}
-                <button className="w-full text-left" onClick={() => tr && setShowOrig((s) => { const n = new Set(s); n.has(l.id) ? n.delete(l.id) : n.add(l.id); return n; })}>
-                  <p className="text-[0.7em] font-semibold" style={{ color: sp?.color }}>{sp?.name ?? "Someone"}{l.ambiguous ? "?" : ""} <span className="font-normal text-muted-foreground">· {fmtTime(l.created_at)}</span></p>
+                <button onClick={() => onFix(l)} aria-label={`Change speaker: ${sp?.name ?? "Unknown speaker"}`}
+                  className={`text-left text-[0.7em] font-semibold ${sp ? "" : "italic text-muted-foreground"}`} style={{ color: sp?.color }}>
+                  {sp?.name ?? "Unknown speaker"}{l.ambiguous ? "?" : ""} <span className="font-normal text-muted-foreground">· {fmtTime(l.created_at)}</span>
+                </button>
+                <button className="block w-full text-left" onClick={() => tr && setShowOrig((s) => { const n = new Set(s); n.has(l.id) ? n.delete(l.id) : n.add(l.id); return n; })}>
                   <p className={`leading-snug ${pending ? "text-muted-foreground" : ""}`} style={{ fontWeight: 400 + Math.round(l.loudness * 3) * 100 }}>
                     {orig ? l.text : tr}
                   </p>

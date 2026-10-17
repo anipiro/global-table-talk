@@ -162,7 +162,10 @@ export type Database = {
       lines: {
         Row: {
           ambiguous: boolean
+          confidence: number | null
           created_at: string
+          delay_ms: number | null
+          heard_by: string | null
           id: string
           language: string
           loudness: number
@@ -172,7 +175,10 @@ export type Database = {
         }
         Insert: {
           ambiguous?: boolean
+          confidence?: number | null
           created_at?: string
+          delay_ms?: number | null
+          heard_by?: string | null
           id?: string
           language: string
           loudness?: number
@@ -182,7 +188,10 @@ export type Database = {
         }
         Update: {
           ambiguous?: boolean
+          confidence?: number | null
           created_at?: string
+          delay_ms?: number | null
+          heard_by?: string | null
           id?: string
           language?: string
           loudness?: number
@@ -191,6 +200,13 @@ export type Database = {
           text?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "lines_heard_by_fkey"
+            columns: ["heard_by"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "lines_room_id_fkey"
             columns: ["room_id"]
@@ -526,6 +542,8 @@ export type Database = {
     Functions: {
       insert_line: {
         Args: {
+          p_confidence?: number
+          p_delay_ms?: number
           p_language: string
           p_loudness: number
           p_room_id: string

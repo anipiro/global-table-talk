@@ -123,3 +123,60 @@ export function cleanTranscript(text: string, lang: string): string {
   if (ownCount === 0 || foreign > ownCount) return "";
   return kept.replace(/\s+/g, " ").trim();
 }
+
+/** Lines below this attribution confidence are shown as "Unknown speaker" instead of a person's name. */
+export const KNOWN_SPEAKER_CONFIDENCE = 0.7;
+
+/** This member's own speaking level, learned from their recent confidently-attributed lines and kept within
+ *  0.5×–1.5× of their voice setup (so one bad setup can neither silence them nor let the room through). */
+export function ownVoiceRef(calibration: number | null | undefined, recentOwn: number[]): number | null {
+  if (recentOwn.length < 3) return calibration || null;
+  const s = [...recentOwn].sort((a, b) => a - b);
+  const p75 = s[Math.min(s.length - 1, Math.floor(s.length * 0.75))]!;
+  if (!calibration) return p75;
+  return Math.min(1.5 * calibration, Math.max(0.5 * calibration, p75));
+}
+
+/** Who said a chunk, from this phone's point of view.
+ *  - level vs the owner's own voice: someone across a crowded room is much quieter than the owner at 30cm;
+ *  - ownShare: how much of the speech this phone heard louder than the other phones at the table.
+ *  Very quiet chunks are dropped as room noise; uncertain ones become "Unknown speaker". */
+export function attribute(
+  level: number, ref: number | null, ownShare: number, notMine: number[] = [],
+): { confidence: number; decision: "keep" | "unknown" | "drop" } {
+  if (ref && level < 0.3 * ref) return { confidence: 0, decision: "drop" };
+  if (ownShare < OWN_SPEECH_SHARE) return { confidence: 0, decision: "drop" };
+  // Full score from 75% of the owner's level; falls to 0 at 30% (someone across the room).
+  const levelScore = ref ? Math.max(0, Math.min(1, (level / ref - 0.3) / 0.45)) : 1;
+  const shareScore = Math.min(1, ownShare / 0.8);
+  let confidence = Math.round(levelScore * shareScore * 100) / 100;
+  // Learned from corrections: levels this phone captured that people said weren't its owner.
+  if (notMine.length) {
+    const s = [...notMine].sort((a, b) => a - b);
+    const typical = s[Math.min(s.length - 1, Math.floor(s.length * 0.75))]!;
+    if (level <= typical * 1.15) confidence = Math.min(confidence, 0.5);
+  }
+  return { confidence, decision: confidence >= KNOWN_SPEAKER_CONFIDENCE ? "keep" : "unknown" };
+}
+
+/** Median and 90th percentile of a list (ms). */
+export function delayStats(xs: number[]): { median: number; p90: number } | null {
+  if (!xs.length) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  const at = (q: number) => s[Math.min(s.length - 1, Math.floor(q * s.length))]!;
+  return { median: at(0.5), p90: at(0.9) };
+}
+
+/** What a phone has learned from speaker corrections on lines it captured. */
+export type VoiceLearning = { own: number[]; notMine: number[]; seen: string[] };
+
+/** Applies one correction: a line this phone captured at `level` was (or wasn't) really its owner. */
+export function learnFromCorrection(l: VoiceLearning, correctionId: string, level: number, wasOwner: boolean): VoiceLearning {
+  if (l.seen.includes(correctionId)) return l;
+  const cap = (xs: number[]) => xs.slice(-30);
+  return {
+    own: wasOwner ? cap([...l.own, level]) : l.own,
+    notMine: wasOwner ? l.notMine : cap([...l.notMine, level]),
+    seen: [...l.seen, correctionId].slice(-200),
+  };
+}

@@ -4,10 +4,10 @@ import type { Line, Member } from "@/lib/room";
 import { reassignLine, undoCorrection } from "@/lib/speakers";
 
 /** Reassigns a line and offers Undo right in the toast. */
-export async function applyReassign(line: Line, speaker: Member, me: Member | undefined) {
+export async function applyReassign(line: Line, speaker: Member | null, me: Member | undefined) {
   try {
-    const id = await reassignLine(line.id, speaker.id, me?.id ?? null);
-    toast.success(`Moved to ${speaker.name}`, {
+    const id = await reassignLine(line.id, speaker?.id ?? null, me?.id ?? null);
+    toast.success(speaker ? `Moved to ${speaker.name}` : "Marked as someone not at the table", {
       description: "Nearby unsure lines from the same voice moved too.",
       action: { label: "Undo", onClick: () => void undoCorrection(id).then(() => toast("Correction undone")).catch(() => toast.error("Couldn't undo")) },
     });
@@ -36,7 +36,14 @@ export function ReassignSheet({ line, members, me, onClose }: { line: Line; memb
               {m.id === line.speaker_id && <span className="text-sm text-muted-foreground">{line.ambiguous ? "current guess" : "current"}</span>}
             </button>
           ))}
+          <button
+            onClick={() => { onClose(); if (line.speaker_id || line.ambiguous) void applyReassign(line, null, me); }}
+            className={`flex items-center gap-3 rounded-2xl border px-4 py-3 text-left text-lg ${!line.speaker_id ? "border-primary" : ""}`}>
+            <span className="h-4 w-4 rounded-full border border-dashed border-muted-foreground" />
+            <span className="flex-1">Someone not at the table</span>
+          </button>
         </div>
+        <p className="mt-3 text-xs text-muted-foreground">Fixes teach the phone that heard it, so it gets better at telling its owner apart.</p>
       </div>
     </div>
   );

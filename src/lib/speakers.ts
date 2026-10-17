@@ -3,10 +3,10 @@ import samplesFile from "./speakerSamples.json";
 
 /** Moves a line to the right speaker; nearby flagged lines from the same wrong speaker follow.
  *  Returns the correction id (undoable). */
-export async function reassignLine(lineId: string, speakerId: string, byMemberId: string | null) {
+export async function reassignLine(lineId: string, speakerId: string | null, byMemberId: string | null) {
   const { data, error } = await supabase.rpc("reassign_line", {
     p_line_id: lineId,
-    p_speaker_id: speakerId,
+    p_speaker_id: speakerId as string, // null = someone not at the table
     ...(byMemberId ? { p_by_member_id: byMemberId } : {}),
   });
   if (error) throw error;
