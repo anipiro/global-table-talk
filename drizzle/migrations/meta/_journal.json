@@ -15,6 +15,13 @@
       "when": 1792234877606,
       "tag": "0001_member_can_speak",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792235054751,
+      "tag": "0002_invites",
+      "breakpoints": true
     }
   ]
 }

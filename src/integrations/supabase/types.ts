@@ -111,6 +111,54 @@ export type Database = {
           },
         ]
       }
+      invites: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          id: string
+          revoked_at: string | null
+          room_id: string
+          token: string
+          uses: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          revoked_at?: string | null
+          room_id: string
+          token?: string
+          uses?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          revoked_at?: string | null
+          room_id?: string
+          token?: string
+          uses?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invites_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invites_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lines: {
         Row: {
           created_at: string
@@ -164,6 +212,7 @@ export type Database = {
           created_at: string
           facts: string
           id: string
+          invite_id: string | null
           language: string
           name: string
           role: string
@@ -177,6 +226,7 @@ export type Database = {
           created_at?: string
           facts?: string
           id?: string
+          invite_id?: string | null
           language?: string
           name: string
           role?: string
@@ -190,6 +240,7 @@ export type Database = {
           created_at?: string
           facts?: string
           id?: string
+          invite_id?: string | null
           language?: string
           name?: string
           role?: string
@@ -197,6 +248,13 @@ export type Database = {
           whisper_on?: boolean
         }
         Relationships: [
+          {
+            foreignKeyName: "members_invite_id_fkey"
+            columns: ["invite_id"]
+            isOneToOne: false
+            referencedRelation: "invites"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "members_room_id_fkey"
             columns: ["room_id"]
