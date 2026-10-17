@@ -57,3 +57,5 @@
 - [x] Header: room code, live dot, member avatars + count
 - [x] Channel-style tab bar with icons
 - [ ] Keep mic/Gemini pipelines intact
+
+- [x] Discord redesign: live room screen + stacked original/translation bubble feed (done 2026-10-17)
