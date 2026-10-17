@@ -80,8 +80,8 @@ export function aiStream(
       return res;
     },
   });
+  // ai@^7 rejects system-role messages (InvalidPromptError) — pass the system prompt as `instructions`.
   const messages: ModelMessage[] = [
-    { role: "system", content: system },
     {
       role: "user",
       content: opts.imageUrl
@@ -95,6 +95,7 @@ export function aiStream(
   // Chat Completions works for every provider behind the gateway (the Responses API is OpenAI-only).
   return streamText({
     model: provider.chat(model),
+    instructions: system,
     messages,
     onError: ({ error }) => console.error(`AI stream error (${model})`, error),
     abortSignal: request.signal,
