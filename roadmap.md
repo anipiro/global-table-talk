@@ -33,3 +33,4 @@
 - [ ] Undoable history of manual speaker corrections (see and revert propagated changes)
 - [ ] Overlap view: synced playback with solo/mute per lane (reads captions aloud — no audio is stored)
 - [ ] Overlap view keyboard shortcuts: scrub, switch lane, apply reassignment
+- [ ] Overlap view: highlight the soloed/playing lane and keep its segments in sync with playback
