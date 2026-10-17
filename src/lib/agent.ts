@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Lang, Member } from "./room";
-import { keepByConfidence, keepByLanguage, passesVoiceGate, speakingLevel, VOICE_GATE } from "./crosstalk";
+import { cleanTranscript, isLoudestFrame, keepByConfidence, keepByLanguage, ownsChunk, passesVoiceGate, speakingLevel, VOICE_GATE } from "./crosstalk";
 
 /** Calls the agent server endpoint; throws with a readable message on failure. */
 async function call(body: Record<string, string>) {
@@ -122,9 +122,12 @@ export async function listMics(): Promise<{ deviceId: string; label: string }[]>
   return devs.filter((d) => d.kind === "audioinput").map((d, i) => ({ deviceId: d.deviceId, label: d.label || `Microphone ${i + 1}` }));
 }
 
+// Auto gain off: with it on, iPhones boost a neighbour's voice to the same level as their owner's,
+// which makes "which phone heard it loudest" meaningless.
+const VOICE_PROCESSING = { echoCancellation: true, noiseSuppression: true, autoGainControl: false };
 const audioConstraints = () => {
   const id = micDeviceId();
-  return { audio: id ? { deviceId: { exact: id } } : true };
+  return { audio: id ? { deviceId: { exact: id }, ...VOICE_PROCESSING } : VOICE_PROCESSING };
 };
 
 /** Opens the mic, falling back to the default device when the remembered one is gone. */
@@ -135,7 +138,7 @@ export async function openMic(): Promise<MediaStream> {
     const name = (e as { name?: string })?.name;
     if (micDeviceId() && (name === "OverconstrainedError" || name === "NotFoundError")) {
       setMicDeviceId(null); // remembered mic no longer exists — forget it and use the default
-      return navigator.mediaDevices.getUserMedia({ audio: true });
+      return navigator.mediaDevices.getUserMedia({ audio: VOICE_PROCESSING });
     }
     throw e;
   }
@@ -161,6 +164,39 @@ export const micSupported = (lang?: Lang) =>
     ? typeof MediaRecorder !== "undefined" && !!pickAudioMime()
     : !!((window as never)["SpeechRecognition"] || (window as never)["webkitSpeechRecognition"]));
 
+type Frame = { rms: number; speech: boolean; loudest: boolean };
+let voiceChannel: ReturnType<typeof supabase.channel> | null = null;
+let shareTimer: ReturnType<typeof setInterval> | null = null;
+
+/** Shares this phone's live mic level with the other phones at the table and tracks theirs,
+ *  so each phone knows, moment by moment, whether it is the one closest to whoever is talking. */
+function joinVoiceLevels(member: Member) {
+  const others = new Map<string, { level: number; at: number }[]>();
+  voiceChannel = supabase.channel(`voice-${member.room_id}`, { config: { broadcast: { self: false } } });
+  voiceChannel
+    .on("broadcast", { event: "level" }, ({ payload }) => {
+      const p = payload as { id: string; level: number };
+      if (!p?.id || p.id === member.id) return;
+      const list = (others.get(p.id) ?? []).filter((x) => performance.now() - x.at < 600);
+      list.push({ level: p.level, at: performance.now() });
+      others.set(p.id, list);
+    })
+    .subscribe();
+  let windowMax = 0;
+  shareTimer = setInterval(() => {
+    voiceChannel?.send({ type: "broadcast", event: "level", payload: { id: member.id, level: windowMax } });
+    windowMax = 0;
+  }, 150);
+  return {
+    note: (rms: number) => { windowMax = Math.max(windowMax, rms); },
+    /** Loudest level each other phone reported in the last ~450ms (covers network delay). */
+    othersNow: () => {
+      const now = performance.now();
+      return [...others.values()].map((l) => Math.max(0, ...l.filter((x) => now - x.at < 450).map((x) => x.level)));
+    },
+  };
+}
+
 /** Listens on this phone's mic, writes each finished sentence as a line, and asks the agents to translate it. */
 export async function startMic(
   member: Member,
@@ -185,26 +221,32 @@ export async function startMic(
   audioCtx.createMediaStreamSource(micStream).connect(analyser);
   const buf = new Float32Array(analyser.fftSize);
   const threshold = member.voice_level ? VOICE_GATE * member.voice_level : 0;
-  let peak = 0;
-  // Frames since the last utterance boundary; their speaking level is measured exactly like calibration,
-  // so the 60% gate and loudest-phone comparison use the same yardstick on every phone.
-  let frames: number[] = [];
-  const takeLevel = () => { const lvl = speakingLevel(frames); frames = []; return lvl; };
+  // A frame counts as speech above this level (never below a fixed silence floor).
+  const speechLevel = Math.max(0.01, threshold * 0.8);
+  const levels = joinVoiceLevels(member);
+  let recent: number[] = []; // my last ~150ms of frames, compared with the other phones' 150ms maxima
+  let frames: Frame[] = [];
+  const takeFrames = () => { const f = frames; frames = []; return f; };
+  let onFrame: ((f: Frame) => void) | null = null;
   const sample = () => {
     if (!audioCtx) return;
     analyser.getFloatTimeDomainData(buf);
     const rms = Math.sqrt(buf.reduce((s, v) => s + v * v, 0) / buf.length);
-    frames.push(rms);
+    levels.note(rms);
+    recent.push(rms);
+    if (recent.length > 9) recent = recent.slice(-9);
+    const f: Frame = { rms, speech: rms >= speechLevel, loudest: isLoudestFrame(Math.max(...recent), levels.othersNow()) };
+    frames.push(f);
     if (frames.length > 1200) frames.shift();
-    peak = Math.max(peak * 0.98, rms);
-    lastPeak = peak;
-    debugCb?.({ rms: peak, threshold, dropped: droppedCount });
+    onFrame?.(f);
+    lastPeak = rms;
+    debugCb?.({ rms, threshold, dropped: droppedCount });
     requestAnimationFrame(sample);
   };
   sample();
 
   if (engine === "gemini") {
-    startGeminiMic(member, micStream, takeLevel, onError);
+    onFrame = startGeminiMic(member, micStream, takeFrames, speechLevel, threshold, onError);
     return;
   }
 
@@ -221,9 +263,9 @@ export async function startMic(
       const text = r[0].transcript.trim();
       if (!r.isFinal) { interim += text + " "; continue; }
       if (!text) continue;
-      const loudness = takeLevel();
-      peak = 0;
-      if (!keepByConfidence(r[0].confidence ?? 0) || !passesVoiceGate(loudness, member.voice_level)) {
+      const f = takeFrames();
+      const loudness = speakingLevel(f.filter((x) => x.speech).map((x) => x.rms));
+      if (!keepByConfidence(r[0].confidence ?? 0) || !passesVoiceGate(loudness, member.voice_level) || !ownsChunk(f)) {
         noteDrop(threshold);
         continue;
       }
@@ -244,36 +286,46 @@ export async function startMic(
   rec.start();
 }
 
-/** Records 3-second chunks (fresh recorder each time, so every chunk is a complete file),
- *  skips silent ones via the RMS analyser, transcribes with Gemini and posts each line. */
-function startGeminiMic(member: Member, stream: MediaStream, takeLevel: () => number, onError: (msg: string) => void) {
+/** Gemini recorder, cut by voice activity: a chunk ends ~0.6s after the speaker pauses (or at 8s),
+ *  so short phrases go out right away instead of waiting for a fixed 3s boundary, and words aren't split.
+ *  A phone only uploads chunks it "owns" — it was the loudest phone for enough of the speech. */
+const PAUSE_MS = 600;
+const MAX_CHUNK_MS = 8000;
+const IDLE_RECYCLE_MS = 4000;
+function startGeminiMic(
+  member: Member, stream: MediaStream, takeFrames: () => Frame[], speechLevel: number, threshold: number,
+  onError: (msg: string) => void,
+): (f: Frame) => void {
   wanted = true;
   const mime = pickAudioMime();
-  const SILENCE = 0.012;
+  let cur: { r: MediaRecorder; chunks: Blob[]; startedAt: number; spoke: boolean; lastSpeech: number } | null = null;
 
-  const recordChunk = () => {
+  const begin = () => {
     if (!wanted) return;
-    const chunks: Blob[] = [];
-    takeLevel(); // start this chunk's level measurement fresh
     const r = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    const c = { r, chunks: [] as Blob[], startedAt: performance.now(), spoke: false, lastSpeech: 0 };
+    r.ondataavailable = (e) => { if (e.data.size) c.chunks.push(e.data); };
+    r.start();
     recorder = r;
-    r.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
-    r.onstop = async () => {
-      recorder = null;
-      const loudness = takeLevel();
-      if (!wanted || !chunks.length) return;
-      if (loudness < SILENCE) return; // silent chunk — skip the upload
-      const chunkThreshold = member.voice_level ? VOICE_GATE * member.voice_level : 0;
-      if (!passesVoiceGate(loudness, member.voice_level)) { noteDrop(chunkThreshold); return; } // too quiet vs my calibrated voice — crosstalk
-      const blob = new Blob(chunks, { type: mime || "audio/webm" });
+    cur = c;
+    takeFrames(); // this chunk's frames start now
+  };
+
+  const finish = (c: NonNullable<typeof cur>, frames: Frame[]) => {
+    c.r.onstop = async () => {
+      if (!wanted || !c.chunks.length) return;
+      const loudness = speakingLevel(frames.filter((x) => x.speech).map((x) => x.rms));
+      if (!ownsChunk(frames)) { noteDrop(threshold); return; } // another phone was closer — not my owner talking
+      if (!passesVoiceGate(loudness, member.voice_level)) { noteDrop(threshold); return; }
+      const blob = new Blob(c.chunks, { type: mime || "audio/webm" });
       try {
         const { text, language } = await transcribeChunk(blob, member.language as Lang);
-        const clean = text.trim();
+        const clean = cleanTranscript(text, member.language);
         if (!clean) return;
-        if (!keepByLanguage(language, member.language)) { noteDrop(chunkThreshold); return; } // detected a different language — the neighbour's voice
+        if (!keepByLanguage(language, member.language)) { noteDrop(threshold); return; }
         try {
           const lineId = await insertLine(member, clean, loudness);
-          if (!lineId) { noteDrop(chunkThreshold); return; } // another phone's line won the arbitration
+          if (!lineId) { noteDrop(threshold); return; } // another phone's line won the arbitration
           call({ task: "translate", lineId }).catch((err) => onError(err.message));
         } catch {
           onError("Couldn't save what you said.");
@@ -282,21 +334,35 @@ function startGeminiMic(member: Member, stream: MediaStream, takeLevel: () => nu
         onError(e instanceof Error ? e.message : "Transcription failed");
       }
     };
-    r.start();
-    setTimeout(() => { if (r.state !== "inactive") r.stop(); }, 3000);
+    if (c.r.state !== "inactive") c.r.stop();
   };
 
-  recordChunk();
-  const loop = () => {
-    if (!wanted) return;
-    chunkTimer = setTimeout(loop, 3000);
-    recordChunk();
+  const discard = (c: NonNullable<typeof cur>) => {
+    c.r.ondataavailable = null;
+    if (c.r.state !== "inactive") c.r.stop();
   };
-  chunkTimer = setTimeout(loop, 3000);
+
+  begin();
+  return (f: Frame) => {
+    const c = cur;
+    if (!wanted || !c) return;
+    const now = performance.now();
+    if (f.speech) { c.spoke = true; c.lastSpeech = now; }
+    if (!c.spoke && now - c.startedAt > IDLE_RECYCLE_MS) {
+      begin(); // new recorder first, so nothing said in between is lost
+      discard(c);
+    } else if (c.spoke && (now - c.lastSpeech > PAUSE_MS || now - c.startedAt > MAX_CHUNK_MS)) {
+      const frames = takeFrames();
+      begin();
+      finish(c, frames);
+    }
+  };
 }
 
 export async function stopMic() {
   wanted = false;
+  if (shareTimer) { clearInterval(shareTimer); shareTimer = null; }
+  if (voiceChannel) { void supabase.removeChannel(voiceChannel); voiceChannel = null; }
   if (chunkTimer) { clearTimeout(chunkTimer); chunkTimer = null; }
   if (recorder && recorder.state !== "inactive") recorder.stop();
   recorder = null;
