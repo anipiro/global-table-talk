@@ -161,6 +161,7 @@ export type Database = {
       }
       lines: {
         Row: {
+          ambiguous: boolean
           created_at: string
           id: string
           language: string
@@ -170,6 +171,7 @@ export type Database = {
           text: string
         }
         Insert: {
+          ambiguous?: boolean
           created_at?: string
           id?: string
           language: string
@@ -179,6 +181,7 @@ export type Database = {
           text: string
         }
         Update: {
+          ambiguous?: boolean
           created_at?: string
           id?: string
           language?: string
@@ -457,6 +460,7 @@ export type Database = {
         }
         Returns: string
       }
+      line_similarity: { Args: { a: string; b: string }; Returns: number }
     }
     Enums: {
       [_ in never]: never
