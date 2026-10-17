@@ -37,6 +37,7 @@ export const Route = createFileRoute("/room/$code")({
 });
 
 type Tab = "notebook" | "agents" | "photos" | "guests" | "diagnostics";
+const TAB_ICONS: Record<Tab, typeof BookOpen> = { notebook: BookOpen, agents: MessagesSquare, photos: ImageIcon, guests: Users, diagnostics: Activity };
 
 function RoomPage() {
   const { code } = Route.useParams();
