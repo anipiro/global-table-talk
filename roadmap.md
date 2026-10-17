@@ -47,3 +47,6 @@
 - [x] Agents feed: loading, empty and connection-error states
 - [x] Agents feed: unread marker + "new messages" pill when scrolled up; auto-scroll only when at the bottom
 - [ ] Photos + end-of-night + recap memory card + polish (big text, empty states, safe areas, auto-reconnect)
+- [ ] Realtime: automatic retry with backoff; catch up on agent messages missed while disconnected
+- [ ] Presenter: pause/resume and speed for Replay demo
+- [ ] Agents feed: keyboard navigation + screen-reader announcements (new messages, unread count, connection status)
