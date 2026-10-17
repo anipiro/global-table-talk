@@ -170,7 +170,7 @@ function PresenterView() {
   );
 }
 
-function PhotoTakeover({ photo, captions, by, group }: { photo: Photo; captions: { photo_id: string; language: string; caption: string; description: string }[]; by?: string; group: boolean }) {
+function PhotoTakeover({ photo, captions, by, group }: { photo: Photo; captions: { photo_id: string; language: string; caption: string; description: string }[]; by?: string | undefined; group: boolean }) {
   const urls = useSignedUrls([photo.storage_path]);
   const caps = captions.filter((c) => c.photo_id === photo.id);
   const main = caps.find((c) => c.language === "en") ?? caps[0];
