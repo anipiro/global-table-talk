@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Lang, Member } from "./room";
-import { arbitrate, ARBITRATION_WINDOW_MS, keepByConfidence, keepByLanguage, passesVoiceGate, VOICE_GATE } from "./crosstalk";
+import { keepByConfidence, keepByLanguage, passesVoiceGate, VOICE_GATE } from "./crosstalk";
 
 /** Calls the agent server endpoint; throws with a readable message on failure. */
 async function call(body: Record<string, string>) {
