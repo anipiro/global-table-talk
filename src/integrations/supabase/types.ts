@@ -461,6 +461,10 @@ export type Database = {
         Returns: string
       }
       line_similarity: { Args: { a: string; b: string }; Returns: number }
+      reassign_line: {
+        Args: { p_line_id: string; p_speaker_id: string }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never
