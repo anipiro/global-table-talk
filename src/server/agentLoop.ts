@@ -1,5 +1,6 @@
 import { aiStream, LANG_NAME, MODELS, type db } from "@/lib/ai.server";
 import { addPicture, type PictureResult } from "./media";
+import { addMeme, type MemeResult } from "./memes";
 
 /** Feature 1 — the agent loop. Runs once per new line (called after its translations are saved):
  *  1. free checks (is there a listener? cooldown? is the line worth a look?)
@@ -14,11 +15,11 @@ type Member = { id: string; name: string; language: string; facts: string; role:
 const COOLDOWN_MS = 15_000; // max one agent exchange per room every 15 s
 const LOOP_TYPES = ["ask", "answer", "note", "missed"]; // "bridge" is written by translate on every line
 const NOTEBOOK_KIND: Partial<Record<Trigger, string>> = {
-  unknown_name: "person", reference: "glossary", visual: "glossary", joke: "moment",
+  unknown_name: "person", reference: "glossary", visual: "glossary",
 };
 
 export type LoopResult = {
-  ok: true; trigger?: Trigger; skipped?: string; reused?: boolean; models?: string[]; picture?: PictureResult | "error" | undefined;
+  ok: true; trigger?: Trigger; skipped?: string; reused?: boolean; models?: string[]; picture?: PictureResult | "error" | undefined; meme?: MemeResult | "error";
 };
 
 async function inCooldown(supa: Supa, roomId: string) {
@@ -105,13 +106,14 @@ People at the table (never unknown): ${members.map((m) => m.name).join(", ")}.
 JSON: {"trigger": "none|unknown_name|reference|visual|joke|decision|missed", "subject": "the name/thing, original spelling plus English in brackets if different", "ask": "max 12-word question, in English, from a listener's agent to ${speaker.name}'s agent"}`,
     `Last lines:\n${context}\n\nLATEST line (by ${speaker.name}): ${line.text}`);
   const trigger = trig?.trigger ?? "none";
-  if (trigger === "none" || !(trigger in NOTEBOOK_KIND || trigger === "decision" || trigger === "missed")) {
+  if (trigger === "none" || !(trigger in NOTEBOOK_KIND || ["decision", "missed", "joke"].includes(trigger))) {
     return { ok: true, trigger: "none" };
   }
   // The trigger call takes a few seconds; another line may have started an exchange meanwhile.
   if (await inCooldown(supa, roomId)) return { ok: true, trigger, skipped: "cooldown" };
 
   if (trigger === "missed") return missed(request, supa, roomId, speaker, context);
+  if (trigger === "joke") return joke(request, supa, roomId, line.id, line.text, speaker, listeners, context);
   const subject = clip(trig?.subject, 8);
   if (!subject) return { ok: true, trigger: "none" };
   if (trigger === "decision") return decision(request, supa, roomId, speaker, listeners, subject, context);
@@ -216,7 +218,7 @@ Rules:
 - About PEOPLE: state only what is in those facts or was said out loud below. Never invent. If you don't know, set known=false.
 - About culture, places, food, songs, customs: general knowledge is fine.
 - Never share health, money or relationship details unless they were said out loud.
-${trigger === "joke" ? "- Explain in one line why it's funny. Keep it kind; never mock anyone at the table.\n" : ""}JSON: {"known": true|false,
+JSON: {"known": true|false,
  "answer": "max 25 words, in English, your reply to ${asker.name}'s agent",
  "title": "notebook title: the name/term, original spelling plus English in brackets if different",
  "body": "max 2 short sentences, English, what a guest should know",
@@ -269,6 +271,24 @@ JSON: {"title": "max 6 words, English", "body": "one sentence, English: who agre
   for (const l of langs) if (res.cards?.[l]) byLang[l] = clip(res.cards[l], 40);
   await sendCards(supa, roomId, listeners, title, byLang);
   return { ok: true, trigger: "decision" };
+}
+
+/** Feature 3: the speaker's agent explains the joke, a listener's agent remakes it as a meme for the table. */
+async function joke(
+  request: Request, supa: Supa, roomId: string, lineId: string, text: string,
+  speaker: Member, listeners: Member[], context: string,
+): Promise<LoopResult> {
+  const listener = listeners.find((m) => m.role !== "talk") ?? listeners[0]!;
+  try {
+    const meme = await addMeme(request, supa, askJson, {
+      roomId, lineId, joke: text, speaker, listener, context,
+      langs: [...new Set([speaker.language, ...listeners.map((m) => m.language)])],
+    });
+    return { ok: true, trigger: "joke", meme };
+  } catch (e) {
+    console.error("meme error", e);
+    return { ok: true, trigger: "joke", meme: "error" };
+  }
 }
 
 /** The speaker sounds lost: their own agent quietly catches them up in their language. */
