@@ -130,7 +130,7 @@ const audioConstraints = () => {
 };
 
 /** Opens the mic, falling back to the default device when the remembered one is gone. */
-async function openMic(): Promise<MediaStream> {
+export async function openMic(): Promise<MediaStream> {
   try {
     return await navigator.mediaDevices.getUserMedia(audioConstraints());
   } catch (e) {

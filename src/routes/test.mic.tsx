@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Mic, Square, PhoneOff, Ban, RotateCcw, Copy, Trash2, Download } from "lucide-react";
 import { toast } from "sonner";
-import { pickAudioMime, transcribeChunk } from "@/lib/agent";
+import { listMics, micDeviceId, openMic, pickAudioMime, setMicDeviceId, transcribeChunk } from "@/lib/agent";
+import { classifyMicError } from "@/lib/crosstalk";
 import { Screen } from "@/components/JoinForm";
 import type { Lang } from "@/lib/room";
 
@@ -138,15 +139,20 @@ function MicTestPage() {
 
     let stream: MediaStream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await openMic();
+      const track = stream.getAudioTracks()[0];
+      addLog({ event: "session", detail: `Mic acquired: ${track?.label || "default"}${micDeviceId() ? " (chosen device)" : ""}`, pass: true });
     } catch (e) {
-      const name = (e as DOMException).name;
-      const msg = name === "NotAllowedError"
+      const kind = classifyMicError(e);
+      const msg = kind === "denied"
         ? "Microphone permission denied. On iPhone: Settings → Safari → Microphone, then reload."
-        : `Mic unavailable: ${(e as Error).message}`;
+        : kind === "disconnected"
+          ? "Microphone not found or busy. Pick another input below and retry."
+          : `Mic unavailable: ${(e as Error).message}`;
       setError(msg);
-      setStatus("denied");
-      addLog({ event: "denied", detail: msg, pass: false });
+      setStatus(kind === "denied" ? "denied" : "error");
+      addLog({ event: kind === "denied" ? "denied" : "error", detail: msg, pass: false });
+      listMics().then(setMics).catch(() => {});
       return;
     }
     streamRef.current = stream;
