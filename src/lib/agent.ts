@@ -61,7 +61,7 @@ export async function startMic(
   rec.onresult = async (e) => {
     let interim = "";
     for (let i = e.resultIndex; i < e.results.length; i++) {
-      const r = e.results[i];
+      const r = e.results[i]!;
       const text = r[0].transcript.trim();
       if (!r.isFinal) { interim += text + " "; continue; }
       if (!text) continue;

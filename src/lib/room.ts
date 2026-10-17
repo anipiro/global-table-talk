@@ -25,7 +25,7 @@ export const ROLES: { id: Role; label: string }[] = [
   { id: "follow", label: "Help me follow" },
   { id: "both", label: "Both" },
 ];
-const COLORS = ["#E8A35C", "#7FB7A4", "#E08C8C", "#9DB2E3", "#C7A6E0", "#E3C57F", "#8FCBD8"];
+const COLORS: string[] = ["#E8A35C", "#7FB7A4", "#E08C8C", "#9DB2E3", "#C7A6E0", "#E3C57F", "#8FCBD8"];
 
 export const memberKey = (code: string) => `gamige:member:${code.toUpperCase()}`;
 export const getMemberId = (code: string) =>
@@ -64,7 +64,7 @@ export async function joinRoom(
   const isHost = !room.host_member_id;
   const { data, error } = await supabase
     .from("members")
-    .insert({ room_id: room.id, ...input, color: COLORS[(count ?? 0) % COLORS.length], approved: isHost, invite_id: inviteId ?? null })
+    .insert({ room_id: room.id, ...input, color: COLORS[(count ?? 0) % COLORS.length]!, approved: isHost, invite_id: inviteId ?? null })
     .select()
     .single();
   if (error) throw error;
@@ -82,13 +82,13 @@ export async function seedDemo(): Promise<Room> {
   const { data: ms, error } = await supabase
     .from("members")
     .insert([
-      { room_id: room.id, name: "You", language: "en", role: "both", facts: "Visiting Tbilisi\nLove food\nLearning Georgian", color: COLORS[0], approved: true },
-      { room_id: room.id, name: "Nika", language: "ka", role: "talk", facts: "Grew up in Kakheti\nMakes wine\nHosts tonight", color: COLORS[1], approved: true },
-      { room_id: room.id, name: "Anna", language: "en", role: "follow", facts: "From Berlin\nVegetarian\nFirst time in Georgia", color: COLORS[2], approved: true },
+      { room_id: room.id, name: "You", language: "en", role: "both", facts: "Visiting Tbilisi\nLove food\nLearning Georgian", color: COLORS[0]!, approved: true },
+      { room_id: room.id, name: "Nika", language: "ka", role: "talk", facts: "Grew up in Kakheti\nMakes wine\nHosts tonight", color: COLORS[1]!, approved: true },
+      { room_id: room.id, name: "Anna", language: "en", role: "follow", facts: "From Berlin\nVegetarian\nFirst time in Georgia", color: COLORS[2]!, approved: true },
     ])
     .select();
   if (error || !ms) throw error;
-  const [you, nika, anna] = ms;
+  const [you, nika, anna] = ms as [Member, Member, Member];
   await supabase.from("rooms").update({ host_member_id: you.id }).eq("id", room.id);
   setMemberId(room.code, you.id);
 

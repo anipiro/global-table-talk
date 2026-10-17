@@ -70,7 +70,7 @@ export function aiStream(
         include: ["reasoning.encrypted_content"],
       },
     },
-    onFinish: opts.onFinish ? ({ text }) => opts.onFinish!(text) : undefined,
+    ...(opts.onFinish ? { onFinish: ({ text }: { text: string }) => opts.onFinish!(text) } : {}),
   });
 }
 
