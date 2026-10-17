@@ -7,6 +7,7 @@ import type { Database } from "@/integrations/supabase/types";
 export const MODELS = {
   default: "openai/gpt-6-astra",
   trigger: "openai/gpt-6-luna", // cheap check on every line
+  banter: "openai/gpt-6-luna", // agent humour: cheap on purpose
   translate: "google/gemini-3.1-flash-lite",
   agent: "google/gemini-3.8-flash", // agent answers, decisions, "right now" cards
   catchup: "google/gemini-3.8-flash",

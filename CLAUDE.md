@@ -46,6 +46,7 @@ Microsoft Group Transcribe. Our difference is the agents and the belonging layer
   Reasoning is off on every call (OpenAI `reasoning_effort: "none"`, Google `thinking_budget: 0`, Anthropic no
   `thinking`). Current models:
   - trigger check (agent loop): `openai/gpt-6-luna`
+  - banter (agent humour): `openai/gpt-6-luna`
   - translate: `google/gemini-3.1-flash-lite`
   - agent answers, catch-up, photo describe: `google/gemini-3.8-flash`
   - recap and the tamada toast: `anthropic/claude-sonnet-5`
@@ -89,6 +90,19 @@ Each member has one agent. An agent knows:
   shares anything about health, money, or relationships unless the human said it out loud.
 - **Reuse before creating.** Before writing a notebook entry, image, or meme, check whether another agent already
   made one for the same thing; if so, reference it (that's the "each agent knows what the other changed" proof).
+- **Banter (agent humour, `src/server/banter.ts`).** Occasionally one agent teases another agent or the situation
+  (the agents' own work, a topic that keeps coming back, a translation struggle). `agent_messages` type `note`,
+  content starts with `😄 `, ≤ 20 words, in the room's main language with other table languages after ` · `.
+  Only on lines where no other trigger fired, only when the room is lively (4+ lines in the last minute), max once
+  every 90 s per room, plus a dice roll; cheap model only; never on silence. Banter never blocks the 15 s exchange cooldown.
+- **Teasing humans only in roast mode** (`rooms.roast_mode = true`; treated as off until the column exists). Only
+  about things said out loud in `lines` — never `members.facts` (banter's prompt never receives facts or agent
+  answers, which are built from facts). Light and affectionate, like a friend at a supra.
+- **Humour hard bans:** appearance, weight, age, money, health, relationships, religion, politics, nationality
+  stereotypes, anything private. If unsure, don't send (the model can decline, then a server-side word filter).
+- **Consistent personas** (from the human's language + role, see `persona()` in `banter.ts`): Georgian agent = proud
+  tamada (toasts, grand metaphors); English agent = dry and polite (understatement); Russian agent = deadpan
+  philosopher. Role: talk = chatty, follow = quiet observer, both = listens then lands one good line.
 - **One owner per entry.** The agent that creates a notebook entry owns it; others may append a short note via
   `agent_messages` type `note` instead of editing it. No conflicts.
 

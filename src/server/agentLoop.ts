@@ -1,6 +1,7 @@
 import { aiStream, LANG_NAME, MODELS, type db } from "@/lib/ai.server";
 import { addPicture, type PictureResult } from "./media";
 import { addMeme, type MemeResult } from "./memes";
+import { BANTER_PREFIX, maybeBanter, type BanterResult } from "./banter";
 
 /** Feature 1 — the agent loop. Runs once per new line (called after its translations are saved):
  *  1. free checks (is there a listener? cooldown? is the line worth a look?)
@@ -19,13 +20,14 @@ const NOTEBOOK_KIND: Partial<Record<Trigger, string>> = {
 };
 
 export type LoopResult = {
-  ok: true; trigger?: Trigger; skipped?: string; reused?: boolean; models?: string[]; picture?: PictureResult | "error" | undefined; meme?: MemeResult | "error";
+  ok: true; trigger?: Trigger; skipped?: string; reused?: boolean; models?: string[]; picture?: PictureResult | "error" | undefined; meme?: MemeResult | "error"; banter?: BanterResult | "error";
 };
 
 async function inCooldown(supa: Supa, roomId: string) {
   const since = new Date(Date.now() - COOLDOWN_MS).toISOString();
   const { count } = await supa.from("agent_messages").select("id", { count: "exact", head: true })
-    .eq("room_id", roomId).in("type", LOOP_TYPES).gte("created_at", since);
+    .eq("room_id", roomId).in("type", LOOP_TYPES).gte("created_at", since)
+    .not("content", "like", `${BANTER_PREFIX}%`); // banter never blocks a real exchange
   return (count ?? 0) > 0;
 }
 
@@ -107,7 +109,13 @@ JSON: {"trigger": "none|unknown_name|reference|visual|joke|decision|missed", "su
     `Last lines:\n${context}\n\nLATEST line (by ${speaker.name}): ${line.text}`);
   const trigger = trig?.trigger ?? "none";
   if (trigger === "none" || !(trigger in NOTEBOOK_KIND || ["decision", "missed", "joke"].includes(trigger))) {
-    return { ok: true, trigger: "none" };
+    // Nothing to explain: maybe an agent cracks a joke instead (rare, lively rooms only).
+    try {
+      return { ok: true, trigger: "none", banter: await maybeBanter(request, supa, askJson, { roomId, members, context }) };
+    } catch (e) {
+      console.error("banter error", e);
+      return { ok: true, trigger: "none", banter: "error" };
+    }
   }
   // The trigger call takes a few seconds; another line may have started an exchange meanwhile.
   if (await inCooldown(supa, roomId)) return { ok: true, trigger, skipped: "cooldown" };
