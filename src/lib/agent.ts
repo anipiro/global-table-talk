@@ -399,10 +399,10 @@ export async function startMic(
   rec.start();
 }
 
-/** Gemini recorder, cut by voice activity: a chunk ends ~0.4s after the speaker pauses (or at 4.5s, so long
+/** Gemini recorder, cut by voice activity: a chunk ends ~0.5s after the speaker pauses (or at 4.5s, so long
  *  talkers get captions as they go), so phrases go out right away and words aren't split.
  *  A phone only uploads chunks it "owns" — it was the loudest phone for enough of the speech. */
-const PAUSE_MS = 400;
+const PAUSE_MS = 500;
 const MAX_CHUNK_MS = 4500;
 const IDLE_RECYCLE_MS = 4000;
 function startGeminiMic(member: Member, stream: MediaStream, takeFrames: () => Frame[], onError: (msg: string) => void): (f: Frame) => void {

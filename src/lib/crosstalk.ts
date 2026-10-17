@@ -146,7 +146,8 @@ export function attribute(
 ): { confidence: number; decision: "keep" | "unknown" | "drop" } {
   if (ref && level < 0.3 * ref) return { confidence: 0, decision: "drop" };
   if (ownShare < OWN_SPEECH_SHARE) return { confidence: 0, decision: "drop" };
-  const levelScore = ref ? Math.min(1, level / (0.75 * ref)) : 1;
+  // Full score from 75% of the owner's level; falls to 0 at 30% (someone across the room).
+  const levelScore = ref ? Math.max(0, Math.min(1, (level / ref - 0.3) / 0.45)) : 1;
   const shareScore = Math.min(1, ownShare / 0.8);
   let confidence = Math.round(levelScore * shareScore * 100) / 100;
   // Learned from corrections: levels this phone captured that people said weren't its owner.
