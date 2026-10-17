@@ -103,6 +103,15 @@ export function useRoom(code: string) {
     };
   }, [code, nonce]);
 
+  // The browser knows about lost Wi-Fi/cell long before the realtime heartbeat does.
+  useEffect(() => {
+    const off = () => setStatus((st) => (st === "live" ? "offline" : st));
+    const on = () => setNonce((n) => n + 1); // reload anything missed while offline
+    window.addEventListener("offline", off);
+    window.addEventListener("online", on);
+    return () => { window.removeEventListener("offline", off); window.removeEventListener("online", on); };
+  }, []);
+
   /** Reloads the room and reconnects (used by "Try again" buttons). */
   const retry = () => setNonce((n) => n + 1);
   return { status, retry, room, members, lines, translations, agentMessages, notebook, photos, captions, cards, corrections };
