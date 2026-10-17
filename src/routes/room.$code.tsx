@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Mic, MicOff, Headphones, Sparkles, Type, Camera, ImagePlus, History, Share2, Moon, X, ChevronUp, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { getMemberId, inviteUrl, type Line, type Member } from "@/lib/room";
+import { getMemberId, inviteUrl, type Lang, type Line, type Member } from "@/lib/room";
 import { fmtTime, useRoom, useSignedUrls, useWakeLock } from "@/lib/useRoom";
 import { describePhoto, generateRecap, micSupported, playWhisper, requestCatchUp, startMic, stopMic } from "@/lib/agent";
 import { shareLink } from "@/lib/invites";
