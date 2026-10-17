@@ -44,7 +44,12 @@ function OverlapPage() {
   const { code } = Route.useParams();
   const { room, members, lines, corrections, translations } = useRoom(code);
   const me = members.find((m) => m.id === getMemberId(code));
-  const lanes = useMemo(() => members.filter((m) => m.approved || lines.some((l) => l.speaker_id === m.id)), [members, lines]);
+  const lanes = useMemo(() => {
+    const ls = members.filter((m) => m.approved || lines.some((l) => l.speaker_id === m.id));
+    // Lines nobody could be sure about get their own lane instead of landing on a person.
+    if (lines.some((l) => !l.speaker_id)) ls.push({ id: "", name: "Unknown speaker", color: "#8a8178" } as (typeof members)[number]);
+    return ls;
+  }, [members, lines]);
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const overlaps = useMemo(() => findOverlaps(lines), [lines]);
 
@@ -127,7 +132,7 @@ function OverlapPage() {
       else if (k === "ArrowUp") { e.preventDefault(); setLaneIdx((i) => Math.max(0, i - 1)); }
       else if (k === "Enter") {
         const l = lines.find((x) => x.id === selected);
-        if (l && focusLane && (l.speaker_id !== focusLane.id || l.ambiguous)) void applyReassign(l, focusLane, me);
+        if (l && focusLane?.id && (l.speaker_id !== focusLane.id || l.ambiguous)) void applyReassign(l, focusLane, me);
       }
       else if (k === "s" || k === "S") { if (focusLane) toggleSolo(focusLane.id); }
       else if (k === "m" || k === "M") { if (focusLane) toggleMute(focusLane.id); }
@@ -230,7 +235,7 @@ function OverlapPage() {
           <div className="pointer-events-none absolute inset-x-0 z-10 border-t-2 border-primary" style={{ top: pos * PX_PER_MS + 8 }} />
           {shown.map(({ seg, at }) => {
             const l = seg as Line;
-            const lane = lanes.findIndex((m) => m.id === l.speaker_id);
+            const lane = lanes.findIndex((m) => m.id === (l.speaker_id ?? ""));
             const sp = byId.get(l.speaker_id ?? "");
             const isActive = active.has(l.id), isSel = selected === l.id, isOverlap = overlaps.has(l.id);
             const laneAudible = audible.has(l.speaker_id ?? "");
