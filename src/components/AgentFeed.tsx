@@ -10,7 +10,7 @@ const TYPE_CLASS: Record<string, string> = {
   bridge: "text-type-bridge border-type-bridge/40 bg-type-bridge/10",
 };
 
-export type FeedStatus = "loading" | "live" | "offline" | "error";
+export type FeedStatus = "loading" | "live" | "reconnecting" | "offline" | "error";
 
 export function Avatar({ member, size = 32 }: { member: Member | undefined; size?: number }) {
   return (

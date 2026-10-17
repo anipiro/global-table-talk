@@ -26,7 +26,7 @@ export function useRoom(code: string) {
   const [cards, setCards] = useState<Card[]>([]);
   const [corrections, setCorrections] = useState<SpeakerCorrection[]>([]);
   /** loading → live; "offline" when the realtime connection drops; "error" when the first load failed. */
-  const [status, setStatus] = useState<"loading" | "live" | "offline" | "error">("loading");
+  const [status, setStatus] = useState<"loading" | "live" | "reconnecting" | "offline" | "error">("loading");
   const [nonce, setNonce] = useState(0);
   const lineIds = useRef(new Set<string>());
   const photoIds = useRef(new Set<string>());
@@ -42,7 +42,7 @@ export function useRoom(code: string) {
     let channel: ReturnType<typeof supabase.channel> | null = null;
     (async () => {
       // Keep showing what we have while reconnecting; only a first load shows the loading state.
-      setStatus((st) => (st === "loading" || st === "error" ? "loading" : "offline"));
+      setStatus((st) => (st === "loading" || st === "error" ? "loading" : st === "offline" ? "offline" : "reconnecting"));
       const { data: r, error: roomErr } = await supabase.from("rooms").select().eq("code", code.toUpperCase()).maybeSingle();
       if (cancelled) return;
       if (roomErr) { setStatus("error"); return; }
