@@ -359,7 +359,7 @@ function RoomPage() {
             return (
               <button key={t} onClick={() => { setTab(t); setSheetOpen(true); }}
                 className={`flex-1 rounded-full py-2 font-semibold capitalize ${sheetOpen && tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>
-                {t}{pending > 0 && <span className="ml-1 rounded-full bg-destructive px-1.5 text-xs text-destructive-foreground">{pending}</span>}
+                {t === "diagnostics" ? "Diag." : t}{pending > 0 && <span className="ml-1 rounded-full bg-destructive px-1.5 text-xs text-destructive-foreground">{pending}</span>}
               </button>
             );
           })}
