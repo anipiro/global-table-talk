@@ -210,14 +210,23 @@ export function AgentFeed({ msgs, byId, meId, large = false, status = "live", re
                   <div data-msg tabIndex={-1} aria-label={describe(m, byId, meId)}
                     className={`flex items-start gap-3 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring ${isNew(m.id) ? "animate-msg-in" : ""}`}>
                     <Avatar member={from} size={av} />
-                    <div className={`min-w-0 flex-1 rounded-2xl rounded-tl-sm bg-secondary ${large ? "p-5" : "p-3"}`}>
+                    <div className={`min-w-0 flex-1 rounded-2xl rounded-tl-sm ${banter ? "border border-speaking/40 bg-speaking/10" : "bg-secondary"} ${large ? "p-5" : "p-3"}`}>
                       <p className={`flex flex-wrap items-center gap-x-1.5 gap-y-1 text-muted-foreground ${large ? "text-xl" : "text-[0.8em]"}`}>
                         <span className="font-semibold" style={{ color: from?.color }}>{agentName(from, meId)}</span>
                         <span aria-hidden>→</span>
                         {to ? <span className="font-semibold" style={{ color: to.color }}>{agentName(to, meId)}</span> : <span>table</span>}
-                        <span className={`ml-1 rounded-full border px-2 ${large ? "text-base" : "text-[0.85em]"} ${TYPE_CLASS[m.type] ?? "border-border"}`}>{m.type}</span>
+                        <span className={`ml-1 rounded-full border px-2 ${large ? "text-base" : "text-[0.85em]"} ${banter ? "border-speaking/40 bg-speaking/15 text-speaking" : (TYPE_CLASS[m.type] ?? "border-border")}`}>{banter ? "banter" : m.type}</span>
                       </p>
-                      <p className={`mt-1 leading-snug ${large ? "text-[30px]" : ""}`}>{m.content}</p>
+                      {linked ? (
+                        <button onClick={() => onOpenMedia!(linked.id)}
+                          className={`mt-1 flex items-center gap-2 rounded-xl text-left leading-snug underline decoration-primary/50 underline-offset-4 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring ${large ? "text-[30px]" : ""}`}
+                          aria-label={`${m.content} — open the ${linked.kind === "meme" ? "meme" : "picture"}`}>
+                          <ImageIcon className={`shrink-0 text-primary ${large ? "h-7 w-7" : "h-4 w-4"}`} aria-hidden />
+                          <span>{m.content}</span>
+                        </button>
+                      ) : (
+                        <p className={`mt-1 leading-snug ${large ? "text-[30px]" : ""}`}>{m.content}</p>
+                      )}
                     </div>
                   </div>
                 </li>
