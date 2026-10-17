@@ -12,7 +12,7 @@ export const NOTEBOOK_SECTIONS: { kind: string; label: string }[] = [
 const LABEL = Object.fromEntries(NOTEBOOK_SECTIONS.map((s) => [s.kind, s.label]));
 
 /** Entries present on first render don't animate; everything added later slides in and glows. */
-function useIsNew(entries: { id: string }[]) {
+export function useIsNew(entries: { id: string }[]) {
   const initial = useRef<Set<string> | null>(null);
   if (initial.current === null) initial.current = new Set(entries.map((e) => e.id));
   return (id: string) => !initial.current!.has(id);
