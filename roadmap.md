@@ -5,3 +5,6 @@
 - [x] Host controls: approve/remove guests, mute/allow speaking
 - [x] Invite links: 12h expiry, revocation, reusable, approval queue
 - [x] End-to-end regression test: host approves a guest, approval persists after host and guest refresh
+- [ ] Georgian transcription test path: "transcribe" task in /api/agent (Gemini 3.5 Transcribe via Lovable AI, language hint), 3s MediaRecorder chunks in src/lib/agent.ts with silence skip, engine choice (ka→Gemini, en/ru→Web Speech, hidden force-Gemini setting), /test/mic page with record button, live transcript, per-chunk latency
+- [ ] Review recorder/Gemini flow for iPhone Safari edge cases (no other feature changes)
+- [ ] Define pass criteria: Georgian transcript accuracy, chunk latency, iPhone Safari recording — before wiring into the app
