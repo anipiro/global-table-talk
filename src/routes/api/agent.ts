@@ -31,7 +31,7 @@ async function transcript(supa: ReturnType<typeof db>, roomId: string, lang: str
 }
 
 async function handle(request: Request) {
-  const body = (await request.json()) as { task: string; [k: string]: string };
+  const body = (await request.json()) as { task: string; lineId: string; memberId: string; photoId: string; roomId: string };
   const supa = db();
   try {
     if (body.task === "translate") {
@@ -83,8 +83,8 @@ async function handle(request: Request) {
         { imageUrl: signed.signedUrl });
       const out = await r.text;
       const rows = out.split("\n").map((l) => l.split("|").map((s) => s.trim()))
-        .filter((p) => p.length >= 3 && langs.includes(p[0]))
-        .map(([language, caption, description]) => ({ photo_id: photo.id, language, caption, description }));
+        .filter((p) => p.length >= 3 && langs.includes(p[0]!))
+        .map((p) => ({ photo_id: photo.id, language: p[0]!, caption: p[1]!, description: p[2]! }));
       if (rows.length) await supa.from("photo_captions").insert(rows);
       return json({ ok: true });
     }
