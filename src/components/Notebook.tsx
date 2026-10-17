@@ -1,7 +1,9 @@
 import { useRef } from "react";
+import { BarChart3 } from "lucide-react";
 import type { Media, Member, NotebookEntry } from "@/lib/room";
 import { agentName } from "./AgentFeed";
 import { isTonightMedia, MediaCard } from "./Media";
+import { pollText, type Poll } from "./Polls";
 
 export const NOTEBOOK_SECTIONS: { kind: string; label: string }[] = [
   { kind: "person", label: "People" },
@@ -22,23 +24,36 @@ function AddedBy({ owner }: { owner: Member | undefined }) {
   return <p className="mt-1 text-xs text-muted-foreground">added by <span style={{ color: owner?.color }}>{owner ? agentName(owner) : "an agent"}</span></p>;
 }
 
-/** Notebook grouped into People, Glossary, Decisions, Moments, with counts. Media shows inside its entry, plus a Media section. */
-export function NotebookSections({ entries, byId, media = [], lang = "en" }: { entries: NotebookEntry[]; byId: Map<string, Member>; media?: Media[]; lang?: string }) {
+/** Notebook grouped into People, Glossary, Decisions, Moments, with counts. Media shows inside its entry, plus a Media section. Closed polls appear under Decisions. */
+export function NotebookSections({ entries, byId, media = [], lang = "en", polls = [] }: { entries: NotebookEntry[]; byId: Map<string, Member>; media?: Media[]; lang?: string; polls?: Poll[] }) {
   const isNew = useIsNew(entries);
   const isNewMedia = useIsNew(media);
   const linked = new Set(media.filter((m) => m.notebook_id).map((m) => m.id));
   const loose = media.filter((m) => !linked.has(m.id) && !isTonightMedia(m));
-  if (!entries.length && !media.length) return <p className="pt-4 text-muted-foreground">The agents will jot down people, words, decisions and moments here.</p>;
+  const closedPolls = polls.filter((p) => p.status === "closed");
+  if (!entries.length && !media.length && !closedPolls.length) return <p className="pt-4 text-muted-foreground">The agents will jot down people, words, decisions and moments here.</p>;
   return (
     <div className="flex flex-col gap-5 pt-2">
       {NOTEBOOK_SECTIONS.map(({ kind, label }) => {
         const list = entries.filter((e) => e.kind === kind);
+        const sectionPolls = kind === "decision" ? closedPolls : [];
         return (
           <section key={kind}>
             <h3 className="mb-2 flex items-center gap-2 text-sm uppercase tracking-widest text-muted-foreground">
-              {label} <span className="rounded-full bg-secondary px-2 text-xs tabular-nums normal-case tracking-normal">{list.length}</span>
+              {label} <span className="rounded-full bg-secondary px-2 text-xs tabular-nums normal-case tracking-normal">{list.length + sectionPolls.length}</span>
             </h3>
-            {!list.length && <p className="text-sm text-muted-foreground/70">Nothing yet.</p>}
+            {!list.length && !sectionPolls.length && <p className="text-sm text-muted-foreground/70">Nothing yet.</p>}
+            {sectionPolls.length > 0 && (
+              <div className="mb-2 flex flex-col gap-2">
+                {sectionPolls.map((p) => (
+                  <div key={p.id} className="rounded-2xl bg-secondary p-3">
+                    <p className="flex items-center gap-2 font-semibold"><BarChart3 className="h-4 w-4 text-primary" aria-hidden /> {pollText(p.question_by_language, lang)}</p>
+                    <p className="text-muted-foreground">{p.result_text_by_language ? pollText(p.result_text_by_language, lang) : "Decided by vote"}</p>
+                    <AddedBy owner={byId.get(p.created_by_member_id ?? "")} />
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="flex flex-col gap-2">
               {list.map((e) => {
                 const attached = media.filter((m) => m.notebook_id === e.id);

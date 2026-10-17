@@ -19,6 +19,7 @@ import { CardStack } from "@/components/CardStack";
 import { renderBold } from "@/lib/richText";
 import { PhotoGrid, PhotoViewer } from "@/components/Photos";
 import { AgentMediaSection, MediaCard, MediaViewer, mediaByLine } from "@/components/Media";
+import { PollCard, settlePoll } from "@/components/Polls";
 import { isGroupPhoto, sharePhoto } from "@/lib/photos";
 import { LANGS } from "@/lib/room";
 
@@ -44,7 +45,7 @@ function RoomPage() {
   const { code } = Route.useParams();
   const nav = useNavigate();
   const data = useRoom(code);
-  const { room, members, lines, translations, agentMessages, notebook, photos, captions, cards, corrections, media } = data;
+  const { room, members, lines, translations, agentMessages, notebook, photos, captions, cards, corrections, media, polls, pollVotes } = data;
   const meId = getMemberId(code);
   const me = members.find((m) => m.id === meId);
   const isHost = !!room && room.host_member_id === meId;
@@ -105,6 +106,22 @@ function RoomPage() {
       toast(`${who} shared a photo`, { action: { label: "Open", onClick: () => { setTab("photos"); setSheetOpen(true); setViewPhoto(p.id); } } });
     }
   }, [photos, data.status, meId, members]);
+
+  // Settle an open poll once everyone approved has voted or the countdown ended (once per poll per client).
+  const settling = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const approved = members.filter((m) => m.approved);
+    for (const p of polls) {
+      if (p.status !== "open" || settling.current.has(p.id)) continue;
+      const voted = new Set(pollVotes.filter((v) => v.poll_id === p.id).map((v) => v.member_id));
+      const allVoted = approved.length > 0 && approved.every((m) => voted.has(m.id));
+      const expired = new Date(p.closes_at).getTime() <= Date.now();
+      if (allVoted || expired) {
+        settling.current.add(p.id);
+        void settlePoll(p.id);
+      }
+    }
+  }, [polls, pollVotes, members]);
 
   useEffect(() => {
     setMicDebug(debugOn ? setDebug : null);
@@ -347,8 +364,21 @@ function RoomPage() {
 
       {/* private cards */}
       <div className="pointer-events-none absolute inset-x-0 top-20 z-30 flex flex-col gap-2 px-3">
-        <CardStack big={big} cards={myCards} onDismiss={(id) => setDismissed((d) => new Set(d).add(id))} />
+        <CardStack big={big} cards={myCards} members={members} onDismiss={(id) => setDismissed((d) => new Set(d).add(id))} />
       </div>
+
+      {/* polls: the newest open one slides up; a freshly closed one shows its result briefly */}
+      {(() => {
+        const open = polls.filter((p) => p.status === "open").slice(-1)[0];
+        const fresh = polls.filter((p) => p.status === "closed" && Date.now() - new Date(p.created_at).getTime() < 10 * 60_000).slice(-1)[0];
+        const shown = open ?? (fresh && Date.now() - new Date(fresh.closes_at).getTime() < 30_000 ? fresh : null);
+        if (!shown) return null;
+        return (
+          <div className="pointer-events-none absolute inset-x-0 bottom-40 z-30 px-3">
+            <PollCard key={shown.id} poll={shown} votes={pollVotes} members={members} meId={me.id} lang={me.language} big={big} />
+          </div>
+        );
+      })()}
 
       {streaming !== null && (
         <div className="fixed inset-0 z-50 flex items-end bg-background/60 backdrop-blur-sm" onClick={() => catchDone && setStreaming(null)}>
@@ -447,7 +477,7 @@ function RoomPage() {
         </div>
         {sheetOpen && (
           <div className={`h-[calc(55dvh-3.5rem)] px-4 ${tab === "agents" ? "overflow-hidden pb-2" : "overflow-y-auto pb-6"}`}>
-            {tab === "notebook" && <NotebookSections entries={notebook} byId={byId} media={media} lang={me.language} />}
+            {tab === "notebook" && <NotebookSections entries={notebook} byId={byId} media={media} lang={me.language} polls={polls} />}
             {tab === "agents" && <AgentFeed msgs={agentMessages} byId={byId} meId={me.id} status={data.status} retryIn={data.retryIn} onRetry={data.retry} media={media} onOpenMedia={setViewMedia} />}
             {tab === "photos" && (
               <>

@@ -9,7 +9,8 @@ import { useSignedUrls } from "@/lib/useRoom";
 import { Shimmer } from "@/components/Photos";
 import { isGroupPhoto } from "@/lib/photos";
 import { MediaCard } from "@/components/Media";
-import type { Media, Photo } from "@/lib/room";
+import { PollTakeover } from "@/components/Polls";
+import type { AgentMessage, Media, Member, Photo } from "@/lib/room";
 
 export const Route = createFileRoute("/t/$code_/screen")({
   ssr: false,
@@ -28,7 +29,7 @@ export const Route = createFileRoute("/t/$code_/screen")({
 
 function PresenterView() {
   const { code } = Route.useParams();
-  const { room, members, lines, translations, agentMessages, notebook, photos, captions, media, status, retryIn, retry } = useRoom(code);
+  const { room, members, lines, translations, agentMessages, notebook, photos, captions, media, polls, pollVotes, status, retryIn, retry } = useRoom(code);
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const [full, setFull] = useState(false);
   const [replay, setReplay] = useState<string | null>(null);
@@ -55,6 +56,21 @@ function PresenterView() {
     fresh.forEach((m) => knownMedia.current!.add(m.id));
     if (fresh.length) setQueue((q) => [...q, ...fresh.map((m) => ({ kind: "media" as const, media: m }))]);
   }, [media, status]);
+  // A new "🤝" agent note animates the two members' avatars connecting for 3 seconds.
+  const knownNotes = useRef<Set<string> | null>(null);
+  const [handshake, setHandshake] = useState<AgentMessage | null>(null);
+  useEffect(() => {
+    if (status === "loading") return;
+    if (!knownNotes.current) { knownNotes.current = new Set(agentMessages.map((m) => m.id)); return; }
+    const fresh = agentMessages.filter((m) => !knownNotes.current!.has(m.id));
+    fresh.forEach((m) => knownNotes.current!.add(m.id));
+    const shake = fresh.find((m) => m.content.startsWith("🤝"));
+    if (!shake) return;
+    setHandshake(shake);
+    const t = setTimeout(() => setHandshake(null), 3000);
+    return () => clearTimeout(t);
+  }, [agentMessages, status]);
+  const openPoll = polls.filter((p) => p.status === "open").slice(-1)[0];
   const showing = queue[0];
   useEffect(() => {
     if (!showing) return;
@@ -111,6 +127,7 @@ function PresenterView() {
             <span key={m.id} title={m.name} className="rounded-full ring-4 ring-background"><Avatar member={m} size={48} /></span>
           ))}
         </div>
+        {handshake && <HandshakeOverlay msg={handshake} members={visible} />}
         <span className="text-xl text-muted-foreground">{visible.map((m) => m.name).join(" · ")}</span>
         <div className="ml-auto flex items-center gap-2 text-sm">
           {replay ? (
@@ -159,7 +176,9 @@ function PresenterView() {
           </div>
         </section>
 
-        {showing ? (
+        {openPoll ? (
+          <PollTakeover key={openPoll.id} poll={openPoll} votes={pollVotes} members={members} />
+        ) : showing ? (
           showing.kind === "media" ? (
             <MediaTakeover key={showing.media.id} media={showing.media} by={byId.get(showing.media.created_by_member_id ?? "")?.name} />
           ) : (
@@ -200,6 +219,30 @@ function PhotoTakeover({ photo, captions, by, group }: { photo: Photo; captions:
         </div>
       ) : <div><Shimmer className="h-8 w-2/3" /><Shimmer className="mt-2 h-6 w-1/2" /></div>}
     </section>
+  );
+}
+
+/** "🤝" note: the two members' avatars connect with a glowing line for 3 seconds. */
+function HandshakeOverlay({ msg, members }: { msg: AgentMessage; members: Member[] }) {
+  const byId = new Map(members.map((m) => [m.id, m]));
+  let a = msg.from_member_id ? byId.get(msg.from_member_id) : undefined;
+  let b = msg.to_member_id ? byId.get(msg.to_member_id) : undefined;
+  if (!a || !b) {
+    const hay = msg.content.toLowerCase();
+    const named = members.filter((m) => hay.includes(m.name.toLowerCase()));
+    a ??= named[0];
+    b ??= named.find((m) => m.id !== a?.id);
+  }
+  if (!a || !b) return null;
+  return (
+    <div className="animate-msg-in flex items-center gap-0 rounded-full bg-card/90 px-4 py-2 shadow-xl" role="status" aria-label={msg.content}>
+      <Avatar member={a} size={44} />
+      <span className="relative mx-1 h-1 w-16 overflow-visible rounded-full bg-primary shadow-[0_0_12px_3px] shadow-primary/70">
+        <span className="absolute inset-0 animate-ping rounded-full bg-primary/60" />
+      </span>
+      <Avatar member={b} size={44} />
+      <span className="ml-3 max-w-md truncate text-lg text-muted-foreground">{msg.content.replace(/^🤝\s*/, "")}</span>
+    </div>
   );
 }
 
