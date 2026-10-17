@@ -40,6 +40,13 @@ export const DEMO_SCRIPT: Step[] = [
   { type: "agent", from: "en", to: "ka", kind: "note", content: "Your agent turned Nika's joke into a meme." },
   { type: "media", who: "en", kind: "meme", subject: "wine never runs out", url: "https://i.imgflip.com/30b1gx.jpg",
     caps: { en: "ONE TOAST BEFORE DINNER\nTWELVE TOASTS BEFORE DINNER", ka: "ერთი სადღეგრძელო ვახშამამდე\nთორმეტი სადღეგრძელო ვახშამამდე" }, credit: "Imgflip template" },
+  { type: "poll", who: "en",
+    question: { en: "One more toast before dinner?", ka: "კიდევ ერთი სადღეგრძელო ვახშამამდე?" },
+    options: [
+      { id: "yes", label: { en: "Yes — gaumarjos!", ka: "კი — გაუმარჯოს!" } },
+      { id: "dessert", label: { en: "Save it for dessert", ka: "დავტოვოთ დესერტამდე" } },
+    ],
+    votes: [ { who: "ka", option: "yes" }, { who: "en", option: "yes" } ] },
   { type: "line", who: "en", text: "Exactly. Another bottle, another toast!", tr: "ზუსტად. კიდევ ერთი ბოთლი, კიდევ ერთი სადღეგრძელო!" },
 ];
 
@@ -70,6 +77,32 @@ export async function insertStep(roomId: string, step: Step, cast: Record<"ka" |
       query: step.subject, url: step.url, caption_by_language: step.caps, credit: step.credit,
       created_by_member_id: cast[step.who].id, ...ts,
     });
+  } else if (step.type === "poll") {
+    // Same shape the poll task writes: open poll + the cast's votes, so phones settle it live.
+    const atMs = at ? new Date(at).getTime() : Date.now();
+    const { data: poll, error } = await supabase
+      .from("polls")
+      .insert({
+        room_id: roomId, line_id: lineId ?? null, question_by_language: step.question,
+        options: step.options.map((o) => ({ id: o.id, label_by_language: o.label })),
+        status: "open", closes_at: new Date(atMs + 60_000).toISOString(),
+        created_by_member_id: cast[step.who].id, ...ts,
+      })
+      .select("id")
+      .single();
+    if (error) throw error;
+    if (step.votes.length) {
+      await supabase.from("poll_votes").insert(
+        step.votes.map((v) => ({ poll_id: poll.id, member_id: cast[v.who].id, option_id: v.option, ...ts })),
+      );
+    }
+  } else if (step.type === "shared") {
+    await supabase.from("agent_messages").insert({
+      room_id: roomId, from_member_id: cast.ka.id, to_member_id: cast.en.id, type: "note", content: step.note, ...ts,
+    });
+    await supabase.from("cards").insert(
+      (["ka", "en"] as const).map((who) => ({ room_id: roomId, member_id: cast[who].id, kind: "shared", title: step.title, body: step.body, ...ts })),
+    );
   } else {
     await supabase.from("cards").insert({ room_id: roomId, member_id: cast[step.to].id, kind: step.kind, title: step.title, body: step.body, ...ts });
   }
