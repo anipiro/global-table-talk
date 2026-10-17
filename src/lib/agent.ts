@@ -17,6 +17,35 @@ async function call(body: Record<string, string>) {
 
 const SPEECH_LANG: Record<Lang, string> = { ka: "ka-GE", en: "en-US", ru: "ru-RU" };
 
+/** Speech engine per member: Georgian uses the Gemini chunk recorder; en/ru use the browser's Web Speech API.
+ *  Hidden setting: localStorage "gamige-force-gemini" = "1" forces Gemini for everyone (for comparison testing). */
+export function speechEngine(lang: Lang): "gemini" | "webspeech" {
+  if (typeof localStorage !== "undefined" && localStorage.getItem("gamige-force-gemini") === "1") return "gemini";
+  return lang === "ka" ? "gemini" : "webspeech";
+}
+
+/** Picks the best audio mimeType this browser's MediaRecorder supports (Safari records audio/mp4). */
+export function pickAudioMime(): string {
+  if (typeof MediaRecorder === "undefined") return "";
+  for (const t of ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"])
+    if (MediaRecorder.isTypeSupported(t)) return t;
+  return "";
+}
+
+/** Sends one audio chunk to the server transcriber; returns text + detected language. */
+export async function transcribeChunk(blob: Blob, languageHint: Lang): Promise<{ text: string; language: string | null }> {
+  const ext = blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : "webm";
+  const form = new FormData();
+  form.append("file", new File([blob], `chunk.${ext}`, { type: blob.type || "audio/webm" }));
+  form.append("language", languageHint);
+  const res = await fetch("/api/agent", { method: "POST", body: form });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Transcription failed" }));
+    throw new Error(err.error ?? "Transcription failed");
+  }
+  return res.json();
+}
+
 type Rec = {
   lang: string; continuous: boolean; interimResults: boolean;
   onresult: (e: { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => void;
