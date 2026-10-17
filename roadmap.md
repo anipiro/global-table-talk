@@ -17,3 +17,5 @@
 - [ ] Automated tests for crosstalk rules: language mismatch, zero-confidence, 60% threshold, loudest-phone arbitration
 - [ ] Settings action to recalibrate voice_level with success confirmation
 - [ ] Make loudest-phone arbitration atomic via a database function (rpc insert_line)
+- [ ] Recovery states: mic denial, device disconnect, unsupported speech recognition
+- [ ] Store voice_level calibration time + device; flag recalibration after phone change
