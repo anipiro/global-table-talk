@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { aiStream, db, LANG_NAME, transcribeAudio } from "@/lib/ai.server";
+import { runAgentLoop } from "@/server/agentLoop";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -69,6 +70,10 @@ async function handle(request: Request) {
         });
       }
       return json({ ok: true, languages: targets });
+    }
+
+    if (body.task === "agent") {
+      return json(await runAgentLoop(request, supa, body.lineId));
     }
 
     if (body.task === "catchup") {

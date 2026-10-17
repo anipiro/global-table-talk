@@ -309,7 +309,9 @@ async function handleUtterance(
       saveLearning(member.id, { ...l, own: [...l.own, level].slice(-30) });
     }
     logDecision({ ...base, text: clean, outcome: verdict.decision === "keep" ? "kept" : "unknown", reason: verdict.decision === "keep" ? "sounds like you" : "not sure it was you", delayMs });
-    call({ task: "translate", lineId }).catch((err) => onError(err.message));
+    call({ task: "translate", lineId })
+      .then(() => runAgents(lineId))
+      .catch((err) => onError(err.message));
   } catch (e) {
     onError(e instanceof Error ? e.message : "Couldn't save what you said.");
   }
@@ -465,6 +467,18 @@ export async function stopMic() {
   micStream = null;
   await audioCtx?.close().catch(() => {});
   audioCtx = null;
+}
+
+/** Lets the agents look at a saved line (ask/answer, notebook, context cards). Quiet by design:
+ *  the server usually decides there's nothing to do, and failures never interrupt the speaker. */
+export async function runAgents(lineId: string) {
+  try {
+    const res = await call({ task: "agent", lineId });
+    return (await res.json()) as { trigger?: string; skipped?: string; reused?: boolean };
+  } catch (e) {
+    console.warn("agent loop", e);
+    return null;
+  }
 }
 
 /** Streams a personal catch-up from my agent; the finished text is also saved as a private card. */
