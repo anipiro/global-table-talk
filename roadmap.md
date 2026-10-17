@@ -36,3 +36,5 @@
 - [x] Overlap view: highlight the soloed/playing lane and keep its segments in sync with playback
 - [x] Overlap view: playback clock follows segment timestamps so overlapping lanes keep their relative timing
 - [x] Overlap view: discoverable keyboard-shortcut guide (scrub, switch lane, reassign)
+- [x] Fix: one person could not talk (voice setup too loud → everything dropped); mix-ups still happening; delay too long
+- [x] Export reviewed transcript (speaker labels, timestamps, unsure flags) as CSV/text from the overlap view

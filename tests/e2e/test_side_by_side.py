@@ -45,10 +45,13 @@ def rpc(name, **args):
 
 
 class Table:
+    def __init__(self, voice_level=None):
+        self.voice_level = voice_level
+
     def __enter__(self):
         code = "".join(random.choice("ABCDEFGHJKLMNPQRSTUVWXYZ") for _ in range(4))
         self.room = rest("POST", "rooms", json={"code": code, "status": "ended"})[0]["id"]
-        lv = SAMPLES["voice_level"]
+        lv = self.voice_level or SAMPLES["voice_level"]
         ms = rest("POST", "members", json=[
             {"room_id": self.room, "name": "Side A", "language": "ka", "approved": True, "voice_level": lv["A"]},
             {"room_id": self.room, "name": "Side B", "language": "ka", "approved": True, "voice_level": lv["B"]},
@@ -72,7 +75,7 @@ class Table:
 class SideBySideTest(unittest.TestCase):
     def test_overlapping_dialogue_stays_with_the_right_speaker(self):
         for s in SAMPLES["samples"]:
-            with self.subTest(sample=s["id"]), Table() as t:
+            with self.subTest(sample=s["id"]), Table(s.get("voice_level")) as t:
                 utt_of = {}
                 for e in s["events"]:
                     lid = t.say(e["phone"], e["text"], e["loudness"])

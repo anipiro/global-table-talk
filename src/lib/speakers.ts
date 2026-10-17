@@ -26,6 +26,7 @@ export type Sample = {
   events: { utt: number; phone: "A" | "B"; text: string; loudness: number }[];
   truth: Record<string, "A" | "B">;
   ambiguous?: string[];
+  voice_level?: { A: number; B: number };
 };
 export const SAMPLES = samplesFile.samples as Sample[];
 
@@ -48,7 +49,7 @@ async function runSample(s: Sample): Promise<SampleResult> {
     room = data;
   }
   if (!room) throw new Error("Couldn't create a test table");
-  const levels = samplesFile.voice_level;
+  const levels = s.voice_level ?? samplesFile.voice_level;
   try {
     const { data: ms, error } = await supabase
       .from("members")

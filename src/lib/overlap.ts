@@ -40,3 +40,19 @@ export function scrubTarget(plan: { at: number }[], pos: number, dir: 1 | -1): n
   const prev = [...plan].reverse().find((p) => p.at < pos - 1);
   return prev?.at ?? 0;
 }
+
+export type ExportRow = { at: string; speaker: string; language: string; text: string; translation?: string | undefined; unsure: boolean; overlap: boolean; corrected: boolean };
+
+const csvCell = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+
+/** Reviewed transcript as CSV (one row per line, ISO timestamps, speaker labels and review flags). */
+export function transcriptCsv(rows: ExportRow[]): string {
+  const head = ["timestamp", "speaker", "language", "text", "translation", "unsure_speaker", "overlap", "corrected"];
+  const body = rows.map((r) => [r.at, r.speaker, r.language, r.text, r.translation ?? "", r.unsure ? "yes" : "no", r.overlap ? "yes" : "no", r.corrected ? "yes" : "no"].map(csvCell).join(","));
+  return [head.join(","), ...body].join("\n") + "\n";
+}
+
+/** Reviewed transcript as readable text: "[12:22:15] Ani: …", unsure lines marked with "(?)". */
+export function transcriptText(rows: ExportRow[], fmt: (iso: string) => string): string {
+  return rows.map((r) => `[${fmt(r.at)}] ${r.speaker}${r.unsure ? " (?)" : ""}: ${r.text}${r.translation ? `\n    → ${r.translation}` : ""}`).join("\n") + "\n";
+}
