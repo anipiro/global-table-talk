@@ -456,6 +456,9 @@ function RoomPage() {
       {viewPhoto && photos.find((p) => p.id === viewPhoto) && (
         <PhotoViewer photo={photos.find((p) => p.id === viewPhoto)!} captions={captions} lang={me.language} byId={byId} onClose={() => setViewPhoto(null)} />
       )}
+      {viewMedia && media.find((m) => m.id === viewMedia) && (
+        <MediaViewer media={media.find((m) => m.id === viewMedia)!} lang={me.language} by={byId.get(media.find((m) => m.id === viewMedia)!.created_by_member_id ?? "")} onClose={() => setViewMedia(null)} />
+      )}
     </div>
   );
 }
