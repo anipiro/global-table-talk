@@ -73,6 +73,7 @@ export function useRoom(code: string) {
       setCaptions((c.data ?? []).map(({ photos: _x, ...rest }) => rest));
       setCards(k.data ?? []);
       setCorrections(sc.data ?? []);
+      setMedia(md.data ?? []);
       const f = `room_id=eq.${id}`;
       channel = supabase
         .channel(`room-${id}`)
@@ -86,6 +87,7 @@ export function useRoom(code: string) {
         .on("postgres_changes", { event: "*", schema: "public", table: "photos", filter: f }, (p) => setPhotos((x) => apply(x, p)))
         .on("postgres_changes", { event: "*", schema: "public", table: "cards", filter: f }, (p) => setCards((x) => apply(x, p)))
         .on("postgres_changes", { event: "*", schema: "public", table: "speaker_corrections", filter: f }, (p) => setCorrections((x) => apply(x, p)))
+        .on("postgres_changes", { event: "*", schema: "public", table: "media", filter: f }, (p) => setMedia((x) => apply(x, p)))
         .on("postgres_changes", { event: "*", schema: "public", table: "translations" }, (p) => {
           const row = (p.new ?? p.old) as Translation;
           if (p.eventType === "DELETE" || lineIds.current.has(row.line_id)) setTranslations((x) => apply(x, p));
@@ -147,7 +149,7 @@ export function useRoom(code: string) {
 
   /** Reloads the room and reconnects (used by "Try again" buttons). */
   const retry = () => setNonce((n) => n + 1);
-  return { status, retryIn, retry, room, members, lines, translations, agentMessages, notebook, photos, captions, cards, corrections };
+  return { status, retryIn, retry, room, members, lines, translations, agentMessages, notebook, photos, captions, cards, corrections, media };
 }
 
 /** Reconnect delay for the n-th consecutive attempt: 1s, 2s, 4s, 8s, 16s, then 30s. */
