@@ -8,3 +8,5 @@
 - [ ] Georgian transcription test path: "transcribe" task in /api/agent (Gemini 3.5 Transcribe via Lovable AI, language hint), 3s MediaRecorder chunks in src/lib/agent.ts with silence skip, engine choice (ka→Gemini, en/ru→Web Speech, hidden force-Gemini setting), /test/mic page with record button, live transcript, per-chunk latency
 - [ ] Review recorder/Gemini flow for iPhone Safari edge cases (no other feature changes)
 - [ ] Define pass criteria: Georgian transcript accuracy, chunk latency, iPhone Safari recording — before wiring into the app
+- [ ] List iPhone Safari recording risks to test: audio/mp4 support, interruptions, permissions, chunk boundaries
+- [ ] Turn pass criteria into a repeatable test protocol: Georgian sample phrases, device conditions, chunk latency measurement
