@@ -4,3 +4,4 @@
 - [x] Searchable caption history with timestamps and speaker labels
 - [x] Host controls: approve/remove guests, mute/allow speaking
 - [x] Invite links: 12h expiry, revocation, reusable, approval queue
+- [ ] End-to-end regression test: host approves a guest, approval persists after host and guest refresh
