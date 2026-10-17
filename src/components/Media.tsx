@@ -3,7 +3,7 @@ import type { Media } from "@/lib/room";
 /** Caption in the viewer's language, falling back to English then any language. */
 export function mediaCaption(m: Media, lang: string): string {
   const caps = (m.caption_by_language ?? {}) as Record<string, string>;
-  return caps[lang] ?? caps.en ?? Object.values(caps)[0] ?? "";
+  return caps[lang] ?? caps["en"] ?? Object.values(caps)[0] ?? "";
 }
 
 /**
