@@ -59,8 +59,11 @@ let chunkTimer: ReturnType<typeof setInterval> | null = null;
 let recorder: MediaRecorder | null = null;
 let lastPeak = 0;
 
-export const micSupported = () =>
-  typeof window !== "undefined" && !!((window as never)["SpeechRecognition"] || (window as never)["webkitSpeechRecognition"]);
+export const micSupported = (lang?: Lang) =>
+  typeof window !== "undefined" &&
+  (lang && speechEngine(lang) === "gemini"
+    ? typeof MediaRecorder !== "undefined" && !!pickAudioMime()
+    : !!((window as never)["SpeechRecognition"] || (window as never)["webkitSpeechRecognition"]));
 
 /** Listens on this phone's mic, writes each finished sentence as a line, and asks the agents to translate it. */
 export async function startMic(
