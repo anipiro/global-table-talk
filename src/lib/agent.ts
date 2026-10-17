@@ -500,8 +500,11 @@ export async function describePhoto(photoId: string) {
   await call({ task: "describe", photoId });
 }
 
+/** Writes everyone's recap, then asks for the "Tonight, painted" hero image without waiting for it:
+ *  the illustration takes a while and arrives on the recap screen through realtime. */
 export async function generateRecap(roomId: string) {
   await call({ task: "recap", roomId });
+  call({ task: "paint", roomId }).catch((e) => console.warn("paint", e));
 }
 
 let audioUnlocked = false;

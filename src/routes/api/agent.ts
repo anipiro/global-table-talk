@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { aiStream, db, LANG_NAME, MODELS, transcribeAudio } from "@/lib/ai.server";
-import { runAgentLoop } from "@/server/agentLoop";
+import { askJson, runAgentLoop } from "@/server/agentLoop";
+import { paintTonight } from "@/server/images";
 import { runHealth } from "@/server/health";
 
 const json = (body: unknown, status = 200) =>
@@ -48,7 +49,7 @@ async function handleTranscribe(request: Request) {
 
 async function handle(request: Request) {
   if ((request.headers.get("content-type") ?? "").includes("multipart/form-data")) return handleTranscribe(request);
-  const body = (await request.json()) as { task: string; lineId: string; memberId: string; photoId: string; roomId: string };
+  const body = (await request.json()) as { task: string; lineId: string; memberId: string; photoId: string; roomId: string; images?: boolean };
   const supa = db();
   try {
     if (body.task === "translate") {
@@ -74,8 +75,12 @@ async function handle(request: Request) {
       return json({ ok: true, languages: targets, model: MODELS.translate });
     }
 
+    if (body.task === "paint") {
+      return json({ ok: true, painted: await paintTonight(request, supa, askJson, body.roomId), model: MODELS.image });
+    }
+
     if (body.task === "health") {
-      return json(await runHealth(request));
+      return json(await runHealth(request, body.images !== false));
     }
 
     if (body.task === "agent") {
@@ -141,8 +146,10 @@ export const Route = createFileRoute("/api/agent")({
     handlers: {
       POST: ({ request }) => handle(request),
       // Open /api/agent?task=health in a browser to check every AI model after a push.
-      GET: async ({ request }) =>
-        new URL(request.url).searchParams.get("task") === "health" ? json(await runHealth(request)) : json({ error: "Use POST" }, 405),
+      GET: async ({ request }) => {
+        const q = new URL(request.url).searchParams;
+        return q.get("task") === "health" ? json(await runHealth(request, q.get("images") !== "0")) : json({ error: "Use POST" }, 405);
+      },
     },
   },
 });

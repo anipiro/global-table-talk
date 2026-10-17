@@ -1,8 +1,10 @@
-import { LANG_NAME, MODELS, type db } from "@/lib/ai.server";
+import { generateImage, IMAGE, LANG_NAME, MODELS, type db } from "@/lib/ai.server";
+import { NO_PEOPLE, storeGenerated } from "./images";
 
 /** Feature 2 — picture references. Called by the agent loop when the trigger is `visual` or `reference`:
  *  the agent that owns the notebook entry finds a real picture on Wikipedia and shows it to the table.
- *  Free checks first (reuse, 20 s room limit), then one cheap title call, a free Wikipedia fetch, one caption call. */
+ *  Free checks first (reuse, 20 s room limit), then one cheap title call, a free Wikipedia fetch, one caption call.
+ *  On a "visual" trigger with no usable Wikipedia photo of a real thing, a low-quality AI illustration stands in. */
 
 type Supa = ReturnType<typeof db>;
 type AskJson = <T>(request: Request, model: string, system: string, user: string) => Promise<T | null>;
@@ -16,7 +18,6 @@ type Summary = {
   originalimage?: { source: string; width: number };
 };
 
-export type PictureResult = "added" | "reused" | "cooldown" | "no title" | "person" | "not found" | "disambiguation" | "no image";
 
 /** "ხაჭაპური (Khachapuri)" → ["ხაჭაპური", "khachapuri"], so either spelling matches the same media row. */
 const keys = (s: string) =>
@@ -59,51 +60,77 @@ function imageUrl(s: Summary) {
   return orig?.source ?? s.thumbnail?.source ?? null;
 }
 
+export type PictureResult =
+  | "added" | "generated" | "reused" | "cooldown" | "no title" | "person" | "not found" | "disambiguation" | "no image";
+
+const PICTURABLE = ["place", "food", "landmark", "object", "event"];
+type Found = { url: string; name: string; about: string; credit: string };
+
+/** Wikipedia's picture of the page, or why there isn't a usable one. */
+async function fromWikipedia(title: string, signal: AbortSignal): Promise<Found | PictureResult> {
+  const page = await wikiSummary(title, signal);
+  if (!page) return "not found";
+  if (page.type === "disambiguation") return "disambiguation";
+  if (looksLikePerson(page)) return "person";
+  const url = imageUrl(page);
+  if (!url) return "no image";
+  const name = page.title ?? title;
+  return { url, name, credit: "Wikipedia", about: `${page.description ? `${page.description}. ` : ""}${(page.extract ?? "").slice(0, 400)}` };
+}
+
 export async function addPicture(
   request: Request, supa: Supa, askJson: AskJson,
-  o: { roomId: string; lineId: string; notebookId: string | null; subject: string; owner: { id: string; name: string }; langs: string[]; context: string },
+  o: {
+    roomId: string; lineId: string; notebookId: string | null; subject: string; trigger: string;
+    owner: { id: string; name: string }; langs: string[]; context: string;
+  },
 ): Promise<PictureResult> {
   // Free checks: reuse, then the room limit.
   if (await existing(supa, o.roomId, o.notebookId, o.subject)) return "reused";
   if (await inCooldown(supa, o.roomId)) return "cooldown";
 
   // 1. Cheap call: which English Wikipedia page shows this thing?
-  const pick = await askJson<{ title?: string; kind?: string }>(request, MODELS.trigger,
+  const pick = await askJson<{ title?: string; kind?: string; name?: string }>(request, MODELS.trigger,
     `Find the English Wikipedia article that best shows a real place, dish, landmark, object or event mentioned at a dinner table.
 If it is a person, a private matter, or too vague to picture, use an empty title.
-JSON: {"title": "exact English Wikipedia article title, or empty", "kind": "place|food|landmark|object|event|person|other"}`,
+JSON: {"title": "exact English Wikipedia article title, or empty", "name": "the thing's plain English name", "kind": "place|food|landmark|object|event|person|other"}`,
     `Thing: ${o.subject}\nConversation:\n${o.context}`);
-  const title = String(pick?.title ?? "").trim();
   if (pick?.kind === "person") return "person";
-  if (!title) return "no title";
+  const title = String(pick?.title ?? "").trim();
 
   // 2. Free Wikipedia lookup.
-  const page = await wikiSummary(title, request.signal);
-  if (!page) return "not found";
-  if (page.type === "disambiguation") return "disambiguation";
-  if (looksLikePerson(page)) return "person";
-  const url = imageUrl(page);
-  if (!url) return "no image";
+  let found: Found | PictureResult = title ? await fromWikipedia(title, request.signal) : "no title";
+
+  // 2b. No usable photo of a real, picturable thing on a "visual" trigger: paint a quick illustration instead.
+  if (typeof found === "string" && found !== "person" && o.trigger === "visual" && PICTURABLE.includes(pick?.kind ?? "")) {
+    const name = String(pick?.name ?? "").trim() || title || o.subject;
+    const img = await generateImage(request,
+      `Simple warm painterly illustration of ${name} (${pick?.kind}), as it would appear at or around a Georgian dinner table. Plain soft background. ${NO_PEOPLE}`,
+      IMAGE.fallback);
+    found = { url: await storeGenerated(supa, o.roomId, img), name, credit: "AI illustration", about: `${pick?.kind}: ${name}` };
+  }
+  if (typeof found === "string") return found;
 
   // Another line may have added the same picture while we were looking.
-  if (await existing(supa, o.roomId, o.notebookId, page.title ?? title)) return "reused";
+  if (await existing(supa, o.roomId, o.notebookId, found.name)) return "reused";
 
   // 3. One-line caption for every language at the table.
-  const pageTitle = page.title ?? title;
   const caps = await askJson<Record<string, string>>(request, MODELS.translate,
     "Write a one-line picture caption (max 10 words) for guests at a dinner table. Name the thing, add one helpful detail. No quotes.",
-    `Picture: ${pageTitle}${page.description ? ` — ${page.description}` : ""}\nAbout: ${(page.extract ?? "").slice(0, 400)}
+    `Picture: ${found.name}\nAbout: ${found.about}
 Languages: ${o.langs.map((l) => `${l} (${LANG_NAME[l]})`).join(", ")}\nJSON: {"<code>": "<caption>"}`);
   const caption_by_language: Record<string, string> = {};
   for (const l of o.langs) if (caps?.[l]) caption_by_language[l] = String(caps[l]).trim();
-  if (!caption_by_language["en"]) caption_by_language["en"] = page.description ? `${pageTitle} — ${page.description}` : pageTitle;
+  if (!caption_by_language["en"]) caption_by_language["en"] = found.name;
 
   await supa.from("media").insert({
     room_id: o.roomId, line_id: o.lineId, notebook_id: o.notebookId, kind: "reference_image",
-    query: pageTitle, url, caption_by_language, credit: "Wikipedia", created_by_member_id: o.owner.id,
+    query: found.name, url: found.url, caption_by_language, credit: found.credit, created_by_member_id: o.owner.id,
   });
+  const generated = found.credit === "AI illustration";
   await supa.from("agent_messages").insert({
-    room_id: o.roomId, from_member_id: o.owner.id, type: "note", content: `${o.owner.name}'s agent added a photo of ${pageTitle}.`,
+    room_id: o.roomId, from_member_id: o.owner.id, type: "note",
+    content: `${o.owner.name}'s agent ${generated ? "painted" : "added a photo of"} ${found.name}.`,
   });
-  return "added";
+  return generated ? "generated" : "added";
 }

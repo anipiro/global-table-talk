@@ -1,11 +1,12 @@
-import { aiStream, MODELS } from "@/lib/ai.server";
+import { aiStream, generateImage, IMAGE, MODELS } from "@/lib/ai.server";
 
 /** Health check: one tiny real call per configured model, in parallel. Costs 4 very short calls — run it
- *  once after each back-end push, not in a loop. */
+ *  once after each back-end push, not in a loop. Plus one low-quality test image (generated, not stored);
+ *  pass ?images=0 (or "images": false) to skip it. */
 const CHECKS = ["trigger", "translate", "agent", "recap"] as const;
 const TIMEOUT_MS = 20_000;
 
-type Check = { task: (typeof CHECKS)[number]; model: string; ok: boolean; ms: number; reply?: string; error?: string };
+type Check = { task: (typeof CHECKS)[number] | "image"; model: string; ok: boolean; ms: number; reply?: string; error?: string };
 
 async function check(request: Request, task: Check["task"]): Promise<Check> {
   const model = MODELS[task];
@@ -37,7 +38,19 @@ async function check(request: Request, task: Check["task"]): Promise<Check> {
   }
 }
 
-export async function runHealth(request: Request) {
-  const checks = await Promise.all(CHECKS.map((t) => check(request, t)));
+async function checkImage(request: Request): Promise<Check> {
+  const t0 = Date.now();
+  try {
+    const img = await generateImage(request, "A single ripe red apple on a plain white table. No text.", IMAGE.health);
+    return { task: "image", model: MODELS.image, ok: img.bytes.length > 1000, ms: Date.now() - t0, reply: `${img.contentType}, ${Math.round(img.bytes.length / 1024)} KB` };
+  } catch (e) {
+    const status = (e as { statusCode?: number })?.statusCode;
+    const msg = e instanceof Error ? e.message : String(e);
+    return { task: "image", model: MODELS.image, ok: false, ms: Date.now() - t0, error: `${status ? `${status}: ` : ""}${msg}`.slice(0, 400) };
+  }
+}
+
+export async function runHealth(request: Request, images = true) {
+  const checks = await Promise.all([...CHECKS.map((t) => check(request, t)), ...(images ? [checkImage(request)] : [])]);
   return { ok: checks.every((c) => c.ok), checks };
 }

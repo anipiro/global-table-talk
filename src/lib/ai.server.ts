@@ -15,6 +15,14 @@ export const MODELS = {
   recap: "anthropic/claude-sonnet-5", // also the tamada toast
   toast: "anthropic/claude-sonnet-5",
   transcribe: "google/gemini-3.5-transcribe",
+  image: "openai/gpt-image-2.5-sunburst",
+} as const;
+
+/** Image settings per job (OpenAI Images API: quality low|medium|high, size 1024x1024|1536x1024|1024x1536). */
+export const IMAGE = {
+  painted: { quality: "high", size: "1536x1024" }, // "Tonight, painted" recap hero
+  fallback: { quality: "low", size: "1024x1024" }, // when Wikipedia has no usable picture
+  health: { quality: "low", size: "1024x1024" },
 } as const;
 
 const GATEWAY = "https://ai.gateway.lovable.dev/v1";
@@ -163,4 +171,42 @@ export async function transcribeAudio(
     parser.feed(dec.decode(value, { stream: true }));
   }
   return { text: text.trim(), language };
+}
+
+/** Generates one image through Lovable AI (`/images/generations`) and returns its bytes. */
+export async function generateImage(
+  request: Request,
+  prompt: string,
+  settings: { quality: string; size: string },
+): Promise<{ bytes: Uint8Array; contentType: string }> {
+  const apiKey = process.env["LOVABLE_API_KEY"];
+  if (!apiKey) throw new Error("AI is not configured");
+  console.info(`[ai] ${MODELS.image} (${settings.quality})`);
+  const res = await fetch(`${GATEWAY}/images/generations`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json", Authorization: `Bearer ${apiKey}`, "Lovable-API-Key": apiKey, "X-Lovable-AIG-SDK": "fetch",
+    },
+    body: JSON.stringify({ model: MODELS.image, prompt, n: 1, quality: settings.quality, size: settings.size }),
+    signal: request.signal,
+  });
+  if (!res.ok) {
+    const err = await res.text().catch(() => "");
+    throw Object.assign(new Error(err.slice(0, 300) || "Image generation failed"), { statusCode: res.status });
+  }
+  const out = (await res.json()) as { data?: { b64_json?: string; url?: string }[]; output_format?: string };
+  const item = out.data?.[0];
+  if (item?.b64_json) {
+    const fmt = out.output_format ?? "png";
+    const bin = atob(item.b64_json);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return { bytes, contentType: `image/${fmt === "jpg" ? "jpeg" : fmt}` };
+  }
+  if (item?.url) {
+    const img = await fetch(item.url, { signal: request.signal });
+    if (!img.ok) throw new Error("Couldn't download the generated image");
+    return { bytes: new Uint8Array(await img.arrayBuffer()), contentType: img.headers.get("content-type") ?? "image/png" };
+  }
+  throw new Error("Image generation returned no image");
 }

@@ -50,6 +50,10 @@ Microsoft Group Transcribe. Our difference is the agents and the belonging layer
   - translate: `google/gemini-3.1-flash-lite`
   - agent answers, catch-up, photo describe: `google/gemini-3.8-flash`
   - recap and the tamada toast: `anthropic/claude-sonnet-5`
+  - images: `openai/gpt-image-2.5-sunburst` via `generateImage()` (gateway `/images/generations`, returns base64).
+    Settings in `IMAGE`: recap hero = high quality 1536x1024; fallback picture = low 1024x1024; health = low.
+    Generated images go to the private `photos` bucket under `generated/<room_id>/` (room folder as fallback if
+    storage refuses) and are stored in `media` as 30-day signed URLs (`src/server/images.ts`). Never people, faces or text.
   - fallback default: `openai/gpt-6-astra`
   Anthropic models go through the gateway too — we are NOT calling the Anthropic API directly (cost).
 - Speech-to-text: English/Russian speakers use the browser Web Speech API; Georgian speakers record short
@@ -127,6 +131,9 @@ looks lost: e.g., they asked "what?" or haven't spoken for a while).
      → `thumbnail.source` / `originalimage.source`. Ask the model for the best English Wikipedia title first.
    - Source 2 (optional, free key): Pexels or Unsplash search, for generic things ("Georgian supra table").
    - Always store the image URL + credit/source. Never show images of private people.
+   - Fallback (built): on a `visual` trigger, if Wikipedia has no usable photo of a real place/food/landmark/object/
+     event (not a person), generate a LOW quality AI illustration instead, credit "AI illustration". Same reuse and
+     20 s rules. Agent note says "… painted X".
    - Needs a place to store it: propose a `media` table (room_id, line_id, notebook_id, kind
      `reference_image`|`meme`, query, url, caption_by_language jsonb, credit, created_by_member_id) and ask the
      user to have Lovable add it + render it in cards, notebook and the presenter view.
@@ -139,6 +146,10 @@ looks lost: e.g., they asked "what?" or haven't spoken for a while).
 5. **Catch me up** (`requestCatchUp`) — last ~2 min → 2 sentences in the listener's language.
 6. **Recap / memory card** (`generateRecap`) — group photo + member names + best moments + decisions +
    pictures/memes from the night, written per language. This is the last thing judges see: make it warm and specific.
+   - "Tonight, painted" (built, task `paint`): after the recap text, `generateRecap` fires (without awaiting) ONE high
+     quality painterly illustration from the night's notebook topics, pictures and memes — no people, faces or text.
+     Stored as `media` kind `reference_image`, query `tonight`, credit "AI illustration", no line/notebook link;
+     the recap screen shows it as the hero image. Max one per room.
 7. **Stretch: AI Tamada toast** — at the end, the agents co-write a short Georgian-style toast about the people at
    the table, each agent contributing one line from its human's facts, merged into one toast per language.
 
@@ -158,6 +169,6 @@ A **Replay demo** button re-inserts a scripted scene as a fallback if live audio
 - Tell the user in one short paragraph: what changed, how to test it, and anything the front needs from Lovable.
 - **Health check first.** After every back-end push, tell the user to open the preview and run the health check
   before testing anything else: open `<preview-url>/api/agent?task=health` (or POST `{ "task": "health" }`). It makes
-  one tiny real call per model (trigger, translate, agent, recap) and returns `ok` plus model name, time and error for
-  each. Everything should say `"ok": true`; if not, fix that before any feature testing. Costs 4 tiny calls — once
+  one tiny real call per model (trigger, translate, agent, recap) plus one low-quality test image, and returns `ok`
+  plus model name, time and error for each (`&images=0` skips the image check). Everything should say `"ok": true`; if not, fix that before any feature testing. Costs 4 tiny calls — once
   per push, not in a loop.

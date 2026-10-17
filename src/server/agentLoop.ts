@@ -50,7 +50,7 @@ function parseJson<T>(raw: string): T | null {
 const used = new WeakMap<Request, string[]>();
 const noteModel = (request: Request, model: string) => used.set(request, [...(used.get(request) ?? []), model]);
 
-async function askJson<T>(request: Request, model: string, system: string, user: string) {
+export async function askJson<T>(request: Request, model: string, system: string, user: string) {
   noteModel(request, model);
   const r = aiStream(request, `${system}\nReply with one JSON object only, no other text.`, user, { model });
   return parseJson<T>(await r.text);
@@ -180,7 +180,7 @@ async function exchange(
     if (trigger !== "visual" && trigger !== "reference") return undefined;
     try {
       return await addPicture(request, supa, askJson, {
-        roomId, lineId, notebookId, subject, owner, context,
+        roomId, lineId, notebookId, subject, owner, context, trigger,
         langs: [...new Set([speaker.language, ...langs])],
       });
     } catch (e) {
