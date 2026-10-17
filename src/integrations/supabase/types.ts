@@ -159,6 +159,7 @@ export type Database = {
       members: {
         Row: {
           approved: boolean
+          can_speak: boolean
           color: string
           created_at: string
           facts: string
@@ -171,6 +172,7 @@ export type Database = {
         }
         Insert: {
           approved?: boolean
+          can_speak?: boolean
           color?: string
           created_at?: string
           facts?: string
@@ -183,6 +185,7 @@ export type Database = {
         }
         Update: {
           approved?: boolean
+          can_speak?: boolean
           color?: string
           created_at?: string
           facts?: string

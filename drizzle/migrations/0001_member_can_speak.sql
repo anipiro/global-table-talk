@@ -1,0 +1,1 @@
+ALTER TABLE public.members ADD COLUMN can_speak boolean NOT NULL DEFAULT true;

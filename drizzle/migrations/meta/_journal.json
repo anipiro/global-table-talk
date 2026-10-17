@@ -8,6 +8,13 @@
       "when": 1792234840308,
       "tag": "0000_gamige_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792234877606,
+      "tag": "0001_member_can_speak",
+      "breakpoints": true
     }
   ]
 }
