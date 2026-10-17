@@ -85,6 +85,13 @@
       "when": 1792251643263,
       "tag": "0011_create_media",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792255520416,
+      "tag": "0012_add_rooms_roast_mode",
+      "breakpoints": true
     }
   ]
 }

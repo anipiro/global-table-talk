@@ -1,0 +1,1 @@
+ALTER TABLE public.rooms ADD COLUMN roast_mode boolean NOT NULL DEFAULT false;
