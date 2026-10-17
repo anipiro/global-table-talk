@@ -482,8 +482,10 @@ function IconBtn({ children, label, active, onClick }: { children: React.ReactNo
   );
 }
 
-function Feed({ lines, byId, textFor, interim, me, onFix }: {
-  lines: Line[]; byId: Map<string, Member>; textFor: (l: Line) => string | null; interim: string; me: Member; onFix: (l: Line) => void;
+/** Chat-bubble caption feed: other people's lines sit on the left, mine on the right. Each bubble shows
+ *  the original spoken text on top, a subtle divider, and the translation in my language underneath. */
+function Feed({ lines, byId, textFor, interim, me, talking, onFix }: {
+  lines: Line[]; byId: Map<string, Member>; textFor: (l: Line) => string | null; interim: string; me: Member; talking: string[]; onFix: (l: Line) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
@@ -494,39 +496,68 @@ function Feed({ lines, byId, textFor, interim, me, onFix }: {
   return (
     <div className="relative flex-1 overflow-hidden">
       <div ref={ref} onScroll={(e) => { const el = e.currentTarget; setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 60); }}
-        className="h-full overflow-y-auto px-4 py-6">
+        className="h-full overflow-y-auto px-3 py-4">
         {lines.length === 0 && <p className="mt-20 text-center text-muted-foreground">Tap the mic and start talking.<br />Captions appear here for everyone.</p>}
-        <ul className="flex flex-col gap-5">
+        <ul className="flex flex-col gap-4">
           {lines.map((l) => {
             const sp = byId.get(l.speaker_id ?? "");
+            const mine = l.speaker_id === me.id;
             const tr = textFor(l);
             const orig = showOrig.has(l.id) || !tr;
             const pending = !tr && l.language !== me.language;
+            const isTalking = !!sp && talking.includes(sp.id);
             return (
-              <li key={l.id}>
-                {l.ambiguous && (
-                  <button onClick={() => onFix(l)} className="mb-1 flex items-center gap-1 rounded-full border border-primary/50 px-2 py-0.5 text-[0.55em] text-primary">
-                    <HelpCircle className="h-3.5 w-3.5" /> Not sure who said this · tap to fix
+              <li key={l.id} className={`flex items-end gap-2 ${mine ? "flex-row-reverse" : ""}`}>
+                {/* avatar chip in the speaker's color; glows while they're talking */}
+                <span
+                  className={`relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-primary-foreground transition-shadow ${isTalking ? "animate-pulse" : ""}`}
+                  style={{ background: sp?.color ?? "var(--muted)", boxShadow: isTalking ? `0 0 0 3px ${sp!.color}55, 0 0 14px ${sp!.color}88` : undefined }}
+                  aria-hidden
+                >
+                  {(sp?.name ?? "?").slice(0, 1).toUpperCase()}
+                </span>
+                <div className={`flex min-w-0 max-w-[82%] flex-col ${mine ? "items-end" : "items-start"}`}>
+                  {l.ambiguous && (
+                    <button onClick={() => onFix(l)} className="mb-1 flex items-center gap-1 rounded-full border border-primary/50 px-2 py-0.5 text-[0.55em] text-primary">
+                      <HelpCircle className="h-3.5 w-3.5" /> Not sure who said this · tap to fix
+                    </button>
+                  )}
+                  <button onClick={() => onFix(l)} aria-label={`Change speaker: ${sp?.name ?? "Unknown speaker"}`}
+                    className={`mb-0.5 px-1 text-left text-[0.6em] font-semibold ${sp ? "" : "italic text-muted-foreground"}`} style={{ color: sp?.color }}>
+                    {sp?.name ?? "Unknown speaker"}{l.ambiguous ? "?" : ""} <span className="font-normal text-muted-foreground">· {fmtTime(l.created_at)}</span>
                   </button>
-                )}
-                <button onClick={() => onFix(l)} aria-label={`Change speaker: ${sp?.name ?? "Unknown speaker"}`}
-                  className={`text-left text-[0.7em] font-semibold ${sp ? "" : "italic text-muted-foreground"}`} style={{ color: sp?.color }}>
-                  {sp?.name ?? "Unknown speaker"}{l.ambiguous ? "?" : ""} <span className="font-normal text-muted-foreground">· {fmtTime(l.created_at)}</span>
-                </button>
-                <button className="block w-full text-left" onClick={() => tr && setShowOrig((s) => { const n = new Set(s); n.has(l.id) ? n.delete(l.id) : n.add(l.id); return n; })}>
-                  <p className={`leading-snug ${pending ? "text-muted-foreground" : ""}`} style={{ fontWeight: 400 + Math.round(l.loudness * 3) * 100 }}>
-                    {orig ? l.text : tr}
-                  </p>
-                  {pending && <p className="text-[0.6em] text-muted-foreground">translating…</p>}
-                  {tr && showOrig.has(l.id) && <p className="text-[0.6em] text-muted-foreground">original · tap for translation</p>}
-                </button>
+                  <button
+                    className={`block w-full rounded-3xl border px-4 py-3 text-left shadow-sm transition ${
+                      mine
+                        ? "rounded-br-md border-primary/30 bg-primary/15"
+                        : "rounded-bl-md border-border bg-card"
+                    } ${isTalking ? "ring-2 ring-primary/40" : ""}`}
+                    onClick={() => tr && setShowOrig((s) => { const n = new Set(s); n.has(l.id) ? n.delete(l.id) : n.add(l.id); return n; })}
+                  >
+                    <p className={`break-words leading-snug ${pending ? "text-muted-foreground" : ""}`} style={{ fontWeight: 400 + Math.round(l.loudness * 3) * 100 }}>
+                      {orig ? l.text : tr}
+                    </p>
+                    {tr && !showOrig.has(l.id) && (
+                      <>
+                        <hr className="my-2 border-border" />
+                        <p className="break-words text-[0.8em] leading-snug text-muted-foreground">{l.text}</p>
+                      </>
+                    )}
+                    {pending && <p className="mt-1 text-[0.55em] text-muted-foreground">translating…</p>}
+                    {tr && showOrig.has(l.id) && <p className="mt-1 text-[0.55em] text-muted-foreground">original · tap for translation</p>}
+                  </button>
+                </div>
               </li>
             );
           })}
           {interim && (
-            <li className="opacity-60">
-              <p className="text-[0.7em] font-semibold" style={{ color: me.color }}>{me.name}</p>
-              <p className="italic">{interim}</p>
+            <li className="flex flex-row-reverse items-end gap-2 opacity-60">
+              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-primary-foreground" style={{ background: me.color }} aria-hidden>
+                {me.name.slice(0, 1).toUpperCase()}
+              </span>
+              <div className="max-w-[82%] rounded-3xl rounded-br-md border border-primary/30 bg-primary/15 px-4 py-3">
+                <p className="italic leading-snug">{interim}</p>
+              </div>
             </li>
           )}
         </ul>
