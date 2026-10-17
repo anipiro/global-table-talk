@@ -55,6 +55,9 @@ let rec: Rec | null = null;
 let micStream: MediaStream | null = null;
 let audioCtx: AudioContext | null = null;
 let wanted = false;
+let chunkTimer: ReturnType<typeof setInterval> | null = null;
+let recorder: MediaRecorder | null = null;
+let lastPeak = 0;
 
 export const micSupported = () =>
   typeof window !== "undefined" && !!((window as never)["SpeechRecognition"] || (window as never)["webkitSpeechRecognition"]);
@@ -65,8 +68,13 @@ export async function startMic(
   onInterim: (text: string) => void,
   onError: (msg: string) => void,
 ) {
-  const SR = (window as never)["SpeechRecognition"] || (window as never)["webkitSpeechRecognition"];
-  if (!SR) throw new Error("Live captions need Chrome, Edge or Safari on this phone.");
+  const engine = speechEngine(member.language as Lang);
+  if (engine === "webspeech") {
+    const SR = (window as never)["SpeechRecognition"] || (window as never)["webkitSpeechRecognition"];
+    if (!SR) throw new Error("Live captions need Chrome, Edge or Safari on this phone.");
+  } else if (typeof MediaRecorder === "undefined" || !pickAudioMime()) {
+    throw new Error("This browser can't record audio for transcription.");
+  }
   micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   audioCtx = new AudioContext();
   const analyser = audioCtx.createAnalyser();
@@ -78,9 +86,15 @@ export async function startMic(
     analyser.getFloatTimeDomainData(buf);
     const rms = Math.sqrt(buf.reduce((s, v) => s + v * v, 0) / buf.length);
     peak = Math.max(peak * 0.98, rms);
+    lastPeak = peak;
     requestAnimationFrame(sample);
   };
   sample();
+
+  if (engine === "gemini") {
+    startGeminiMic(member, micStream, () => peak, onError);
+    return;
+  }
 
   wanted = true;
   rec = new (SR as new () => Rec)();
