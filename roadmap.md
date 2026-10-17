@@ -46,3 +46,7 @@
 - [x] Agent collaboration showcase: Agents feed, Notebook sections, private card stack, catch-up sheet, whisper pill + iOS audio unlock, presenter view /t/:code/screen, scripted demo seed + Replay demo
 - [x] Agents feed: loading, empty and connection-error states
 - [x] Agents feed: unread marker + "new messages" pill when scrolled up; auto-scroll only when at the bottom
+- [x] Photos + end-of-night + recap memory card + polish (big text, empty states, safe areas, auto-reconnect)
+- [x] Realtime: automatic retry with backoff; catch up on agent messages missed while disconnected
+- [x] Presenter: pause/resume and speed for Replay demo
+- [x] Agents feed: keyboard navigation + screen-reader announcements (new messages, unread count, connection status)

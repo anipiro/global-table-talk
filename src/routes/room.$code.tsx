@@ -16,6 +16,9 @@ import { Diagnostics } from "@/components/Diagnostics";
 import { AgentFeed } from "@/components/AgentFeed";
 import { NotebookSections } from "@/components/Notebook";
 import { CardStack } from "@/components/CardStack";
+import { renderBold } from "@/lib/richText";
+import { PhotoGrid, PhotoViewer } from "@/components/Photos";
+import { isGroupPhoto, sharePhoto } from "@/lib/photos";
 import { LANGS } from "@/lib/room";
 
 export const Route = createFileRoute("/room/$code")({
@@ -46,7 +49,9 @@ function RoomPage() {
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   useWakeLock(true);
 
-  const [big, setBig] = useState(false);
+  const [big, setBigState] = useState(() => localStorage.getItem("gamige-big-text") === "1");
+  const setBig = (v: boolean) => { setBigState(v); localStorage.setItem("gamige-big-text", v ? "1" : "0"); };
+  const [viewPhoto, setViewPhoto] = useState<string | null>(null);
   const [micOn, setMicOn] = useState(false);
   const [micIssue, setMicIssue] = useState<"denied" | "disconnected" | "unsupported" | null>(null);
   const [holdMode, setHoldMode] = useState(() => localStorage.getItem("gamige-hold-to-talk") === "1");
@@ -83,6 +88,20 @@ function RoomPage() {
   const [catchDone, setCatchDone] = useState(false);
   const [ending, setEnding] = useState(false);
   const groupInput = useRef<HTMLInputElement>(null);
+
+  // "Nika shared a photo" for everyone else, with a button that opens it.
+  const knownPhotos = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (data.status === "loading") return;
+    if (!knownPhotos.current) { knownPhotos.current = new Set(photos.map((p) => p.id)); return; }
+    for (const p of photos) {
+      if (knownPhotos.current.has(p.id)) continue;
+      knownPhotos.current.add(p.id);
+      if (p.uploader_id === meId || isGroupPhoto(p.storage_path)) continue;
+      const who = members.find((m) => m.id === p.uploader_id)?.name ?? "Someone";
+      toast(`${who} shared a photo`, { action: { label: "Open", onClick: () => { setTab("photos"); setSheetOpen(true); setViewPhoto(p.id); } } });
+    }
+  }, [photos, data.status, meId, members]);
 
   useEffect(() => {
     setMicDebug(debugOn ? setDebug : null);
@@ -194,31 +213,34 @@ function RoomPage() {
     }
   }
 
-  async function uploadPhoto(file: File, group = false) {
-    const ext = file.name.split(".").pop() || "jpg";
-    const path = `${room!.id}/${group ? "group-" : ""}${crypto.randomUUID()}.${ext}`;
-    const { error } = await supabase.storage.from("photos").upload(path, file, { contentType: file.type });
-    if (error) throw error;
-    const { data, error: e2 } = await supabase.from("photos").insert({ room_id: room!.id, uploader_id: me!.id, storage_path: path }).select().single();
-    if (e2) throw e2;
-    describePhoto(data.id).catch((e) => toast.error(e.message));
-    return data;
+  async function shareOne(file: File) {
+    const t = toast.loading("Sharing your photo…");
+    try {
+      await sharePhoto(room!.id, me!.id, file);
+      toast.success("Photo shared — your agents are describing it", { id: t });
+      setTab("photos");
+      setSheetOpen(true);
+    } catch {
+      toast.error("Couldn't upload the photo. Try again.", { id: t });
+    }
   }
 
+  /** Host: group photo → upload → recap generation starts → room ends, so everyone moves to the Recap
+   *  screen right away and sees it fill in as the agents finish writing. */
   async function endNight(file?: File) {
     setEnding(true);
-    const t = toast.loading("Writing everyone's recap…");
+    const t = toast.loading(file ? "Saving the group photo…" : "Ending the night…");
     try {
-      if (file) await uploadPhoto(file, true);
+      if (file) await sharePhoto(room!.id, me!.id, file, true);
       await stopMic();
-      await generateRecap(room!.id).catch((e) => toast.error(e.message));
+      const recap = generateRecap(room!.id).catch(() => toast.error("The recap couldn't be written"));
       await supabase.from("rooms").update({ status: "ended" }).eq("id", room!.id);
-      nav({ to: "/recap/$code", params: { code } });
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't end the night");
-      setEnding(false);
-    } finally {
       toast.dismiss(t);
+      nav({ to: "/recap/$code", params: { code } });
+      await recap;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't end the night", { id: t });
+      setEnding(false);
     }
   }
 
@@ -240,19 +262,9 @@ function RoomPage() {
     );
 
   return (
-    <div className={`flex h-dvh flex-col ${big ? "text-[28px]" : "text-[20px]"}`}>
+    <div className={`px-safe flex h-dvh flex-col overflow-x-hidden ${big ? "text-[28px]" : "text-[20px]"}`}>
       {/* top bar */}
-      <header className="z-20 flex items-center gap-2 border-b bg-background/95 px-3 py-3 text-base backdrop-blur">
-        <button
-          {...(holdMode
-            ? { onPointerDown: () => void micStart(), onPointerUp: () => void micStop(), onPointerLeave: () => micOn && void micStop() }
-            : { onClick: toggleMic })}
-          aria-label={micOn ? "Stop mic" : holdMode ? "Hold to talk" : "Start mic"}
-          disabled={!me.can_speak}
-          className={`flex h-14 w-14 items-center justify-center rounded-full transition ${micOn ? "bg-primary text-primary-foreground shadow-[0_0_0_6px] shadow-primary/25" : "bg-secondary"} disabled:opacity-40`}
-        >
-          {micOn ? <Mic /> : holdMode ? <Hand /> : <MicOff />}
-        </button>
+      <header className="z-20 flex items-center gap-2 border-b bg-background/95 px-3 pb-3 pt-[max(env(safe-area-inset-top),0.75rem)] text-base backdrop-blur">
         <IconBtn
           label="Whisper in my headphones"
           active={me.whisper_on}
@@ -307,7 +319,7 @@ function RoomPage() {
 
       {/* private cards */}
       <div className="pointer-events-none absolute inset-x-0 top-20 z-30 flex flex-col gap-2 px-3">
-        <CardStack cards={myCards} onDismiss={(id) => setDismissed((d) => new Set(d).add(id))} />
+        <CardStack big={big} cards={myCards} onDismiss={(id) => setDismissed((d) => new Set(d).add(id))} />
       </div>
 
       {streaming !== null && (
@@ -339,8 +351,9 @@ function RoomPage() {
       {fixLine && <ReassignSheet line={fixLine} members={members} me={me} onClose={() => setFixLine(null)} />}
 
       {/* action row */}
-      <div className="flex gap-2 overflow-x-auto whitespace-nowrap border-t px-3 py-2 text-sm [&>*]:shrink-0">
-        <PhotoButtons onFile={(f) => uploadPhoto(f).then(() => toast.success("Photo shared")).catch(() => toast.error("Upload failed"))} />
+      <div className="flex items-center gap-3 border-t px-3 py-2">
+      <div className="flex min-w-0 flex-1 flex-wrap gap-2 text-sm">
+        <PhotoButtons onFile={(f) => void shareOne(f)} />
         <Link to="/history/$code" params={{ code }} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-2">
           <History className="h-4 w-4" /> History
         </Link>
@@ -382,9 +395,21 @@ function RoomPage() {
           </>
         )}
       </div>
+      {/* mic sits at the bottom-right, under the thumb */}
+        <button
+          {...(holdMode
+            ? { onPointerDown: () => void micStart(), onPointerUp: () => void micStop(), onPointerLeave: () => micOn && void micStop() }
+            : { onClick: toggleMic })}
+          aria-label={micOn ? "Stop mic" : holdMode ? "Hold to talk" : "Start mic"}
+          disabled={!me.can_speak}
+          className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full transition ${micOn ? "bg-primary text-primary-foreground shadow-[0_0_0_6px] shadow-primary/25" : "bg-secondary"} disabled:opacity-40`}
+        >
+          {micOn ? <Mic /> : holdMode ? <Hand /> : <MicOff />}
+        </button>
+      </div>
 
       {/* bottom sheet */}
-      <section className={`border-t bg-card text-base transition-all ${sheetOpen ? "h-[55dvh]" : "h-14"}`}>
+      <section className={`pb-safe border-t bg-card transition-all ${big ? "text-[20px]" : "text-base"} ${sheetOpen ? "h-[55dvh]" : "h-14 box-content"}`}>
         <div className="flex h-14 items-center gap-1 px-2">
           {(["notebook", "agents", "photos", ...(isHost ? ["guests"] : []), ...(debugOn ? ["diagnostics"] : [])] as Tab[]).map((t) => {
             const pending = t === "guests" ? members.filter((m) => !m.approved).length : 0;
@@ -402,8 +427,8 @@ function RoomPage() {
         {sheetOpen && (
           <div className={`h-[calc(55dvh-3.5rem)] px-4 ${tab === "agents" ? "overflow-hidden pb-2" : "overflow-y-auto pb-6"}`}>
             {tab === "notebook" && <NotebookSections entries={notebook} byId={byId} />}
-            {tab === "agents" && <AgentFeed msgs={agentMessages} byId={byId} meId={me.id} status={data.status} onRetry={data.retry} />}
-            {tab === "photos" && <PhotosTab photos={photos} captions={captions} lang={me.language} />}
+            {tab === "agents" && <AgentFeed msgs={agentMessages} byId={byId} meId={me.id} status={data.status} retryIn={data.retryIn} onRetry={data.retry} />}
+            {tab === "photos" && <PhotoGrid photos={photos} captions={captions} lang={me.language} onOpen={setViewPhoto} />}
             {tab === "diagnostics" && debugOn && <Diagnostics lines={lines} members={members} />}
             {tab === "guests" && isHost && (
               <div className="flex flex-col gap-6 pt-2">
@@ -414,6 +439,9 @@ function RoomPage() {
           </div>
         )}
       </section>
+      {viewPhoto && photos.find((p) => p.id === viewPhoto) && (
+        <PhotoViewer photo={photos.find((p) => p.id === viewPhoto)!} captions={captions} lang={me.language} byId={byId} onClose={() => setViewPhoto(null)} />
+      )}
     </div>
   );
 }
@@ -452,13 +480,6 @@ function MicIssueBanner({ kind, onRetry, onClose }: { kind: "denied" | "disconne
         </div>
       )}
     </div>
-  );
-}
-
-/** Shows **bold** from the agent's reply as bold text instead of asterisks. */
-function renderBold(text: string) {
-  return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
-    part.startsWith("**") && part.endsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : part.replace(/\*\*/g, ""),
   );
 }
 
@@ -531,33 +552,14 @@ function Feed({ lines, byId, textFor, interim, me, onFix }: {
 }
 
 function PhotoButtons({ onFile }: { onFile: (f: File) => void }) {
-  const gal = useRef<HTMLInputElement>(null);
-  const cam = useRef<HTMLInputElement>(null);
+  const input = useRef<HTMLInputElement>(null);
   const pick = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onFile(f); };
   return (
     <>
-      <button onClick={() => cam.current?.click()} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-2" aria-label="Take a photo"><Camera className="h-4 w-4" /></button>
-      <button onClick={() => gal.current?.click()} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-2"><ImagePlus className="h-4 w-4" /> Share a photo</button>
-      <input ref={cam} type="file" accept="image/*" capture="environment" hidden onChange={pick} />
-      <input ref={gal} type="file" accept="image/*" hidden onChange={pick} />
+      {/* no capture attribute: iPhone offers Photo Library or Take Photo */}
+      <button onClick={() => input.current?.click()} className="flex min-h-11 items-center gap-1 rounded-full bg-secondary px-3 py-2"><ImagePlus className="h-4 w-4" /> Share a photo</button>
+      <input ref={input} type="file" accept="image/*" hidden onChange={pick} aria-label="Choose a photo" />
     </>
   );
 }
 
-function PhotosTab({ photos, captions, lang }: { photos: ReturnType<typeof useRoom>["photos"]; captions: ReturnType<typeof useRoom>["captions"]; lang: string }) {
-  const urls = useSignedUrls(photos.map((p) => p.storage_path));
-  if (!photos.length) return <p className="pt-4 text-muted-foreground">Share a photo and your agents will describe it for everyone.</p>;
-  return (
-    <div className="grid grid-cols-2 gap-3 pt-2">
-      {photos.map((p) => {
-        const c = captions.find((x) => x.photo_id === p.id && x.language === lang);
-        return (
-          <figure key={p.id} className="overflow-hidden rounded-2xl bg-secondary">
-            {urls[p.storage_path] ? <img src={urls[p.storage_path]} alt={c?.caption ?? "Shared photo"} className="aspect-square w-full object-cover" /> : <div className="aspect-square" />}
-            <figcaption className="p-2 text-sm">{c ? <><b>{c.caption}</b><br /><span className="text-muted-foreground">{c.description}</span></> : <span className="text-muted-foreground">Describing…</span>}</figcaption>
-          </figure>
-        );
-      })}
-    </div>
-  );
-}

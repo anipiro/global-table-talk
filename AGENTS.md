@@ -2,7 +2,7 @@
 - Guests have no accounts; identity is a member id kept in localStorage per room code, and tables use open guest RLS policies — why: join-by-name was a product requirement.
 - All AI work goes through the single server route `src/routes/api/agent.ts` (task-based), with model helpers in `src/lib/ai.server.ts` — why: keeps the gateway key server-side and one place to change prompts.
 - Client-side agent entry points live in `src/lib/agent.ts`; speech capture and whisper use the browser's built-in speech APIs — why: no extra providers needed.
-- Room data loads and subscribes via `useRoom` in `src/lib/useRoom.ts`; screens never open their own realtime channels for room tables — why: one channel per room avoids leaks.
+- Room data loads and subscribes via `useRoom` in `src/lib/useRoom.ts` (which also owns reconnect: backoff retries, reload on online/wake/tab return to catch up on missed rows); screens never open their own realtime channels for room tables — why: one channel per room avoids leaks, and one place handles drops.
 - The photos bucket is private; display via signed URLs — why: workspace blocks public buckets.
 - Browser end-to-end regressions live in tests/e2e as Python Playwright unittest cases against the running app — why: the sandbox supplies Python Playwright and Chromium without extra project dependencies.
 - Speaker attribution is decided in the database: `insert_line` arbitrates only between lines whose words match (same utterance heard by two phones) and flags near-ties/blends as `ambiguous`; manual fixes go through `reassign_line` / `undo_speaker_correction`, which log to `speaker_corrections` — why: atomic, and real overlapping dialogue must never be deleted.

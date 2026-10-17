@@ -130,5 +130,5 @@ export function JoinForm({
 }
 
 export function Screen({ children }: { children: React.ReactNode }) {
-  return <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 py-8">{children}</main>;
+  return <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pt-[max(env(safe-area-inset-top),2rem)] pb-[max(env(safe-area-inset-bottom),2rem)]">{children}</main>;
 }

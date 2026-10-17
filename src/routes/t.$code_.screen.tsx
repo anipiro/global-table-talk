@@ -1,10 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Maximize, Minimize, Play } from "lucide-react";
+import { Gauge, Maximize, Minimize, Pause, Play, Square } from "lucide-react";
 import { useRoom } from "@/lib/useRoom";
 import { AgentFeed, Avatar } from "@/components/AgentFeed";
 import { NotebookStrip } from "@/components/Notebook";
-import { replayDemo } from "@/lib/demoScript";
+import { replayDemo, type ReplayControl } from "@/lib/demoScript";
+import { useSignedUrls } from "@/lib/useRoom";
+import { Shimmer } from "@/components/Photos";
+import { isGroupPhoto } from "@/lib/photos";
+import type { Photo } from "@/lib/room";
 
 export const Route = createFileRoute("/t/$code_/screen")({
   ssr: false,
@@ -23,10 +27,31 @@ export const Route = createFileRoute("/t/$code_/screen")({
 
 function PresenterView() {
   const { code } = Route.useParams();
-  const { room, members, lines, translations, agentMessages, notebook, status, retry } = useRoom(code);
+  const { room, members, lines, translations, agentMessages, notebook, photos, captions, status, retryIn, retry } = useRoom(code);
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const [full, setFull] = useState(false);
   const [replay, setReplay] = useState<string | null>(null);
+  const ctl = useRef<ReplayControl>({ paused: false, speed: 1, cancelled: false });
+  const [paused, setPaused] = useState(false);
+  const [speed, setSpeed] = useState(1);
+  const SPEEDS = [0.5, 1, 2];
+
+  // A newly shared photo takes over the right half for 8 seconds.
+  const knownPhotos = useRef<Set<string> | null>(null);
+  const [queue, setQueue] = useState<Photo[]>([]);
+  useEffect(() => {
+    if (status === "loading") return;
+    if (!knownPhotos.current) { knownPhotos.current = new Set(photos.map((p) => p.id)); return; }
+    const fresh = photos.filter((p) => !knownPhotos.current!.has(p.id));
+    fresh.forEach((p) => knownPhotos.current!.add(p.id));
+    if (fresh.length) setQueue((q) => [...q, ...fresh]);
+  }, [photos, status]);
+  const showing = queue[0];
+  useEffect(() => {
+    if (!showing) return;
+    const t = setTimeout(() => setQueue((q) => q.slice(1)), 8000);
+    return () => clearTimeout(t);
+  }, [showing?.id]);
   const capEnd = useRef<HTMLDivElement>(null);
   const seen = useRef<Set<string> | null>(null);
   if (seen.current === null && lines.length) seen.current = new Set(lines.map((l) => l.id));
@@ -44,13 +69,22 @@ function PresenterView() {
   const visible = members.filter((m) => m.approved);
   async function runReplay() {
     if (replay) return;
+    ctl.current = { paused: false, speed, cancelled: false };
+    setPaused(false);
     setReplay("Starting…");
     try {
-      await replayDemo(room!.id, members, (i, n) => setReplay(`${i}/${n}`));
+      await replayDemo(room!.id, members, (i, n) => setReplay(`${i}/${n}`), 2000, ctl.current);
     } finally {
       setTimeout(() => setReplay(null), 1500);
     }
   }
+  const togglePause = () => { ctl.current.paused = !ctl.current.paused; setPaused(ctl.current.paused); };
+  const cycleSpeed = () => {
+    const next = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]!;
+    ctl.current.speed = next;
+    setSpeed(next);
+  };
+  const stopReplay = () => { ctl.current.cancelled = true; };
 
   return (
     <main className="flex h-dvh flex-col gap-4 overflow-hidden bg-background p-6 text-foreground">
@@ -70,10 +104,23 @@ function PresenterView() {
         </div>
         <span className="text-xl text-muted-foreground">{visible.map((m) => m.name).join(" · ")}</span>
         <div className="ml-auto flex items-center gap-2 text-sm">
-          <button onClick={runReplay} disabled={!!replay} aria-label="Replay demo"
-            className="flex items-center gap-1 rounded-full bg-secondary/60 px-3 py-1.5 text-muted-foreground hover:text-foreground disabled:opacity-70">
-            <Play className="h-3.5 w-3.5" /> {replay ? `Replaying ${replay}` : "Replay demo"}
-          </button>
+          {replay ? (
+            <div className="flex items-center gap-1 rounded-full bg-secondary/60 px-2 py-1 text-muted-foreground" role="group" aria-label="Demo replay">
+              <span className="px-1 tabular-nums" aria-live="polite">{paused ? "Paused" : "Replaying"} {replay}</span>
+              <button onClick={togglePause} aria-label={paused ? "Resume replay" : "Pause replay"} className="rounded-full p-1.5 hover:text-foreground">
+                {paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
+              </button>
+              <button onClick={cycleSpeed} aria-label={`Replay speed ${speed}x, change`} className="flex items-center gap-1 rounded-full px-1.5 py-1 tabular-nums hover:text-foreground">
+                <Gauge className="h-3.5 w-3.5" /> {speed}×
+              </button>
+              <button onClick={stopReplay} aria-label="Stop replay" className="rounded-full p-1.5 hover:text-foreground"><Square className="h-3.5 w-3.5" /></button>
+            </div>
+          ) : (
+            <button onClick={runReplay} aria-label="Replay demo"
+              className="flex items-center gap-1 rounded-full bg-secondary/60 px-3 py-1.5 text-muted-foreground hover:text-foreground">
+              <Play className="h-3.5 w-3.5" /> Replay demo
+            </button>
+          )}
           <button aria-label={full ? "Exit fullscreen" : "Fullscreen"} className="rounded-full bg-secondary/60 p-2 text-muted-foreground hover:text-foreground"
             onClick={() => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {})}>
             {full ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
@@ -103,12 +150,16 @@ function PresenterView() {
           </div>
         </section>
 
-        <section className="flex min-h-0 flex-col rounded-3xl bg-card/60 p-6">
-          <h2 className="mb-4 text-lg uppercase tracking-widest text-muted-foreground">The agents</h2>
-          <div className="min-h-0 flex-1">
-            <AgentFeed msgs={agentMessages} byId={byId} large status={status} onRetry={retry} />
-          </div>
-        </section>
+        {showing ? (
+          <PhotoTakeover key={showing.id} photo={showing} captions={captions} by={byId.get(showing.uploader_id ?? "")?.name} group={isGroupPhoto(showing.storage_path)} />
+        ) : (
+          <section className="flex min-h-0 flex-col rounded-3xl bg-card/60 p-6">
+            <h2 className="mb-4 text-lg uppercase tracking-widest text-muted-foreground">The agents</h2>
+            <div className="min-h-0 flex-1">
+              <AgentFeed msgs={agentMessages} byId={byId} large status={status} retryIn={retryIn} onRetry={retry} />
+            </div>
+          </section>
+        )}
       </div>
 
       <section className="shrink-0">
@@ -116,5 +167,25 @@ function PresenterView() {
         <NotebookStrip entries={notebook} byId={byId} />
       </section>
     </main>
+  );
+}
+
+function PhotoTakeover({ photo, captions, by, group }: { photo: Photo; captions: { photo_id: string; language: string; caption: string; description: string }[]; by?: string | undefined; group: boolean }) {
+  const urls = useSignedUrls([photo.storage_path]);
+  const caps = captions.filter((c) => c.photo_id === photo.id);
+  const main = caps.find((c) => c.language === "en") ?? caps[0];
+  return (
+    <section className="animate-takeover flex min-h-0 flex-col gap-4 rounded-3xl bg-card p-6" aria-live="polite">
+      <h2 className="text-lg uppercase tracking-widest text-primary">{group ? "Group photo" : `${by ?? "Someone"} shared a photo`}</h2>
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl bg-secondary">
+        {urls[photo.storage_path] ? <img src={urls[photo.storage_path]} alt={main?.caption ?? "Shared photo"} className="max-h-full max-w-full object-contain" /> : <Shimmer className="h-full w-full" />}
+      </div>
+      {main ? (
+        <div>
+          <p className="text-[34px] font-semibold leading-tight">{main.caption}</p>
+          {caps.filter((c) => c !== main).map((c) => <p key={c.language} className="text-2xl text-muted-foreground">{c.caption}</p>)}
+        </div>
+      ) : <div><Shimmer className="h-8 w-2/3" /><Shimmer className="mt-2 h-6 w-1/2" /></div>}
+    </section>
   );
 }

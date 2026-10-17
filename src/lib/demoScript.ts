@@ -70,13 +70,26 @@ export async function demoCast(roomId: string, members: Member[]): Promise<Recor
   return { ka: ka!, en: en! };
 }
 
+/** Live controls for a running replay: pause/resume, playback speed (1 = one row every 2s), stop. */
+export type ReplayControl = { paused: boolean; speed: number; cancelled: boolean };
+
+/** Waits `ms` of *playback* time: stands still while paused and runs faster/slower with speed. */
+async function playbackWait(ms: number, ctl: ReplayControl) {
+  let left = ms;
+  while (left > 0 && !ctl.cancelled) {
+    await new Promise((r) => setTimeout(r, 100));
+    if (!ctl.paused) left -= 100 * ctl.speed;
+  }
+}
+
 /** Re-plays the scene into a room, one row every `gapMs` (stage fallback when live audio fails). */
-export async function replayDemo(roomId: string, members: Member[], onStep?: (i: number, total: number) => void, gapMs = 2000, signal?: { cancelled: boolean }) {
+export async function replayDemo(roomId: string, members: Member[], onStep?: (i: number, total: number) => void, gapMs = 2000, ctl: ReplayControl = { paused: false, speed: 1, cancelled: false }) {
   const cast = await demoCast(roomId, members);
   for (let i = 0; i < DEMO_SCRIPT.length; i++) {
-    if (signal?.cancelled) return;
+    while (ctl.paused && !ctl.cancelled) await new Promise((r) => setTimeout(r, 100));
+    if (ctl.cancelled) return;
     await insertStep(roomId, DEMO_SCRIPT[i]!, cast);
     onStep?.(i + 1, DEMO_SCRIPT.length);
-    if (i < DEMO_SCRIPT.length - 1) await new Promise((r) => setTimeout(r, gapMs));
+    if (i < DEMO_SCRIPT.length - 1) await playbackWait(gapMs, ctl);
   }
 }

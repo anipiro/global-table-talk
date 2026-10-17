@@ -26,7 +26,7 @@ export function useRoom(code: string) {
   const [cards, setCards] = useState<Card[]>([]);
   const [corrections, setCorrections] = useState<SpeakerCorrection[]>([]);
   /** loading → live; "offline" when the realtime connection drops; "error" when the first load failed. */
-  const [status, setStatus] = useState<"loading" | "live" | "offline" | "error">("loading");
+  const [status, setStatus] = useState<"loading" | "live" | "reconnecting" | "offline" | "error">("loading");
   const [nonce, setNonce] = useState(0);
   const lineIds = useRef(new Set<string>());
   const photoIds = useRef(new Set<string>());
@@ -41,7 +41,8 @@ export function useRoom(code: string) {
     let cancelled = false;
     let channel: ReturnType<typeof supabase.channel> | null = null;
     (async () => {
-      setStatus("loading");
+      // Keep showing what we have while reconnecting; only a first load shows the loading state.
+      setStatus((st) => (st === "loading" || st === "error" ? "loading" : st === "offline" ? "offline" : "reconnecting"));
       const { data: r, error: roomErr } = await supabase.from("rooms").select().eq("code", code.toUpperCase()).maybeSingle();
       if (cancelled) return;
       if (roomErr) { setStatus("error"); return; }
@@ -103,18 +104,53 @@ export function useRoom(code: string) {
     };
   }, [code, nonce]);
 
-  // The browser knows about lost Wi-Fi/cell long before the realtime heartbeat does.
+  // The browser knows about lost Wi-Fi/cell long before the realtime heartbeat does. Coming back online,
+  // waking the phone or returning to the tab reloads the room (catching up on anything missed) and resubscribes.
+  const hiddenAt = useRef<number | null>(null);
   useEffect(() => {
     const off = () => setStatus((st) => (st === "live" ? "offline" : st));
-    const on = () => setNonce((n) => n + 1); // reload anything missed while offline
+    const on = () => setNonce((n) => n + 1);
+    const vis = () => {
+      if (document.visibilityState === "hidden") { hiddenAt.current = Date.now(); return; }
+      const away = hiddenAt.current ? Date.now() - hiddenAt.current : 0;
+      hiddenAt.current = null;
+      if (away > 3000) setNonce((n) => n + 1); // phones freeze sockets while asleep
+    };
+    const show = (e: PageTransitionEvent) => { if (e.persisted) setNonce((n) => n + 1); };
     window.addEventListener("offline", off);
     window.addEventListener("online", on);
-    return () => { window.removeEventListener("offline", off); window.removeEventListener("online", on); };
+    document.addEventListener("visibilitychange", vis);
+    window.addEventListener("pageshow", show);
+    return () => {
+      window.removeEventListener("offline", off);
+      window.removeEventListener("online", on);
+      document.removeEventListener("visibilitychange", vis);
+      window.removeEventListener("pageshow", show);
+    };
   }, []);
+
+  // Automatic retry with backoff (1s, 2s, 4s … 30s) while offline or after a failed load.
+  const attempt = useRef(0);
+  const [retryIn, setRetryIn] = useState<number | null>(null);
+  useEffect(() => {
+    if (status === "live") { attempt.current = 0; setRetryIn(null); return; }
+    if (status !== "offline" && status !== "error") return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) { setRetryIn(null); return; } // "online" event will retry
+    const delay = nextBackoff(attempt.current);
+    attempt.current++;
+    setRetryIn(delay);
+    const t = setTimeout(() => setNonce((n) => n + 1), delay);
+    return () => clearTimeout(t);
+  }, [status, nonce]);
 
   /** Reloads the room and reconnects (used by "Try again" buttons). */
   const retry = () => setNonce((n) => n + 1);
-  return { status, retry, room, members, lines, translations, agentMessages, notebook, photos, captions, cards, corrections };
+  return { status, retryIn, retry, room, members, lines, translations, agentMessages, notebook, photos, captions, cards, corrections };
+}
+
+/** Reconnect delay for the n-th consecutive attempt: 1s, 2s, 4s, 8s, 16s, then 30s. */
+export function nextBackoff(attempt: number) {
+  return Math.min(30_000, 1000 * 2 ** attempt);
 }
 
 export function useSignedUrls(paths: string[]) {

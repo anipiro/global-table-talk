@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import type { Member, NotebookEntry } from "@/lib/room";
+import { agentName } from "./AgentFeed";
 
 export const NOTEBOOK_SECTIONS: { kind: string; label: string }[] = [
   { kind: "person", label: "People" },
@@ -17,7 +18,7 @@ function useIsNew(entries: NotebookEntry[]) {
 }
 
 function AddedBy({ owner }: { owner: Member | undefined }) {
-  return <p className="mt-1 text-xs text-muted-foreground">added by <span style={{ color: owner?.color }}>{owner ? `${owner.name}'s agent` : "an agent"}</span></p>;
+  return <p className="mt-1 text-xs text-muted-foreground">added by <span style={{ color: owner?.color }}>{owner ? agentName(owner) : "an agent"}</span></p>;
 }
 
 /** Notebook grouped into People, Glossary, Decisions, Moments, with counts. */
