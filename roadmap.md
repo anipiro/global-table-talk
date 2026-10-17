@@ -28,3 +28,5 @@
 - [ ] Flag lines with ambiguous speaker attribution and show it in the feed/history
 - [ ] Regression test: two people side by side with overlapping dialogue stay assigned to the right speakers
 - [ ] Reassign an ambiguous line to the right speaker; apply the correction to nearby overlapping flagged lines
+- [ ] Overlap view: timeline with a lane per speaker, timestamps, overlaps and unsure lines highlighted
+- [ ] Speaker evaluation report: labeled overlapping-speech samples vs predicted speakers, accuracy tracked over time
