@@ -67,7 +67,7 @@ function HistoryPage() {
       <ul className="flex flex-col gap-4 px-4 py-4 text-[20px]">
         {rows.map(({ l, sp, tr }) => (
           <li key={l.id} className="rounded-2xl bg-card p-4">
-            <p className="text-sm"><span className="font-semibold" style={{ color: sp?.color }}>{sp?.name ?? "Someone"}</span> <span className="text-muted-foreground">· {fmtTime(l.created_at)}</span></p>
+            <p className="text-sm"><span className="font-semibold" style={{ color: sp?.color }}>{sp?.name ?? "Someone"}{l.ambiguous ? "?" : ""}</span>{l.ambiguous && <span className="ml-1 rounded-full border border-primary/50 px-2 text-xs text-primary">unsure speaker</span>} <span className="text-muted-foreground">· {fmtTime(l.created_at)}</span></p>
             <p className="mt-1 leading-snug">{tr ?? l.text}</p>
             {tr && <p className="mt-1 text-base text-muted-foreground">{l.text}</p>}
           </li>

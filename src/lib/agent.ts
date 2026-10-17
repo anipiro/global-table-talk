@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Lang, Member } from "./room";
-import { keepByConfidence, keepByLanguage, passesVoiceGate, VOICE_GATE } from "./crosstalk";
+import { keepByConfidence, keepByLanguage, passesVoiceGate, speakingLevel, VOICE_GATE } from "./crosstalk";
 
 /** Calls the agent server endpoint; throws with a readable message on failure. */
 async function call(body: Record<string, string>) {
@@ -97,9 +97,7 @@ export async function calibrateVoice(): Promise<number> {
     });
     await ctx.close().catch(() => {});
     // average the louder half of frames — the moments they were actually speaking
-    const sorted = [...samples].sort((a, b) => b - a);
-    const speaking = sorted.slice(0, Math.max(1, Math.floor(sorted.length / 2)));
-    return speaking.reduce((s, v) => s + v, 0) / speaking.length;
+    return speakingLevel(samples);
   } finally {
     stream.getTracks().forEach((t) => t.stop());
   }
@@ -188,10 +186,16 @@ export async function startMic(
   const buf = new Float32Array(analyser.fftSize);
   const threshold = member.voice_level ? VOICE_GATE * member.voice_level : 0;
   let peak = 0;
+  // Frames since the last utterance boundary; their speaking level is measured exactly like calibration,
+  // so the 60% gate and loudest-phone comparison use the same yardstick on every phone.
+  let frames: number[] = [];
+  const takeLevel = () => { const lvl = speakingLevel(frames); frames = []; return lvl; };
   const sample = () => {
     if (!audioCtx) return;
     analyser.getFloatTimeDomainData(buf);
     const rms = Math.sqrt(buf.reduce((s, v) => s + v * v, 0) / buf.length);
+    frames.push(rms);
+    if (frames.length > 1200) frames.shift();
     peak = Math.max(peak * 0.98, rms);
     lastPeak = peak;
     debugCb?.({ rms: peak, threshold, dropped: droppedCount });
@@ -200,7 +204,7 @@ export async function startMic(
   sample();
 
   if (engine === "gemini") {
-    startGeminiMic(member, micStream, () => peak, onError);
+    startGeminiMic(member, micStream, takeLevel, onError);
     return;
   }
 
@@ -217,13 +221,12 @@ export async function startMic(
       const text = r[0].transcript.trim();
       if (!r.isFinal) { interim += text + " "; continue; }
       if (!text) continue;
-      const loudness = Math.min(1, peak * 4);
-      if (!keepByConfidence(r[0].confidence ?? 0) || !passesVoiceGate(peak, member.voice_level)) {
-        peak = 0;
+      const loudness = takeLevel();
+      peak = 0;
+      if (!keepByConfidence(r[0].confidence ?? 0) || !passesVoiceGate(loudness, member.voice_level)) {
         noteDrop(threshold);
         continue;
       }
-      peak = 0;
       try {
         const lineId = await insertLine(member, text, loudness);
         if (!lineId) { noteDrop(threshold); continue; } // another phone's line won the arbitration
@@ -243,7 +246,7 @@ export async function startMic(
 
 /** Records 3-second chunks (fresh recorder each time, so every chunk is a complete file),
  *  skips silent ones via the RMS analyser, transcribes with Gemini and posts each line. */
-function startGeminiMic(member: Member, stream: MediaStream, getPeak: () => number, onError: (msg: string) => void) {
+function startGeminiMic(member: Member, stream: MediaStream, takeLevel: () => number, onError: (msg: string) => void) {
   wanted = true;
   const mime = pickAudioMime();
   const SILENCE = 0.012;
@@ -251,16 +254,17 @@ function startGeminiMic(member: Member, stream: MediaStream, getPeak: () => numb
   const recordChunk = () => {
     if (!wanted) return;
     const chunks: Blob[] = [];
+    takeLevel(); // start this chunk's level measurement fresh
     const r = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
     recorder = r;
     r.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
     r.onstop = async () => {
       recorder = null;
-      const loudness = Math.min(1, getPeak() * 4);
+      const loudness = takeLevel();
       if (!wanted || !chunks.length) return;
-      if (loudness < SILENCE * 4) return; // silent chunk — skip the upload
+      if (loudness < SILENCE) return; // silent chunk — skip the upload
       const chunkThreshold = member.voice_level ? VOICE_GATE * member.voice_level : 0;
-      if (!passesVoiceGate(getPeak(), member.voice_level)) { noteDrop(chunkThreshold); return; } // too quiet vs my calibrated voice — crosstalk
+      if (!passesVoiceGate(loudness, member.voice_level)) { noteDrop(chunkThreshold); return; } // too quiet vs my calibrated voice — crosstalk
       const blob = new Blob(chunks, { type: mime || "audio/webm" });
       try {
         const { text, language } = await transcribeChunk(blob, member.language as Lang);

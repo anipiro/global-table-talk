@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Mic, MicOff, Headphones, Sparkles, Type, Camera, ImagePlus, History, Share2, Moon, X, ChevronUp, ChevronDown, Hand, Activity, AudioLines } from "lucide-react";
+import { Mic, MicOff, Headphones, Sparkles, Type, Camera, ImagePlus, History, Share2, Rows3, HelpCircle, Moon, X, ChevronUp, ChevronDown, Hand, Activity, AudioLines } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getMemberId, inviteUrl, type Lang, type Line, type Member } from "@/lib/room";
 import { fmtTime, useRoom, useSignedUrls, useWakeLock } from "@/lib/useRoom";
@@ -11,6 +11,7 @@ import { VoiceCalibration } from "@/components/JoinForm";
 import { shareLink } from "@/lib/invites";
 import { GuestList, InvitePanel } from "@/components/HostControls";
 import { Screen } from "@/components/JoinForm";
+import { ReassignSheet } from "@/components/Reassign";
 
 export const Route = createFileRoute("/room/$code")({
   ssr: false,
@@ -47,6 +48,7 @@ function RoomPage() {
   const [debugOn, setDebugOn] = useState(() => localStorage.getItem("gamige-debug-mic") === "1");
   const [debug, setDebug] = useState({ rms: 0, threshold: 0, dropped: 0 });
   const [recalibrating, setRecalibrating] = useState(false);
+  const [fixLine, setFixLine] = useState<Line | null>(null);
   const [interim, setInterim] = useState("");
   const [tab, setTab] = useState<Tab>("notebook");
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -123,6 +125,8 @@ function RoomPage() {
   async function micStart() {
     if (!me!.can_speak) { toast("The host has muted your mic"); return; }
     if (!micSupported(me!.language as Lang)) { setMicIssue("unsupported"); return; }
+    // Uncalibrated phones (hosts, or anyone who skipped) can't tell their owner from the neighbour — ask once.
+    if (!me!.voice_level && sessionStorage.getItem("gamige-calibration-skipped") !== me!.id) { setRecalibrating(true); return; }
     try {
       await startMic(me!, setInterim, (m) => {
         if (m === "__disconnected__") { setMicOn(false); setMicIssue("disconnected"); }
@@ -197,6 +201,7 @@ function RoomPage() {
           name={me.name}
           onDone={async (level) => {
             setRecalibrating(false);
+            if (!level) sessionStorage.setItem("gamige-calibration-skipped", me.id);
             if (level) {
               await supabase.from("members").update({ voice_level: level, voice_calibrated_at: new Date().toISOString(), voice_device: deviceLabel() }).eq("id", me.id);
               toast.success("Voice calibrated — your phone will ignore quieter voices now");
@@ -281,13 +286,17 @@ function RoomPage() {
         ))}
       </div>
 
-      <Feed lines={lines} byId={byId} textFor={textFor} interim={micOn ? interim : ""} me={me} />
+      <Feed lines={lines} byId={byId} textFor={textFor} interim={micOn ? interim : ""} me={me} onFix={setFixLine} />
+      {fixLine && <ReassignSheet line={fixLine} members={members} me={me} onClose={() => setFixLine(null)} />}
 
       {/* action row */}
       <div className="flex gap-2 overflow-x-auto whitespace-nowrap border-t px-3 py-2 text-sm [&>*]:shrink-0">
         <PhotoButtons onFile={(f) => uploadPhoto(f).then(() => toast.success("Photo shared")).catch(() => toast.error("Upload failed"))} />
         <Link to="/history/$code" params={{ code }} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-2">
           <History className="h-4 w-4" /> History
+        </Link>
+        <Link to="/overlap/$code" params={{ code }} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-2">
+          <Rows3 className="h-4 w-4" /> Who said what
         </Link>
         <button onClick={() => shareLink(inviteUrl(room.code)).then((r) => r === "copied" && toast.success("Table link copied"))} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-2" aria-label="Invite">
           <Share2 className="h-4 w-4" />
@@ -405,8 +414,8 @@ function IconBtn({ children, label, active, onClick }: { children: React.ReactNo
   );
 }
 
-function Feed({ lines, byId, textFor, interim, me }: {
-  lines: Line[]; byId: Map<string, Member>; textFor: (l: Line) => string | null; interim: string; me: Member;
+function Feed({ lines, byId, textFor, interim, me, onFix }: {
+  lines: Line[]; byId: Map<string, Member>; textFor: (l: Line) => string | null; interim: string; me: Member; onFix: (l: Line) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
@@ -427,8 +436,13 @@ function Feed({ lines, byId, textFor, interim, me }: {
             const pending = !tr && l.language !== me.language;
             return (
               <li key={l.id}>
+                {l.ambiguous && (
+                  <button onClick={() => onFix(l)} className="mb-1 flex items-center gap-1 rounded-full border border-primary/50 px-2 py-0.5 text-[0.55em] text-primary">
+                    <HelpCircle className="h-3.5 w-3.5" /> Not sure who said this · tap to fix
+                  </button>
+                )}
                 <button className="w-full text-left" onClick={() => tr && setShowOrig((s) => { const n = new Set(s); n.has(l.id) ? n.delete(l.id) : n.add(l.id); return n; })}>
-                  <p className="text-[0.7em] font-semibold" style={{ color: sp?.color }}>{sp?.name ?? "Someone"} <span className="font-normal text-muted-foreground">· {fmtTime(l.created_at)}</span></p>
+                  <p className="text-[0.7em] font-semibold" style={{ color: sp?.color }}>{sp?.name ?? "Someone"}{l.ambiguous ? "?" : ""} <span className="font-normal text-muted-foreground">· {fmtTime(l.created_at)}</span></p>
                   <p className={`leading-snug ${pending ? "text-muted-foreground" : ""}`} style={{ fontWeight: 400 + Math.round(l.loudness * 3) * 100 }}>
                     {orig ? l.text : tr}
                   </p>

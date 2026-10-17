@@ -54,3 +54,31 @@ export function needsRecalibration(
   if (!member.voice_level) return true;
   return !!member.voice_device && member.voice_device !== currentDevice;
 }
+
+/** Speaking level of an utterance: average RMS of the louder half of analyser frames.
+ *  Used both for calibration and for each chunk, so the 60% gate compares like with like. */
+export function speakingLevel(frames: number[]): number {
+  if (!frames.length) return 0;
+  const sorted = [...frames].sort((a, b) => b - a);
+  const top = sorted.slice(0, Math.max(1, Math.floor(sorted.length / 2)));
+  return top.reduce((s, v) => s + v, 0) / top.length;
+}
+
+/** Window in which lines from different speakers count as overlapping speech. */
+export const OVERLAP_WINDOW_MS = 3000;
+
+/** Ids of lines that overlap in time with a line from a different speaker. */
+export function findOverlaps(lines: { id: string; speaker_id: string | null; created_at: string }[], windowMs = OVERLAP_WINDOW_MS): Set<string> {
+  const sorted = [...lines].sort((a, b) => (a.created_at < b.created_at ? -1 : 1));
+  const out = new Set<string>();
+  for (let i = 0; i < sorted.length; i++) {
+    const a = sorted[i]!;
+    const ta = Date.parse(a.created_at);
+    for (let j = i + 1; j < sorted.length; j++) {
+      const b = sorted[j]!;
+      if (Date.parse(b.created_at) - ta > windowMs) break;
+      if (b.speaker_id !== a.speaker_id) { out.add(a.id); out.add(b.id); }
+    }
+  }
+  return out;
+}

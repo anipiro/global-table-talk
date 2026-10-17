@@ -87,3 +87,32 @@ describe("needsRecalibration (phone-change flag)", () => {
     expect(needsRecalibration({ voice_level: 0.1, voice_device: "iPhone/iPad · Safari" }, "iPhone/iPad · Safari")).toBe(false);
   });
 });
+
+import { findOverlaps, speakingLevel } from "./crosstalk";
+
+describe("speakingLevel", () => {
+  it("averages the louder half of frames", () => {
+    expect(speakingLevel([0.1, 0.2, 0.0, 0.0])).toBeCloseTo(0.15);
+  });
+  it("is 0 for no frames", () => {
+    expect(speakingLevel([])).toBe(0);
+  });
+});
+
+describe("findOverlaps", () => {
+  const t = (s: number) => new Date(Date.UTC(2026, 0, 1, 12, 0, s)).toISOString();
+  it("marks lines from different speakers within 3 seconds as overlapping", () => {
+    const o = findOverlaps([
+      { id: "a", speaker_id: "ani", created_at: t(0) },
+      { id: "b", speaker_id: "kato", created_at: t(2) },
+      { id: "c", speaker_id: "ani", created_at: t(10) },
+    ]);
+    expect([...o].sort()).toEqual(["a", "b"]);
+  });
+  it("does not mark one speaker's consecutive lines", () => {
+    expect(findOverlaps([
+      { id: "a", speaker_id: "ani", created_at: t(0) },
+      { id: "b", speaker_id: "ani", created_at: t(1) },
+    ]).size).toBe(0);
+  });
+});

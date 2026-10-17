@@ -23,3 +23,16 @@
 - [x] Retry + mic device selection in denied/disconnected states
 - [x] /test/mic cases: retry reacquires mic, device selection switches input
 - [x] Mid-session mic loss recovery with device-choice prompt; remember selected mic, graceful fallback if gone
+- [x] Side-by-side fix: same-utterance arbitration by text similarity (wider window, real overlapping dialogue kept), voice gate on speaking level comparable to calibration, calibration prompt for host/skipped members
+- [x] Keep nearby voices separate during simultaneous speech (no blending one phone's words into another speaker)
+- [x] Flag lines with ambiguous speaker attribution and show it in the feed/history
+- [x] Regression test: two people side by side with overlapping dialogue stay assigned to the right speakers
+- [x] Reassign an ambiguous line to the right speaker; apply the correction to nearby overlapping flagged lines
+- [x] Overlap view: timeline with a lane per speaker, timestamps, overlaps and unsure lines highlighted
+- [x] Speaker evaluation report: labeled overlapping-speech samples vs predicted speakers, accuracy tracked over time
+- [x] Undoable history of manual speaker corrections (see and revert propagated changes)
+- [x] Overlap view: synced playback with solo/mute per lane (reads captions aloud — no audio is stored)
+- [x] Overlap view keyboard shortcuts: scrub, switch lane, apply reassignment
+- [x] Overlap view: highlight the soloed/playing lane and keep its segments in sync with playback
+- [x] Overlap view: playback clock follows segment timestamps so overlapping lanes keep their relative timing
+- [x] Overlap view: discoverable keyboard-shortcut guide (scrub, switch lane, reassign)
