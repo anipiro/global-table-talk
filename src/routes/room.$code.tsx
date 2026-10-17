@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Mic, MicOff, Headphones, Sparkles, Type, Camera, ImagePlus, History, Share2, Rows3, HelpCircle, Moon, X, ChevronUp, ChevronDown, Hand, Activity, AudioLines, BookOpen, MessagesSquare, Image as ImageIcon, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { getMemberId, inviteUrl, type Lang, type Line, type Member } from "@/lib/room";
+import { getMemberId, inviteUrl, type Lang, type Line, type Media, type Member } from "@/lib/room";
 import { fmtTime, useRoom, useSignedUrls, useWakeLock } from "@/lib/useRoom";
 import { learnCorrection, loadLearning, unlockAudio, watchTalking, describePhoto, deviceLabel, generateRecap, listMics, micDeviceId, micSupported, playWhisper, requestCatchUp, setMicDebug, setMicDeviceId, startMic, stopMic } from "@/lib/agent";
 import { classifyMicError, needsRecalibration } from "@/lib/crosstalk";
@@ -14,10 +14,11 @@ import { Screen } from "@/components/JoinForm";
 import { ReassignSheet } from "@/components/Reassign";
 import { Diagnostics } from "@/components/Diagnostics";
 import { AgentFeed } from "@/components/AgentFeed";
-import { NotebookSections } from "@/components/Notebook";
+import { NotebookSections, useIsNew } from "@/components/Notebook";
 import { CardStack } from "@/components/CardStack";
 import { renderBold } from "@/lib/richText";
 import { PhotoGrid, PhotoViewer } from "@/components/Photos";
+import { MediaCard, MediaViewer } from "@/components/Media";
 import { isGroupPhoto, sharePhoto } from "@/lib/photos";
 import { LANGS } from "@/lib/room";
 
@@ -53,6 +54,7 @@ function RoomPage() {
   const [big, setBigState] = useState(() => localStorage.getItem("gamige-big-text") === "1");
   const setBig = (v: boolean) => { setBigState(v); localStorage.setItem("gamige-big-text", v ? "1" : "0"); };
   const [viewPhoto, setViewPhoto] = useState<string | null>(null);
+  const [viewMedia, setViewMedia] = useState<string | null>(null);
   const [micOn, setMicOn] = useState(false);
   const [micIssue, setMicIssue] = useState<"denied" | "disconnected" | "unsupported" | null>(null);
   const [holdMode, setHoldMode] = useState(() => localStorage.getItem("gamige-hold-to-talk") === "1");
@@ -356,7 +358,8 @@ function RoomPage() {
         </div>
       )}
 
-      <Feed lines={lines} byId={byId} textFor={textFor} interim={micOn ? interim : ""} me={me} talking={talking} onFix={setFixLine} />
+      <Feed lines={lines} byId={byId} textFor={textFor} interim={micOn ? interim : ""} me={me} talking={talking} onFix={setFixLine}
+        media={media} lang={me.language} onOpenMedia={setViewMedia} />
       {fixLine && <ReassignSheet line={fixLine} members={members} me={me} onClose={() => setFixLine(null)} />}
 
       {/* action row */}
