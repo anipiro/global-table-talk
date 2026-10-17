@@ -544,7 +544,7 @@ function Feed({ lines, byId, textFor, interim, me, talking, onFix }: {
                     </button>
                   )}
                   <button onClick={() => onFix(l)} aria-label={`Change speaker: ${sp?.name ?? "Unknown speaker"}`}
-                    className={`mb-0.5 flex items-center gap-1.5 px-1 text-left text-[0.6em] font-semibold ${sp ? "" : "italic text-muted-foreground"}`} style={{ color: sp?.color }}>
+                    className={`mb-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 px-1 text-left text-[0.6em] font-semibold ${sp ? "" : "italic text-muted-foreground"}`} style={{ color: sp?.color }}>
                     {sp?.name ?? "Unknown speaker"}{l.ambiguous ? "?" : ""}
                     {sp && (
                       <span className="rounded-full border border-border bg-secondary px-1.5 py-px text-[0.85em] font-medium text-muted-foreground">
