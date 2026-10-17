@@ -126,8 +126,57 @@ export async function startMic(
   rec.start();
 }
 
+/** Records 3-second chunks (fresh recorder each time, so every chunk is a complete file),
+ *  skips silent ones via the RMS analyser, transcribes with Gemini and posts each line. */
+function startGeminiMic(member: Member, stream: MediaStream, getPeak: () => number, onError: (msg: string) => void) {
+  wanted = true;
+  const mime = pickAudioMime();
+  const SILENCE = 0.012;
+
+  const recordChunk = () => {
+    if (!wanted) return;
+    const chunks: Blob[] = [];
+    const r = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    recorder = r;
+    r.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+    r.onstop = async () => {
+      recorder = null;
+      const loudness = Math.min(1, getPeak() * 4);
+      if (!wanted || !chunks.length) return;
+      if (loudness < SILENCE * 4) return; // silent chunk — skip the upload
+      const blob = new Blob(chunks, { type: mime || "audio/webm" });
+      try {
+        const { text, language } = await transcribeChunk(blob, member.language as Lang);
+        const clean = text.trim();
+        if (!clean) return;
+        const { data, error } = await supabase
+          .from("lines")
+          .insert({ room_id: member.room_id, speaker_id: member.id, text: clean, language: language ?? member.language, loudness })
+          .select("id").single();
+        if (error) onError("Couldn't save what you said.");
+        else call({ task: "translate", lineId: data.id }).catch((err) => onError(err.message));
+      } catch (e) {
+        onError(e instanceof Error ? e.message : "Transcription failed");
+      }
+    };
+    r.start();
+    chunkTimer = setTimeout(() => { if (r.state !== "inactive") r.stop(); }, 3000);
+  };
+
+  recordChunk();
+  const loop = () => {
+    if (!wanted) return;
+    chunkTimer = setTimeout(loop, 3000);
+    recordChunk();
+  };
+  chunkTimer = setTimeout(loop, 3000);
+}
+
 export async function stopMic() {
   wanted = false;
+  if (chunkTimer) { clearTimeout(chunkTimer); chunkTimer = null; }
+  if (recorder && recorder.state !== "inactive") recorder.stop();
+  recorder = null;
   rec?.stop();
   rec = null;
   micStream?.getTracks().forEach((t) => t.stop());
