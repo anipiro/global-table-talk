@@ -8,8 +8,8 @@ export type Step =
   | { type: "agent"; from: "ka" | "en"; to: "ka" | "en" | null; kind: "ask" | "answer" | "note" | "missed" | "bridge"; content: string }
   | { type: "notebook"; owner: "ka" | "en"; kind: "person" | "glossary" | "decision" | "moment"; title: string; body: string }
   | { type: "card"; to: "ka" | "en"; kind: "context" | "catchup" | "recap"; title: string; body: string }
-  /** A picture an agent found for the thing just said — attaches to the line before it. */
-  | { type: "media"; who: "ka" | "en"; subject: string; url: string; caps: Record<string, string>; credit: string };
+  /** A picture or meme an agent made for the thing just said — attaches to the line before it. */
+  | { type: "media"; who: "ka" | "en"; subject: string; url: string; caps: Record<string, string>; credit: string; kind?: "reference_image" | "meme" };
 
 export const DEMO_SPEAKERS = { ka: "Nika", en: "You" } as const;
 
@@ -29,6 +29,12 @@ export const DEMO_SCRIPT: Step[] = [
   { type: "media", who: "ka", subject: "Kakheti", url: "https://upload.wikimedia.org/wikipedia/commons/1/17/Black_Rock_Lake_%E1%83%90.jpg",
     caps: { en: "Kakheti — Georgia's eastern wine region", ka: "კახეთი — ღვინის რეგიონი აღმოსავლეთ საქართველოში" }, credit: "Wikipedia" },
   { type: "line", who: "en", text: "Deal! To Kakheti!", tr: "შევთანხმდით! გაუმარჯოს კახეთს!" },
+  { type: "line", who: "ka", text: "ღვინო არასდროს იწურება — უბრალოდ ბოთლი იცვლება.", tr: "Wine never runs out — the bottle just changes." },
+  { type: "agent", from: "en", to: null, kind: "note", content: "😄 Three toasts in and the wine is still winning. · სამი სადღეგრძელო და ღვინო მაინც იგებს." },
+  { type: "agent", from: "en", to: "ka", kind: "note", content: "Your agent turned Nika's joke into a meme." },
+  { type: "media", who: "en", kind: "meme", subject: "wine never runs out", url: "https://i.imgflip.com/30b1gx.jpg",
+    caps: { en: "ONE TOAST BEFORE DINNER\nTWELVE TOASTS BEFORE DINNER", ka: "ერთი სადღეგრძელო ვახშამამდე\nთორმეტი სადღეგრძელო ვახშამამდე" }, credit: "Imgflip template" },
+  { type: "line", who: "en", text: "Exactly. Another bottle, another toast!", tr: "ზუსტად. კიდევ ერთი ბოთლი, კიდევ ერთი სადღეგრძელო!" },
 ];
 
 /** Inserts one scripted step. `at` sets created_at (seed uses past times; replay uses now). */
@@ -52,9 +58,9 @@ export async function insertStep(roomId: string, step: Step, cast: Record<"ka" |
   } else if (step.type === "notebook") {
     await supabase.from("notebook").insert({ room_id: roomId, kind: step.kind, title: step.title, body: step.body, owner_member_id: cast[step.owner].id, ...ts });
   } else if (step.type === "media") {
-    // Same shape the agent loop writes: kind reference_image, captions per language, credit, owning agent.
+    // Same shape the agent loop writes: kind, captions per language, credit, owning agent.
     await supabase.from("media").insert({
-      room_id: roomId, line_id: lineId ?? null, notebook_id: null, kind: "reference_image",
+      room_id: roomId, line_id: lineId ?? null, notebook_id: null, kind: step.kind ?? "reference_image",
       query: step.subject, url: step.url, caption_by_language: step.caps, credit: step.credit,
       created_by_member_id: cast[step.who].id, ...ts,
     });
