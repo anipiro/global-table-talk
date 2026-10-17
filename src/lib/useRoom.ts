@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { AgentMessage, Card, Line, Media, Member, NotebookEntry, Photo, PhotoCaption, Room, SpeakerCorrection, Translation } from "./room";
+import type { Poll, PollVote } from "@/components/Polls";
 
 type Row = { id: string; created_at?: string };
 function apply<R extends Row>(list: R[], p: { eventType: string; new: unknown; old: unknown }): R[] {
@@ -27,17 +28,23 @@ export function useRoom(code: string) {
   const [cards, setCards] = useState<Card[]>([]);
   const [corrections, setCorrections] = useState<SpeakerCorrection[]>([]);
   const [media, setMedia] = useState<Media[]>([]);
+  const [polls, setPolls] = useState<Poll[]>([]);
+  const [pollVotes, setPollVotes] = useState<PollVote[]>([]);
   /** loading → live; "offline" when the realtime connection drops; "error" when the first load failed. */
   const [status, setStatus] = useState<"loading" | "live" | "reconnecting" | "offline" | "error">("loading");
   const [nonce, setNonce] = useState(0);
   const lineIds = useRef(new Set<string>());
   const photoIds = useRef(new Set<string>());
+  const pollIds = useRef(new Set<string>());
   useEffect(() => {
     lineIds.current = new Set(lines.map((l) => l.id));
   }, [lines]);
   useEffect(() => {
     photoIds.current = new Set(photos.map((l) => l.id));
   }, [photos]);
+  useEffect(() => {
+    pollIds.current = new Set(polls.map((p) => p.id));
+  }, [polls]);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,7 +58,7 @@ export function useRoom(code: string) {
       setRoom(r);
       if (!r) { setStatus("live"); return; }
       const id = r.id;
-      const [m, l, t, a, n, p, c, k, sc, md] = await Promise.all([
+      const [m, l, t, a, n, p, c, k, sc, md, pl, pv] = await Promise.all([
         supabase.from("members").select().eq("room_id", id).order("created_at"),
         supabase.from("lines").select().eq("room_id", id).order("created_at"),
         supabase.from("translations").select("id, line_id, language, text, lines!inner(room_id)").eq("lines.room_id", id),
