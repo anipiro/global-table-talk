@@ -9,7 +9,8 @@ import { useSignedUrls } from "@/lib/useRoom";
 import { Shimmer } from "@/components/Photos";
 import { isGroupPhoto } from "@/lib/photos";
 import { MediaCard } from "@/components/Media";
-import type { Media, Photo } from "@/lib/room";
+import { PollTakeover } from "@/components/Polls";
+import type { AgentMessage, Media, Member, Photo } from "@/lib/room";
 
 export const Route = createFileRoute("/t/$code_/screen")({
   ssr: false,
@@ -28,7 +29,7 @@ export const Route = createFileRoute("/t/$code_/screen")({
 
 function PresenterView() {
   const { code } = Route.useParams();
-  const { room, members, lines, translations, agentMessages, notebook, photos, captions, media, status, retryIn, retry } = useRoom(code);
+  const { room, members, lines, translations, agentMessages, notebook, photos, captions, media, polls, pollVotes, status, retryIn, retry } = useRoom(code);
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const [full, setFull] = useState(false);
   const [replay, setReplay] = useState<string | null>(null);
@@ -55,6 +56,22 @@ function PresenterView() {
     fresh.forEach((m) => knownMedia.current!.add(m.id));
     if (fresh.length) setQueue((q) => [...q, ...fresh.map((m) => ({ kind: "media" as const, media: m }))]);
   }, [media, status]);
+  // A new "🤝" agent note animates the two members' avatars connecting for 3 seconds.
+  const knownNotes = useRef<Set<string> | null>(null);
+  const [handshake, setHandshake] = useState<AgentMessage | null>(null);
+  useEffect(() => {
+    if (status === "loading") return;
+    if (!knownNotes.current) { knownNotes.current = new Set(agentMessages.map((m) => m.id)); return; }
+    const fresh = agentMessages.filter((m) => !knownNotes.current!.has(m.id));
+    fresh.forEach((m) => knownNotes.current!.add(m.id));
+    const shake = fresh.find((m) => m.content.startsWith("🤝"));
+    if (shake) {
+      setHandshake(shake);
+      const t = setTimeout(() => setHandshake(null), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [agentMessages, status]);
+  const openPoll = polls.filter((p) => p.status === "open").slice(-1)[0];
   const showing = queue[0];
   useEffect(() => {
     if (!showing) return;
