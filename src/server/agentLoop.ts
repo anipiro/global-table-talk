@@ -1,4 +1,5 @@
 import { aiStream, LANG_NAME, MODELS, type db } from "@/lib/ai.server";
+import { addPicture, type PictureResult } from "./media";
 
 /** Feature 1 — the agent loop. Runs once per new line (called after its translations are saved):
  *  1. free checks (is there a listener? cooldown? is the line worth a look?)
@@ -16,7 +17,9 @@ const NOTEBOOK_KIND: Partial<Record<Trigger, string>> = {
   unknown_name: "person", reference: "glossary", visual: "glossary", joke: "moment",
 };
 
-export type LoopResult = { ok: true; trigger?: Trigger; skipped?: string; reused?: boolean; models?: string[] };
+export type LoopResult = {
+  ok: true; trigger?: Trigger; skipped?: string; reused?: boolean; models?: string[]; picture?: PictureResult | "error" | undefined;
+};
 
 async function inCooldown(supa: Supa, roomId: string) {
   const since = new Date(Date.now() - COOLDOWN_MS).toISOString();
@@ -112,7 +115,7 @@ JSON: {"trigger": "none|unknown_name|reference|visual|joke|decision|missed", "su
   const subject = clip(trig?.subject, 8);
   if (!subject) return { ok: true, trigger: "none" };
   if (trigger === "decision") return decision(request, supa, roomId, speaker, listeners, subject, context);
-  return exchange(request, supa, roomId, trigger, speaker, listeners, subject, clip(trig?.ask, 15), context);
+  return exchange(request, supa, roomId, line.id, trigger, speaker, listeners, subject, clip(trig?.ask, 15), context);
 }
 
 /** Notebook entry with the same subject, if any agent already wrote one. */
@@ -157,11 +160,24 @@ async function cardsFor(request: Request, supa: Supa, roomId: string, title: str
 }
 
 async function exchange(
-  request: Request, supa: Supa, roomId: string, trigger: Trigger,
+  request: Request, supa: Supa, roomId: string, lineId: string, trigger: Trigger,
   speaker: Member, listeners: Member[], subject: string, ask: string, context: string,
 ): Promise<LoopResult> {
   const asker = listeners.find((m) => m.role !== "talk") ?? listeners[0]!;
   const langs = [...new Set(listeners.map((m) => m.language))];
+  // Feature 2: the agent that owns the notebook entry adds a picture of real places, dishes, landmarks, things.
+  const picture = async (notebookId: string | null, owner: { id: string; name: string }) => {
+    if (trigger !== "visual" && trigger !== "reference") return undefined;
+    try {
+      return await addPicture(request, supa, askJson, {
+        roomId, lineId, notebookId, subject, owner, context,
+        langs: [...new Set([speaker.language, ...langs])],
+      });
+    } catch (e) {
+      console.error("picture error", e);
+      return "error" as const;
+    }
+  };
 
   // Reuse before creating: another agent already explained this.
   const existing = await findEntry(supa, roomId, subject);
@@ -169,18 +185,20 @@ async function exchange(
     const { data: have } = await supa.from("cards").select("member_id").eq("room_id", roomId).eq("kind", "context").eq("title", existing.title);
     const got = new Set((have ?? []).map((c) => c.member_id));
     const need = listeners.filter((m) => !got.has(m.id));
-    if (!need.length) return { ok: true, trigger, skipped: "already known", reused: true };
     const { data: owner } = existing.owner_member_id
-      ? await supa.from("members").select("name").eq("id", existing.owner_member_id).maybeSingle()
+      ? await supa.from("members").select("id, name").eq("id", existing.owner_member_id).maybeSingle()
       : { data: null };
     const ownerName = owner?.name;
+    if (!need.length) {
+      return { ok: true, trigger, skipped: "already known", reused: true, picture: await picture(existing.id, owner ?? speaker) };
+    }
     await supa.from("agent_messages").insert({
       room_id: roomId, from_member_id: need[0]!.id, to_member_id: existing.owner_member_id, type: "note",
       content: clip(`Found “${existing.title}” in the notebook${ownerName ? ` from ${ownerName}'s agent` : ""} — passing it on.`),
     });
     const byLang = await cardsFor(request, supa, roomId, existing.title, existing.body, [...new Set(need.map((m) => m.language))]);
     await sendCards(supa, roomId, need, existing.title, byLang);
-    return { ok: true, trigger, reused: true };
+    return { ok: true, trigger, reused: true, picture: await picture(existing.id, owner ?? speaker) };
   }
 
   // 1. Listener's agent asks the speaker's agent (shows up on screen right away).
@@ -220,7 +238,8 @@ ${trigger === "joke" ? "- Explain in one line why it's funny. Keep it kind; neve
   // 3. One notebook entry, owned by the speaker's agent.
   const title = clip(res.title || subject, 8);
   const body = clip(res.body || res.answer, 40);
-  await supa.from("notebook").insert({ room_id: roomId, kind: NOTEBOOK_KIND[trigger]!, title, body, owner_member_id: speaker.id });
+  const { data: entry } = await supa.from("notebook")
+    .insert({ room_id: roomId, kind: NOTEBOOK_KIND[trigger]!, title, body, owner_member_id: speaker.id }).select("id").single();
 
   // 4. Private context cards, each in the listener's language.
   const byLang: Record<string, string> = {};
@@ -228,7 +247,7 @@ ${trigger === "joke" ? "- Explain in one line why it's funny. Keep it kind; neve
   const missing = langs.filter((l) => !byLang[l]);
   if (missing.length) Object.assign(byLang, await cardsFor(request, supa, roomId, title, body, missing));
   await sendCards(supa, roomId, listeners, title, byLang);
-  return { ok: true, trigger };
+  return { ok: true, trigger, picture: await picture(entry?.id ?? null, speaker) };
 }
 
 async function decision(
