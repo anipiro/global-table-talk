@@ -57,3 +57,33 @@ describe("arbitrate (loudest phone wins, relative to voice_level)", () => {
     expect(arbitrate({ loudness: 0.4, voiceLevel: null }, { loudness: 0.6, voiceLevel: null })).toBe("keep-other");
   });
 });
+
+describe("classifyMicError (recovery states)", () => {
+  it("maps permission denial", () => {
+    expect(classifyMicError({ name: "NotAllowedError" })).toBe("denied");
+    expect(classifyMicError({ name: "SecurityError" })).toBe("denied");
+  });
+  it("maps device disconnects and busy devices", () => {
+    expect(classifyMicError({ name: "NotFoundError" })).toBe("disconnected");
+    expect(classifyMicError({ name: "NotReadableError" })).toBe("disconnected");
+    expect(classifyMicError({ name: "OverconstrainedError" })).toBe("disconnected");
+  });
+  it("maps missing APIs to unsupported", () => {
+    expect(classifyMicError(new TypeError("navigator.mediaDevices is undefined"))).toBe("unsupported");
+  });
+  it("falls back to unknown", () => {
+    expect(classifyMicError(new Error("boom"))).toBe("unknown");
+  });
+});
+
+describe("needsRecalibration (phone-change flag)", () => {
+  it("flags members who never calibrated", () => {
+    expect(needsRecalibration({ voice_level: null, voice_device: null }, "iPhone/iPad · Safari")).toBe(true);
+  });
+  it("flags a calibration made on a different device", () => {
+    expect(needsRecalibration({ voice_level: 0.1, voice_device: "Android · Chromium" }, "iPhone/iPad · Safari")).toBe(true);
+  });
+  it("does not flag a calibration made on the same device", () => {
+    expect(needsRecalibration({ voice_level: 0.1, voice_device: "iPhone/iPad · Safari" }, "iPhone/iPad · Safari")).toBe(false);
+  });
+});
