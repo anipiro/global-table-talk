@@ -175,7 +175,11 @@ export async function startMic(
   } else if (typeof MediaRecorder === "undefined" || !pickAudioMime()) {
     throw new Error("This browser can't record audio for transcription.");
   }
-  micStream = await navigator.mediaDevices.getUserMedia(audioConstraints());
+  micStream = await openMic();
+  // Mid-session mic loss (unplugged, taken by another app): report and surface a recovery state.
+  micStream.getAudioTracks().forEach((t) => {
+    t.onended = () => { if (wanted) { void stopMic(); onErrorRef.current?.("__disconnected__"); } };
+  });
   audioCtx = new AudioContext();
   const analyser = audioCtx.createAnalyser();
   audioCtx.createMediaStreamSource(micStream).connect(analyser);
