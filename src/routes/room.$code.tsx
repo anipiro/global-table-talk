@@ -1,11 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Mic, MicOff, Headphones, Sparkles, Type, Camera, ImagePlus, History, Share2, Moon, X, ChevronUp, ChevronDown } from "lucide-react";
+import { Mic, MicOff, Headphones, Sparkles, Type, Camera, ImagePlus, History, Share2, Moon, X, ChevronUp, ChevronDown, Hand, Activity, AudioLines } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getMemberId, inviteUrl, type Lang, type Line, type Member } from "@/lib/room";
 import { fmtTime, useRoom, useSignedUrls, useWakeLock } from "@/lib/useRoom";
-import { describePhoto, generateRecap, micSupported, playWhisper, requestCatchUp, startMic, stopMic } from "@/lib/agent";
+import { describePhoto, deviceLabel, generateRecap, micSupported, playWhisper, requestCatchUp, setMicDebug, startMic, stopMic } from "@/lib/agent";
+import { VoiceCalibration } from "@/components/JoinForm";
 import { shareLink } from "@/lib/invites";
 import { GuestList, InvitePanel } from "@/components/HostControls";
 import { Screen } from "@/components/JoinForm";
@@ -40,6 +41,11 @@ function RoomPage() {
 
   const [big, setBig] = useState(false);
   const [micOn, setMicOn] = useState(false);
+  const [micIssue, setMicIssue] = useState<"denied" | "disconnected" | "unsupported" | null>(null);
+  const [holdMode, setHoldMode] = useState(() => localStorage.getItem("gamige-hold-to-talk") === "1");
+  const [debugOn, setDebugOn] = useState(() => localStorage.getItem("gamige-debug-mic") === "1");
+  const [debug, setDebug] = useState({ rms: 0, threshold: 0, dropped: 0 });
+  const [recalibrating, setRecalibrating] = useState(false);
   const [interim, setInterim] = useState("");
   const [tab, setTab] = useState<Tab>("notebook");
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -47,6 +53,11 @@ function RoomPage() {
   const [streaming, setStreaming] = useState<string | null>(null);
   const [ending, setEnding] = useState(false);
   const groupInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setMicDebug(debugOn ? setDebug : null);
+    return () => setMicDebug(null);
+  }, [debugOn]);
 
   useEffect(() => {
     if (room?.status === "ended" && !ending) nav({ to: "/recap/$code", params: { code } });
