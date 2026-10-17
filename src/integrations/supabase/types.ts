@@ -217,6 +217,8 @@ export type Database = {
           name: string
           role: string
           room_id: string
+          voice_calibrated_at: string | null
+          voice_device: string | null
           voice_level: number | null
           whisper_on: boolean
         }
@@ -232,6 +234,8 @@ export type Database = {
           name: string
           role?: string
           room_id: string
+          voice_calibrated_at?: string | null
+          voice_device?: string | null
           voice_level?: number | null
           whisper_on?: boolean
         }
@@ -247,6 +251,8 @@ export type Database = {
           name?: string
           role?: string
           room_id?: string
+          voice_calibrated_at?: string | null
+          voice_device?: string | null
           voice_level?: number | null
           whisper_on?: boolean
         }
@@ -441,7 +447,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      insert_line: {
+        Args: {
+          p_language: string
+          p_loudness: number
+          p_room_id: string
+          p_speaker_id: string
+          p_text: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
