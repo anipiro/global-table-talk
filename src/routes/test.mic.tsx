@@ -105,6 +105,8 @@ function MicTestPage() {
   const [live, setLive] = useState("");
   const [error, setError] = useState("");
   const [reference, setReference] = useState("");
+  const [mics, setMics] = useState<{ deviceId: string; label: string }[]>([]);
+  useEffect(() => { listMics().then(setMics).catch(() => {}); }, []);
   const [log, setLog] = useState<LogEntry[]>(() => {
     try { return JSON.parse(localStorage.getItem(LOG_KEY) ?? "[]"); } catch { return []; }
   });
@@ -366,6 +368,22 @@ function MicTestPage() {
         placeholder="Reference phrase (optional, for word accuracy)"
         className="mt-3 w-full rounded-2xl bg-secondary px-4 py-3 text-base outline-none placeholder:text-muted-foreground"
       />
+
+      {mics.length > 1 && (
+        <select
+          value={micDeviceId() ?? ""}
+          disabled={status === "recording"}
+          onChange={(e) => {
+            setMicDeviceId(e.target.value || null);
+            addLog({ event: "session", detail: `Input switched to: ${e.target.selectedOptions[0]?.text ?? "default"}`, pass: true });
+          }}
+          className="mt-3 w-full rounded-2xl bg-secondary px-4 py-3 text-base"
+          aria-label="Choose microphone"
+        >
+          <option value="">Default microphone</option>
+          {mics.map((m) => <option key={m.deviceId} value={m.deviceId}>{m.label}</option>)}
+        </select>
+      )}
 
       <button
         onClick={status === "recording" ? stop : status === "interrupted" ? resume : start}
