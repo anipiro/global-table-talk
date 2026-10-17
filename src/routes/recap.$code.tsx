@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Download, Share2, Sparkles, Star } from "lucide-react";
 import { toPng } from "html-to-image";
@@ -10,6 +10,8 @@ import { Shimmer } from "@/components/Photos";
 import { isGroupPhoto } from "@/lib/photos";
 import { renderBold } from "@/lib/richText";
 import { mediaCaption, newestTonightMedia } from "@/components/Media";
+import { BadgeRow } from "@/components/TableLife";
+import { badgesByMember } from "@/lib/tableLife";
 
 export const Route = createFileRoute("/recap/$code")({
   ssr: false,
@@ -28,7 +30,8 @@ export const Route = createFileRoute("/recap/$code")({
 
 function Recap() {
   const { code } = Route.useParams();
-  const { room, members, photos, cards, notebook, media, status } = useRoom(code);
+  const { room, members, photos, cards, notebook, media, agentMessages, status } = useRoom(code);
+  const badges = useMemo(() => badgesByMember(agentMessages), [agentMessages]);
   const meId = getMemberId(code);
   const myLang = members.find((m) => m.id === meId)?.language ?? "en";
   const painting = newestTonightMedia(media);
@@ -95,7 +98,10 @@ function Recap() {
         ) : null}
         <ul className="flex flex-wrap gap-2" aria-label="Who was there">
           {guests.map((m) => (
-            <li key={m.id} className="rounded-full border px-4 py-1.5 text-lg font-semibold" style={{ color: m.color, borderColor: m.color }}>{m.name}</li>
+            <li key={m.id} className="flex flex-col items-center gap-1 rounded-2xl border px-4 py-1.5 text-lg font-semibold" style={{ color: m.color, borderColor: m.color }}>
+              {m.name}
+              <BadgeRow badges={badges.get(m.id)} size={14} />
+            </li>
           ))}
         </ul>
 

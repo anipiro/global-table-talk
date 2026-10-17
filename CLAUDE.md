@@ -22,8 +22,17 @@ Microsoft Group Transcribe. Our difference is the agents and the belonging layer
   - `src/lib/agent.ts` — client functions the UI calls
   - `src/lib/ai.server.ts` — AI helper (Lovable AI Gateway)
   - anything new under `src/server/` — put new logic here, called from `agent.ts`
-- **Do not edit UI components, pages, or styles.** If a feature needs UI, write down exactly what the front needs
-  (table, columns, what to render) and tell the user to send it to Lovable.
+- **Do not edit UI components, pages, or styles** — except the table-life UI below. For anything else, write down
+  exactly what the front needs (table, columns, what to render) and tell the user to send it to Lovable.
+- **Exception — table-life UI (Back may edit these):** the room screen (`src/routes/room.$code.tsx`), presenter view
+  (`src/routes/t.$code_.screen.tsx`), the Agents tab (`src/components/AgentFeed.tsx`), the recap
+  (`src/routes/recap.$code.tsx`), plus the new `src/components/TableLife.tsx`, `src/lib/tableLife.ts`, the
+  table-life animations at the end of `src/styles.css`, and table-life steps in `src/lib/demoScript.ts` (badges, simulated
+  voices in "Replay demo" via `simulateVoice`, a separate `demo-level` broadcast that never affects loudest-phone). Covers voice ripples, connection web, harmony meter, agent
+  levels and badges. **Person A pauses Lovable on these screens meanwhile** (Lovable edits there would conflict).
+  Keep the existing visual style: lucide icons, existing color tokens, clean and universal (no country-specific themes,
+  no wine/food motifs). Animations: CSS transform/opacity only, no heavy canvas on phones; respect reduced motion.
+  Check the UI locally (`npm run dev`) before pushing.
 - **The database is the contract.** Never rename, drop, or change the type of existing tables/columns.
   New tables/columns: ask the user first; the front adds them through Lovable so Lovable Cloud stays in sync.
 - Keep these UI-facing function names and arguments stable: `startMic`, `stopMic`, `requestCatchUp`,

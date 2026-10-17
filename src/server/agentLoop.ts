@@ -4,6 +4,7 @@ import { addMeme, type MemeResult } from "./memes";
 import { BANTER_PREFIX, maybeBanter, type BanterResult } from "./banter";
 import { openPoll, type PollResult } from "./polls";
 import { SHARED_PREFIX } from "./sharedGround";
+import { award, BADGE_PREFIX, firstWords, quietest } from "./badges";
 
 /** Feature 1 — the agent loop. Runs once per new line (called after its translations are saved):
  *  1. free checks (is there a listener? cooldown? is the line worth a look?)
@@ -22,14 +23,15 @@ const NOTEBOOK_KIND: Partial<Record<Trigger, string>> = {
 };
 
 export type LoopResult = {
-  ok: true; trigger?: Trigger; skipped?: string; reused?: boolean; models?: string[]; picture?: PictureResult | "error" | undefined; meme?: MemeResult | "error"; banter?: BanterResult | "error"; poll?: PollResult | "error";
+  ok: true; trigger?: Trigger; skipped?: string; reused?: boolean; models?: string[]; picture?: PictureResult | "error" | undefined; meme?: MemeResult | "error"; banter?: BanterResult | "error"; poll?: PollResult | "error"; wrote?: boolean; badges?: string[];
 };
 
 async function inCooldown(supa: Supa, roomId: string) {
   const since = new Date(Date.now() - COOLDOWN_MS).toISOString();
   const { count } = await supa.from("agent_messages").select("id", { count: "exact", head: true })
     .eq("room_id", roomId).in("type", LOOP_TYPES).gte("created_at", since)
-    .not("content", "like", `${BANTER_PREFIX}%`).not("content", "like", `${SHARED_PREFIX}%`); // banter/common ground never block a real exchange
+    .not("content", "like", `${BANTER_PREFIX}%`).not("content", "like", `${SHARED_PREFIX}%`)
+    .not("content", "like", `${BADGE_PREFIX}%`); // banter, common ground and badges never block a real exchange
   return (count ?? 0) > 0;
 }
 
@@ -76,9 +78,31 @@ async function recentLines(supa: Supa, roomId: string, members: Member[], limit:
   }).join("\n");
 }
 
+/** Badges earned on this request (reported back in the response for testing). */
+const earned = new WeakMap<Request, string[]>();
+const noteBadge = (request: Request, kind: string, got: boolean) => {
+  if (got) earned.set(request, [...(earned.get(request) ?? []), kind]);
+};
+
 export async function runAgentLoop(request: Request, supa: Supa, lineId: string): Promise<LoopResult> {
   const res = await loop(request, supa, lineId);
-  return { ...res, models: used.get(request) ?? [] };
+  // storyteller / meme_maker: this line just became a notebook entry, picture or meme.
+  const made = res.wrote || res.picture === "added" || res.picture === "generated" || res.meme === "added";
+  if (made) {
+    try {
+      const { data: line } = await supa.from("lines").select("room_id, speaker_id").eq("id", lineId).single();
+      const { data: all } = line ? await supa.from("members").select("id, name, language, role, approved").eq("room_id", line.room_id) : { data: [] };
+      const members = (all ?? []).filter((m) => m.approved);
+      const speaker = members.find((m) => m.id === line?.speaker_id);
+      if (line && speaker) {
+        noteBadge(request, "storyteller", await award(supa, line.room_id, speaker, members, "storyteller"));
+        if (res.meme === "added") noteBadge(request, "meme_maker", await award(supa, line.room_id, speaker, members, "meme_maker"));
+      }
+    } catch (e) {
+      console.error("badge error", e);
+    }
+  }
+  return { ...res, models: used.get(request) ?? [], badges: earned.get(request) ?? [] };
 }
 
 async function loop(request: Request, supa: Supa, lineId: string): Promise<LoopResult> {
@@ -90,14 +114,17 @@ async function loop(request: Request, supa: Supa, lineId: string): Promise<LoopR
   const members: Member[] = (all ?? []).filter((m) => m.approved);
   const speaker = members.find((m) => m.id === line.speaker_id);
   if (!speaker) return { ok: true, skipped: "no speaker" };
+  noteBadge(request, "first_words", await firstWords(supa, roomId, line.id, speaker, members).catch(() => false));
   const listeners = members.filter((m) => m.language !== speaker.language);
   if (!listeners.length) return { ok: true, skipped: "no listener" };
   if (!worthALook(line.text)) return { ok: true, skipped: "filler" };
   if (await inCooldown(supa, roomId)) return { ok: true, skipped: "cooldown" };
 
-  // 2. Cheap trigger check.
+  // 2. Cheap trigger check (also flags two badges, so they cost no extra call).
   const context = await recentLines(supa, roomId, members, 6);
-  const trig = await askJson<{ trigger?: Trigger; subject?: string; ask?: string; proposal?: boolean }>(request, MODELS.trigger,
+  const quiet = await quietest(supa, roomId, speaker.id, members);
+  const otherLangs = [...new Set(members.map((m) => m.language))].filter((l) => l !== speaker.language).map((l) => LANG_NAME[l]);
+  const trig = await askJson<{ trigger?: Trigger; subject?: string; ask?: string; proposal?: boolean; bridge?: boolean; new_word?: string }>(request, MODELS.trigger,
     `You watch a dinner-table conversation for the personal agents of guests who don't speak ${LANG_NAME[speaker.language]}.
 Decide if the LATEST line needs the agents' help. Be strict: most lines are "none".
 - unknown_name: a person (not at the table) the listeners can't know.
@@ -107,8 +134,13 @@ Decide if the LATEST line needs the agents' help. Be strict: most lines are "non
 - decision: the table just agreed on a plan, or someone proposes or asks about one ("let's go to Kakheti on Sunday?").
 - missed: the speaker sounds lost ("what?", "I don't follow").
 People at the table (never unknown): ${members.map((m) => m.name).join(", ")}.
-JSON: {"trigger": "none|unknown_name|reference|visual|joke|decision|missed", "subject": "the name/thing, original spelling plus English in brackets if different", "ask": "max 12-word question, in English, from a listener's agent to ${speaker.name}'s agent", "proposal": true if decision is still a suggestion or question rather than settled, else false}`,
+JSON: {"trigger": "none|unknown_name|reference|visual|joke|decision|missed", "subject": "the name/thing, original spelling plus English in brackets if different", "ask": "max 12-word question, in English, from a listener's agent to ${speaker.name}'s agent", "proposal": true if decision is still a suggestion or question rather than settled, else false,
+ "bridge": true only if the latest line is a question addressed to ${quiet?.name ?? "nobody"} (the quietest person lately), else false,
+ "new_word": "the word, if ${speaker.name} correctly used a word from ${otherLangs.join(" or ") || "another language"} (not a name), else empty"}`,
     `Last lines:\n${context}\n\nLATEST line (by ${speaker.name}): ${line.text}`);
+  if (trig?.bridge && quiet) noteBadge(request, "bridge", await award(supa, roomId, speaker, members, "bridge", quiet.name));
+  const word = String(trig?.new_word ?? "").trim().split(/\s+/).slice(0, 3).join(" ");
+  if (word) noteBadge(request, "new_word", await award(supa, roomId, speaker, members, "new_word", word));
   const trigger = trig?.trigger ?? "none";
   if (trigger === "none" || !(trigger in NOTEBOOK_KIND || ["decision", "missed", "joke"].includes(trigger))) {
     // Nothing to explain: maybe an agent cracks a joke instead (rare, lively rooms only).
@@ -272,7 +304,7 @@ JSON: {"known": true|false,
   const missing = langs.filter((l) => !byLang[l]);
   if (missing.length) Object.assign(byLang, await cardsFor(request, supa, roomId, title, body, missing));
   await sendCards(supa, roomId, listeners, title, byLang);
-  return { ok: true, trigger, picture: await picture(entry?.id ?? null, speaker) };
+  return { ok: true, trigger, wrote: true, picture: await picture(entry?.id ?? null, speaker) };
 }
 
 async function decision(
@@ -293,7 +325,7 @@ JSON: {"title": "max 6 words, English", "body": "one sentence, English: who agre
   const byLang: Record<string, string> = {};
   for (const l of langs) if (res.cards?.[l]) byLang[l] = clip(res.cards[l], 40);
   await sendCards(supa, roomId, listeners, title, byLang);
-  return { ok: true, trigger: "decision" };
+  return { ok: true, trigger: "decision", wrote: true };
 }
 
 /** Feature 3: the speaker's agent explains the joke, a listener's agent remakes it as a meme for the table. */

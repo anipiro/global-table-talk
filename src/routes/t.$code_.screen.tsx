@@ -9,8 +9,9 @@ import { useSignedUrls } from "@/lib/useRoom";
 import { Shimmer } from "@/components/Photos";
 import { isGroupPhoto } from "@/lib/photos";
 import { MediaCard } from "@/components/Media";
-import { PollTakeover } from "@/components/Polls";
+import { PollTakeover, settlePoll } from "@/components/Polls";
 import type { AgentMessage, Media, Member, Photo } from "@/lib/room";
+import { Confetti, ConnectionWeb, TableAvatar, useTableLife, useVoiceLevels } from "@/components/TableLife";
 
 export const Route = createFileRoute("/t/$code_/screen")({
   ssr: false,
@@ -29,7 +30,7 @@ export const Route = createFileRoute("/t/$code_/screen")({
 
 function PresenterView() {
   const { code } = Route.useParams();
-  const { room, members, lines, translations, agentMessages, notebook, photos, captions, media, polls, pollVotes, status, retryIn, retry } = useRoom(code);
+  const { room, members, lines, translations, agentMessages, notebook, photos, captions, media, polls, pollVotes, cards, status, retryIn, retry } = useRoom(code);
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const [full, setFull] = useState(false);
   const [replay, setReplay] = useState<string | null>(null);
@@ -37,6 +38,8 @@ function PresenterView() {
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
   const SPEEDS = [0.5, 1, 2];
+  const life = useTableLife({ roomId: room?.id, status, members, lines, agentMessages, notebook, media, cards, polls });
+  useVoiceLevels(room?.id);
 
   // A newly shared photo takes over the right half for 8 seconds; a new media item for 6.
   const knownPhotos = useRef<Set<string> | null>(null);
@@ -71,6 +74,26 @@ function PresenterView() {
     return () => clearTimeout(t);
   }, [agentMessages, status]);
   const openPoll = polls.filter((p) => p.status === "open").slice(-1)[0];
+  // The presenter settles polls too (same rule as the phones), so a presenter-only replay never leaves a poll
+  // stuck on "closing…" over the agents. settlePoll is idempotent on the server.
+  const settling = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const check = () => {
+      const approved = members.filter((m) => m.approved);
+      for (const p of polls) {
+        if (p.status !== "open" || settling.current.has(p.id)) continue;
+        const voted = new Set(pollVotes.filter((v) => v.poll_id === p.id).map((v) => v.member_id));
+        const allVoted = approved.length > 0 && approved.every((m) => voted.has(m.id));
+        if (allVoted || new Date(p.closes_at).getTime() <= Date.now()) {
+          settling.current.add(p.id);
+          void settlePoll(p.id).catch(() => settling.current.delete(p.id));
+        }
+      }
+    };
+    check();
+    const t = setInterval(check, 2000); // the countdown can run out with no new data arriving
+    return () => clearInterval(t);
+  }, [polls, pollVotes, members]);
   const showing = queue[0];
   useEffect(() => {
     if (!showing) return;
@@ -81,7 +104,8 @@ function PresenterView() {
   const seen = useRef<Set<string> | null>(null);
   if (seen.current === null && lines.length) seen.current = new Set(lines.map((l) => l.id));
 
-  useEffect(() => capEnd.current?.scrollIntoView({ block: "end", behavior: "smooth" }), [lines.length, translations.length]);
+  // Braces matter: newer Chrome returns a Promise from scrollIntoView, and an effect must return nothing or a cleanup.
+  useEffect(() => { capEnd.current?.scrollIntoView({ block: "end", behavior: "smooth" }); }, [lines.length, translations.length]);
   useEffect(() => {
     const on = () => setFull(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", on);
@@ -122,9 +146,9 @@ function PresenterView() {
           live
         </span>
         <span className="font-display text-5xl font-bold tracking-[0.2em]">{room.code}</span>
-        <div className="flex -space-x-2">
+        <div className="flex gap-2">
           {visible.map((m) => (
-            <span key={m.id} title={m.name} className="rounded-full ring-4 ring-background"><Avatar member={m} size={48} /></span>
+            <span key={m.id} title={m.name} className="rounded-full ring-4 ring-background"><TableAvatar member={m} size={48} level={life.levels.get(m.id)} /></span>
           ))}
         </div>
         {handshake && <HandshakeOverlay msg={handshake} members={visible} />}
@@ -154,7 +178,8 @@ function PresenterView() {
         </div>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-2 gap-6">
+      {life.confetti && <Confetti colors={visible.map((m) => m.color)} />}
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)_minmax(0,1fr)] gap-6">
         <section className="flex min-h-0 flex-col rounded-3xl bg-card/60 p-6">
           <h2 className="mb-4 text-lg uppercase tracking-widest text-muted-foreground">Captions</h2>
           <div className="min-h-0 flex-1 overflow-y-auto pr-2">
@@ -176,6 +201,13 @@ function PresenterView() {
           </div>
         </section>
 
+        <section className="flex min-h-0 flex-col rounded-3xl bg-card/60 p-6" aria-label="The table: who's connected and how balanced the conversation is">
+          <h2 className="mb-2 text-lg uppercase tracking-widest text-muted-foreground">The table</h2>
+          <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+            <ConnectionWeb members={visible} life={life} />
+          </div>
+        </section>
+
         {openPoll ? (
           <PollTakeover key={openPoll.id} poll={openPoll} votes={pollVotes} members={members} />
         ) : showing ? (
@@ -188,7 +220,7 @@ function PresenterView() {
           <section className="flex min-h-0 flex-col rounded-3xl bg-card/60 p-6">
             <h2 className="mb-4 text-lg uppercase tracking-widest text-muted-foreground">The agents</h2>
             <div className="min-h-0 flex-1">
-              <AgentFeed msgs={agentMessages} byId={byId} large status={status} retryIn={retryIn} onRetry={retry} />
+              <AgentFeed msgs={agentMessages} byId={byId} large status={status} retryIn={retryIn} onRetry={retry} levels={life.levels} />
             </div>
           </section>
         )}

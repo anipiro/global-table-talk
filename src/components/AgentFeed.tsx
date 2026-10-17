@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowDown, Image as ImageIcon, WifiOff } from "lucide-react";
 import type { AgentMessage, Media, Member } from "@/lib/room";
+import { BADGE_ICON, BADGE_LABEL, parseBadge } from "@/lib/tableLife";
 
 /** Banter lines from the agents always start with this (see src/server/banter.ts). */
 export const BANTER_PREFIX = "😄";
@@ -27,15 +28,29 @@ const TYPE_CLASS: Record<string, string> = {
 
 export type FeedStatus = "loading" | "live" | "reconnecting" | "offline" | "error";
 
-export function Avatar({ member, size = 32 }: { member: Member | undefined; size?: number }) {
+/** Pass `level` to show the agent's level orb (1–3) on the avatar. */
+export function Avatar({ member, size = 32, level }: { member: Member | undefined; size?: number; level?: number | undefined }) {
   return (
     <span
-      className="inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-primary-foreground"
+      className="relative inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-primary-foreground"
       style={{ width: size, height: size, fontSize: size * 0.45, background: member?.color ?? "var(--muted)" }}
       aria-hidden
     >
       {(member?.name ?? "?").slice(0, 1).toUpperCase()}
+      {level && member ? <AgentOrb color={member.color} level={level} avatar={size} /> : null}
     </span>
+  );
+}
+
+/** The agent's level: an orb in the member's color on the avatar's corner, bigger and brighter per level.
+ *  Keyed by level so a level-up replays the pop. Static glow (box-shadow isn't animated, only transform). */
+export function AgentOrb({ color, level, avatar }: { color: string; level: number; avatar: number }) {
+  const d = Math.max(8, Math.round(avatar * [0.3, 0.38, 0.46][level - 1]!));
+  const glow = [`0 0 3px ${color}`, `0 0 6px 1px ${color}`, `0 0 12px 3px ${color}`][level - 1];
+  return (
+    <span key={level} title={`Level ${level} agent`}
+      className="animate-orb-up absolute -bottom-0.5 -right-0.5 rounded-full border-2 border-background"
+      style={{ width: d, height: d, boxShadow: glow, background: `radial-gradient(circle at 35% 30%, white 0 ${level * 12}%, ${color} ${level * 12 + 25}%)` }} />
   );
 }
 
@@ -70,11 +85,11 @@ const describe = (m: AgentMessage, byId: Map<string, Member>, meId?: string | nu
 /** Chat between the agents at the table: newest at the bottom; follows new messages while you're at the
  *  bottom, and shows an unread marker + "new messages" pill when you've scrolled up.
  *  Keyboard: focus the feed, ↑/↓ moves between messages, Home/End jump to oldest/newest. */
-export function AgentFeed({ msgs, byId, meId, large = false, status = "live", retryIn, onRetry, media, onOpenMedia }: {
+export function AgentFeed({ msgs, byId, meId, large = false, status = "live", retryIn, onRetry, media, onOpenMedia, levels }: {
   msgs: AgentMessage[]; byId: Map<string, Member>; meId?: string | null; large?: boolean;
   status?: FeedStatus; retryIn?: number | null; onRetry?: () => void;
   /** Lets notes like "added a photo of…" open that picture/meme on tap. */
-  media?: Media[]; onOpenMedia?: (id: string) => void;
+  media?: Media[]; onOpenMedia?: (id: string) => void; levels?: Map<string, number>;
 }) {
   const ready = status !== "loading" && status !== "error";
   const { isShown, typing, isNew } = useTypingReveal(msgs, ready);
@@ -199,6 +214,8 @@ export function AgentFeed({ msgs, byId, meId, large = false, status = "live", re
               const from = byId.get(m.from_member_id ?? "");
               const to = m.to_member_id ? byId.get(m.to_member_id) : null;
               const banter = m.content.startsWith(BANTER_PREFIX);
+              const badge = parseBadge(m);
+              const BadgeIcon = badge ? BADGE_ICON[badge.kind] : null;
               const linked = media && onOpenMedia ? mediaForNote(m, media) : undefined;
               return (
                 <li key={m.id}>
@@ -209,15 +226,20 @@ export function AgentFeed({ msgs, byId, meId, large = false, status = "live", re
                   )}
                   <div data-msg tabIndex={-1} aria-label={describe(m, byId, meId)}
                     className={`flex items-start gap-3 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring ${isNew(m.id) ? "animate-msg-in" : ""}`}>
-                    <Avatar member={from} size={av} />
-                    <div className={`min-w-0 flex-1 rounded-2xl rounded-tl-sm ${banter ? "border border-speaking/40 bg-speaking/10" : "bg-secondary"} ${large ? "p-5" : "p-3"}`}>
+                    <Avatar member={from} size={av} level={levels?.get(m.from_member_id ?? "")} />
+                    <div className={`min-w-0 flex-1 rounded-2xl rounded-tl-sm ${banter ? "border border-speaking/40 bg-speaking/10" : badge ? "border border-primary/40 bg-primary/10" : "bg-secondary"} ${large ? "p-5" : "p-3"}`}>
                       <p className={`flex flex-wrap items-center gap-x-1.5 gap-y-1 text-muted-foreground ${large ? "text-xl" : "text-[0.8em]"}`}>
                         <span className="font-semibold" style={{ color: from?.color }}>{agentName(from, meId)}</span>
                         <span aria-hidden>→</span>
                         {to ? <span className="font-semibold" style={{ color: to.color }}>{agentName(to, meId)}</span> : <span>table</span>}
-                        <span className={`ml-1 rounded-full border px-2 ${large ? "text-base" : "text-[0.85em]"} ${banter ? "border-speaking/40 bg-speaking/15 text-speaking" : (TYPE_CLASS[m.type] ?? "border-border")}`}>{banter ? "banter" : m.type}</span>
+                        <span className={`ml-1 rounded-full border px-2 ${large ? "text-base" : "text-[0.85em]"} ${banter ? "border-speaking/40 bg-speaking/15 text-speaking" : badge ? "border-primary/40 bg-primary/15 text-primary" : (TYPE_CLASS[m.type] ?? "border-border")}`}>{banter ? "banter" : badge ? "badge" : m.type}</span>
                       </p>
-                      {linked ? (
+                      {badge && BadgeIcon ? (
+                        <p className={`mt-1 flex items-start gap-2 leading-snug ${large ? "text-[30px]" : ""}`}>
+                          <BadgeIcon className={`mt-0.5 shrink-0 text-primary ${large ? "h-8 w-8" : "h-5 w-5"}`} aria-label={BADGE_LABEL[badge.kind]} />
+                          <span>{badge.text}</span>
+                        </p>
+                      ) : linked ? (
                         <button onClick={() => onOpenMedia!(linked.id)}
                           className={`mt-1 flex items-center gap-2 rounded-xl text-left leading-snug underline decoration-primary/50 underline-offset-4 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring ${large ? "text-[30px]" : ""}`}
                           aria-label={`${m.content} — open the ${linked.kind === "meme" ? "meme" : "picture"}`}>
@@ -234,7 +256,7 @@ export function AgentFeed({ msgs, byId, meId, large = false, status = "live", re
             })}
             {typing && (
               <li className="flex items-center gap-3 animate-msg-in" aria-hidden>
-                <Avatar member={byId.get(typing.from_member_id ?? "")} size={av} />
+                <Avatar member={byId.get(typing.from_member_id ?? "")} size={av} level={levels?.get(typing.from_member_id ?? "")} />
                 <div className={`flex items-center gap-2 rounded-2xl rounded-tl-sm bg-secondary text-muted-foreground ${large ? "px-5 py-4 text-xl" : "px-3 py-2 text-sm"}`}>
                   <span>{agentName(byId.get(typing.from_member_id ?? ""), meId)} is typing</span>
                   <span className="flex gap-1"><span className="typing-dot">•</span><span className="typing-dot">•</span><span className="typing-dot">•</span></span>

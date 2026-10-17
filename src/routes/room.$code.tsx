@@ -22,6 +22,7 @@ import { AgentMediaSection, MediaCard, MediaViewer, mediaByLine } from "@/compon
 import { PollCard, settlePoll } from "@/components/Polls";
 import { isGroupPhoto, sharePhoto } from "@/lib/photos";
 import { LANGS } from "@/lib/room";
+import { Confetti, EveryonesIn, HarmonyRing, TableAvatar, useTableLife, useVoiceLevels } from "@/components/TableLife";
 
 export const Route = createFileRoute("/room/$code")({
   ssr: false,
@@ -65,6 +66,8 @@ function RoomPage() {
   const [fixLine, setFixLine] = useState<Line | null>(null);
   const [talking, setTalking] = useState<string[]>([]);
   const roomId = room?.id;
+  const life = useTableLife({ roomId, status: data.status, meId, members, lines, agentMessages, notebook, media, cards, polls });
+  useVoiceLevels(roomId);
   // Learn from speaker fixes on lines this phone captured: moved to me = my voice; moved away = not my owner.
   useEffect(() => {
     if (!meId) return;
@@ -306,6 +309,7 @@ function RoomPage() {
 
   return (
     <div className={`px-safe flex h-dvh flex-col overflow-x-hidden ${big ? "text-[28px]" : "text-[20px]"}`}>
+      {life.confetti && <Confetti colors={life.approved.map((m) => m.color)} />}
       {/* top bar */}
       <header className="z-20 border-b bg-background/95 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.75rem)] text-base backdrop-blur">
         {/* room identity row: code, who's here, live status */}
@@ -314,14 +318,15 @@ function RoomPage() {
           <span className="flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-online" /> live
           </span>
-          <span className="ml-auto flex items-center">
-            {members.filter((m) => m.approved).slice(0, 6).map((m, i) => (
-              <span key={m.id} className="inline-flex h-6 w-6 items-center justify-center rounded-full border-2 border-background text-[0.6rem] font-semibold text-primary-foreground"
-                style={{ background: m.color, marginLeft: i ? -6 : 0, zIndex: 6 - i }} title={m.name}>
-                {m.name.slice(0, 1).toUpperCase()}
+          <HarmonyRing value={life.harmony} size={22} celebrate={life.celebrate} />
+          {life.celebrate && <EveryonesIn />}
+          <span className="ml-auto flex items-center gap-1">
+            {life.approved.slice(0, 4).map((m) => (
+              <span key={m.id} title={m.name} className="rounded-full ring-2 ring-background">
+                <TableAvatar member={m} size={24} level={life.levels.get(m.id)} pop={life.pops.get(m.id)} />
               </span>
             ))}
-            <span className="ml-2 text-xs text-muted-foreground">{members.filter((m) => m.approved).length} here</span>
+            <span className="ml-1 text-xs text-muted-foreground">{life.approved.length} here</span>
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -501,7 +506,7 @@ function RoomPage() {
         {sheetOpen && (
           <div className={`h-[calc(55dvh-3.5rem)] px-4 ${tab === "agents" ? "overflow-hidden pb-2" : "overflow-y-auto pb-6"}`}>
             {tab === "notebook" && <NotebookSections entries={notebook} byId={byId} media={media} lang={me.language} polls={polls} pollVotes={pollVotes} agentMessages={agentMessages} myCards={cards.filter((c) => c.member_id === me.id && c.kind === "shared")} />}
-            {tab === "agents" && <AgentFeed msgs={agentMessages} byId={byId} meId={me.id} status={data.status} retryIn={data.retryIn} onRetry={data.retry} media={media} onOpenMedia={setViewMedia} />}
+            {tab === "agents" && <AgentFeed msgs={agentMessages} byId={byId} meId={me.id} status={data.status} retryIn={data.retryIn} onRetry={data.retry} media={media} onOpenMedia={setViewMedia} levels={life.levels} />}
             {tab === "photos" && (
               <>
                 <PhotoGrid photos={photos} captions={captions} lang={me.language} onOpen={setViewPhoto} />

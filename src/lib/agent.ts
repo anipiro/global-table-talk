@@ -192,6 +192,10 @@ const others = new Map<string, { level: number; at: number }[]>();
 let talkingCb: ((ids: string[]) => void) | null = null;
 const talkingAt = new Map<string, number>();
 let watchingTalk = false;
+let levelWatchers = 0;
+let selfLevel: { id: string; level: number; at: number } | null = null;
+// Simulated voices from "Replay demo": a separate event and map, so they never touch loudest-phone arbitration.
+const demoLevels = new Map<string, { level: number; at: number }>();
 
 /** One broadcast channel per room for live mic levels + "is talking" (not a room table, so outside useRoom). */
 function ensureVoiceChannel(roomId: string) {
@@ -210,11 +214,15 @@ function ensureVoiceChannel(roomId: string) {
       others.set(p.id, list);
       if (p.talking) talkingAt.set(p.id, now);
     })
+    .on("broadcast", { event: "demo-level" }, ({ payload }) => {
+      const p = payload as { id: string; level: number };
+      if (p?.id) demoLevels.set(p.id, { level: p.level, at: performance.now() });
+    })
     .subscribe();
   return voiceChannel;
 }
 function releaseVoiceChannel() {
-  if (wanted || watchingTalk || !voiceChannel) return;
+  if (wanted || watchingTalk || levelWatchers > 0 || !voiceChannel) return;
   void supabase.removeChannel(voiceChannel);
   voiceChannel = null;
   voiceRoom = null;
@@ -232,6 +240,39 @@ export function watchTalking(roomId: string, cb: (ids: string[]) => void) {
   return () => { clearInterval(t); watchingTalk = false; talkingCb = null; releaseVoiceChannel(); };
 }
 
+/** Keeps the room's live mic-level channel open for voice ripples (presenter and phones). */
+export function watchVoiceLevels(roomId: string) {
+  levelWatchers++;
+  ensureVoiceChannel(roomId);
+  return () => { levelWatchers--; releaseVoiceChannel(); };
+}
+
+/** A member's latest mic level (raw RMS, ~150 ms window), 0 when they're silent or their mic is off.
+ *  Cheap to call every animation frame: reads in-memory samples only. */
+export function voiceLevel(memberId: string): number {
+  const now = performance.now();
+  const demo = demoLevels.get(memberId);
+  const sim = demo && now - demo.at < 400 ? demo.level : 0;
+  if (selfLevel?.id === memberId) return Math.max(sim, now - selfLevel.at < 400 ? selfLevel.level : 0);
+  const last = others.get(memberId)?.at(-1);
+  return Math.max(sim, last && now - last.at < 400 ? last.level : 0);
+}
+
+/** "Replay demo": makes a cast member's voice ripple for `ms` on every screen in the room, as if they were talking. */
+export function simulateVoice(roomId: string, memberId: string, ms: number) {
+  const ch = ensureVoiceChannel(roomId);
+  levelWatchers++;
+  const t0 = performance.now();
+  const timer = setInterval(() => {
+    const t = performance.now() - t0;
+    if (t > ms) { clearInterval(timer); levelWatchers--; releaseVoiceChannel(); return; }
+    const envelope = Math.min(1, t / 200, (ms - t) / 300); // fade in and out
+    const level = 0.065 * envelope * (0.55 + 0.45 * Math.abs(Math.sin(t / 140))); // syllable-like wobble
+    demoLevels.set(memberId, { level, at: performance.now() });
+    void ch.send({ type: "broadcast", event: "demo-level", payload: { id: memberId, level } });
+  }, 120);
+}
+
 /** Shares this phone's live mic level with the other phones at the table and tracks theirs,
  *  so each phone knows, moment by moment, whether it is the one closest to whoever is talking. */
 function joinVoiceLevels(member: Member) {
@@ -241,6 +282,7 @@ function joinVoiceLevels(member: Member) {
   shareTimer = setInterval(() => {
     ch.send({ type: "broadcast", event: "level", payload: { id: member.id, level: windowMax, talking } });
     if (talking) talkingAt.set(member.id, performance.now());
+    selfLevel = { id: member.id, level: windowMax, at: performance.now() };
     windowMax = 0;
     talking = false;
   }, 150);

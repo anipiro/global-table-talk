@@ -197,3 +197,25 @@ html, body { overflow-x: hidden; overscroll-behavior-y: none; }
   letter-spacing: 0.02em;
   text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 3px 6px rgb(0 0 0 / 0.6);
 }
+
+/* ---- Table life (voice ripples, level orbs, badges, harmony, connection web) — transform/opacity only ---- */
+.voice-ripple { will-change: transform, opacity; transform-origin: center; }
+@keyframes orb-up { 0% { transform: scale(1) } 35% { transform: scale(1.9) } 70% { transform: scale(.9) } 100% { transform: scale(1) } }
+.animate-orb-up { animation: orb-up .9s cubic-bezier(.2,.7,.2,1); }
+@keyframes badge-pop {
+  0% { transform: translate(-50%, 0) scale(.3); opacity: 0 }
+  12% { transform: translate(-50%, -115%) scale(1.15); opacity: 1 }
+  24% { transform: translate(-50%, -115%) scale(1) }
+  80% { transform: translate(-50%, -115%) scale(1); opacity: 1 }
+  100% { transform: translate(-50%, -140%) scale(.9); opacity: 0 }
+}
+.animate-badge-pop { animation: badge-pop 3.2s ease-out forwards; }
+@keyframes confetti { from { transform: translate3d(0, -4vh, 0) rotate(0); opacity: 1 } to { transform: translate3d(var(--dx), 70vh, 0) rotate(var(--rot)); opacity: 0 } }
+.confetti-piece { animation: confetti 1.6s cubic-bezier(.2,.6,.4,1) forwards; }
+@keyframes harmony-glow { 0%, 100% { opacity: 0; transform: scale(.92) } 40% { opacity: .9; transform: scale(1.06) } }
+.animate-harmony-glow { animation: harmony-glow 2.2s ease-out 2; }
+@keyframes link-flash { 0% { opacity: 1 } 100% { opacity: var(--o) } }
+.animate-link-flash { animation: link-flash 2.5s ease-out forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .animate-orb-up, .animate-badge-pop, .confetti-piece, .animate-harmony-glow, .animate-link-flash { animation-duration: .01ms; animation-iteration-count: 1; }
+}

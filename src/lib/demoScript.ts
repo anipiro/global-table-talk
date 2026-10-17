@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Member } from "./room";
+import { simulateVoice } from "./agent";
 
 /** Scripted dinner scene: a Georgian speaker (Nika) and an English speaker (You).
  *  Used by the Demo room seed and by "Replay demo" on the presenter view. */
@@ -20,11 +21,14 @@ export const DEMO_SPEAKERS = { ka: "Nika", en: "You" } as const;
 export const DEMO_SCRIPT: Step[] = [
   { type: "line", who: "ka", text: "გაუმარჯოს! კეთილი იყოს თქვენი მობრძანება.", tr: "Cheers! Welcome, everyone." },
   { type: "line", who: "en", text: "Thank you for having us, this table is beautiful.", tr: "გმადლობთ, რომ დაგვპატიჟეთ, ეს სუფრა მშვენიერია." },
+  // Badges use the exact note format src/server/badges.ts writes ("🏅 <kind> | <text in each language>").
+  { type: "agent", from: "en", to: null, kind: "note", content: "🏅 first_words | You — first words at the table · You — პირველი სიტყვები მაგიდასთან" },
   { type: "line", who: "ka", text: "ეს ღვინო სულხანმა გამოგზავნა.", tr: "Sulkhan sent this wine." },
   { type: "agent", from: "en", to: "ka", kind: "ask", content: "Who is Sulkhan?" },
   { type: "agent", from: "ka", to: "en", kind: "answer", content: "Nika's uncle, owns a vineyard in Kakheti." },
   { type: "notebook", owner: "en", kind: "person", title: "Sulkhan", body: "Nika's uncle, owns a vineyard in Kakheti." },
   { type: "card", to: "en", kind: "context", title: "Who's Sulkhan?", body: "Nika's uncle. He owns a vineyard in Kakheti and sent tonight's wine." },
+  { type: "agent", from: "ka", to: null, kind: "note", content: "🏅 storyteller | Nika — storyteller: their words made the notebook · Nika — მთხრობელი: მისი სიტყვები ბლოკნოტში მოხვდა" },
   { type: "shared", note: "🤝 Nika and You both live for good wine and a long table.",
     title: "You and Nika both…", body: "…put wine at the center of a good evening. Ask Nika which Kakheti vintage she would pour you first." },
   { type: "line", who: "en", text: "It's wonderful. Did he make it himself?", tr: "საოცარია. თვითონ დააყენა?" },
@@ -40,6 +44,7 @@ export const DEMO_SCRIPT: Step[] = [
   { type: "agent", from: "en", to: "ka", kind: "note", content: "Your agent turned Nika's joke into a meme." },
   { type: "media", who: "en", kind: "meme", subject: "wine never runs out", url: "https://i.imgflip.com/30b1gx.jpg",
     caps: { en: "ONE TOAST BEFORE DINNER\nTWELVE TOASTS BEFORE DINNER", ka: "ერთი სადღეგრძელო ვახშამამდე\nთორმეტი სადღეგრძელო ვახშამამდე" }, credit: "Imgflip template" },
+  { type: "agent", from: "ka", to: null, kind: "note", content: "🏅 meme_maker | Nika — meme maker: a joke that crossed languages · Nika — მემების ოსტატი: ხუმრობამ ენები გადალახა" },
   { type: "poll", who: "en",
     question: { en: "One more toast before dinner?", ka: "კიდევ ერთი სადღეგრძელო ვახშამამდე?" },
     options: [
@@ -48,6 +53,9 @@ export const DEMO_SCRIPT: Step[] = [
     ],
     votes: [ { who: "ka", option: "yes" }, { who: "en", option: "yes" } ] },
   { type: "line", who: "en", text: "Exactly. Another bottle, another toast!", tr: "ზუსტად. კიდევ ერთი ბოთლი, კიდევ ერთი სადღეგრძელო!" },
+  { type: "line", who: "en", text: "Gaumarjos — did I say it right?", tr: "გაუმარჯოს — სწორად ვთქვი?" },
+  { type: "line", who: "ka", text: "იდეალურად!", tr: "Perfectly!" },
+  { type: "agent", from: "en", to: null, kind: "note", content: "🏅 new_word | You — new word: “gaumarjos” · You — ახალი სიტყვა: „gaumarjos“" },
 ];
 
 /** Inserts one scripted step. `at` sets created_at (seed uses past times; replay uses now). */
@@ -147,7 +155,10 @@ export async function replayDemo(roomId: string, members: Member[], onStep?: (i:
   for (let i = 0; i < DEMO_SCRIPT.length; i++) {
     while (ctl.paused && !ctl.cancelled) await new Promise((r) => setTimeout(r, 100));
     if (ctl.cancelled) return;
-    const id = await insertStep(roomId, DEMO_SCRIPT[i]!, cast, undefined, lastLine);
+    const step = DEMO_SCRIPT[i]!;
+    // Lines "speak": the speaker's avatar ripples on every screen while the caption lands.
+    if (step.type === "line") simulateVoice(roomId, cast[step.who].id, Math.min(3200, 900 + step.text.length * 35));
+    const id = await insertStep(roomId, step, cast, undefined, lastLine);
     if (id) lastLine = id;
     onStep?.(i + 1, DEMO_SCRIPT.length);
     if (i < DEMO_SCRIPT.length - 1) await playbackWait(gapMs, ctl);
