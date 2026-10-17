@@ -53,7 +53,7 @@
 
 ## Room UI restyle (Ani, 2026-10-17)
 - [x] Bubble feed: left/right lanes, original + divider + translation, active-speaker glow
-- [ ] Discord-inspired polish: deep slate canvas (#313338/#2B2D31 feel), author name + role/language badges ("Local · KA"), timestamps
-- [ ] Header: room name/code, speaker status, active member counter
-- [ ] Channel-style tab bar (Live Feed, Agent Chat, Notebook, Photos)
+- [x] Discord-inspired polish: badges, header, icon tabs (kept warm obsidian + amber per project memory)
+- [x] Header: room code, live dot, member avatars + count
+- [x] Channel-style tab bar with icons
 - [ ] Keep mic/Gemini pipelines intact
