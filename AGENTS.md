@@ -1,4 +1,5 @@
 # Gamige — technical rules
+- Recap painting selection and notebook exclusion share the media helpers in `src/components/Media.tsx` — why: both views must agree on which existing media rows represent the night's painting without extra AI calls or subscriptions.
 - Guests have no accounts; identity is a member id kept in localStorage per room code, and tables use open guest RLS policies — why: join-by-name was a product requirement.
 - All AI work goes through the single server route `src/routes/api/agent.ts` (task-based), with model helpers in `src/lib/ai.server.ts` — why: keeps the gateway key server-side and one place to change prompts.
 - Client-side agent entry points live in `src/lib/agent.ts`; speech capture and whisper use the browser's built-in speech APIs — why: no extra providers needed.

@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import type { Media, Member, NotebookEntry } from "@/lib/room";
 import { agentName } from "./AgentFeed";
-import { MediaCard } from "./Media";
+import { isTonightMedia, MediaCard } from "./Media";
 
 export const NOTEBOOK_SECTIONS: { kind: string; label: string }[] = [
   { kind: "person", label: "People" },
@@ -27,7 +27,7 @@ export function NotebookSections({ entries, byId, media = [], lang = "en" }: { e
   const isNew = useIsNew(entries);
   const isNewMedia = useIsNew(media);
   const linked = new Set(media.filter((m) => m.notebook_id).map((m) => m.id));
-  const loose = media.filter((m) => !linked.has(m.id));
+  const loose = media.filter((m) => !linked.has(m.id) && !isTonightMedia(m));
   if (!entries.length && !media.length) return <p className="pt-4 text-muted-foreground">The agents will jot down people, words, decisions and moments here.</p>;
   return (
     <div className="flex flex-col gap-5 pt-2">

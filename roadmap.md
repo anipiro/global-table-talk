@@ -1,4 +1,5 @@
 # Gamige roadmap
+- [x] Recap painting: newest tonight image, realtime placeholder, localized caption, PNG inclusion; hide from notebook references
 - [x] Agent-fetched pictures (media table) show inline in the live feed under the caption that triggered them, tappable to fullscreen; same fields the agent loop writes (line_id, kind, caption_by_language, credit); demo scene carries one scripted picture so Replay demo shows it
 - [x] App shell, database, realtime, screens, demo seed
 - [x] Working agents: live captions (browser speech), translation, streaming catch-up, photo description, recap, whisper (spoken)
