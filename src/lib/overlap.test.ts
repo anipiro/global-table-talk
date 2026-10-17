@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeAt, audibleLanes, schedule, scrubTarget } from "./overlap";
+import { activeAt, audibleLanes, schedule, scrubTarget, transcriptCsv, transcriptText } from "./overlap";
 
 const t = (ms: number) => new Date(Date.UTC(2026, 0, 1, 12, 0, 0) + ms).toISOString();
 const segs = [
@@ -39,5 +39,21 @@ describe("scrubTarget", () => {
   });
   it("jumps back to the previous segment start", () => {
     expect(scrubTarget(plan, 6000, -1)).toBe(1500);
+  });
+});
+
+describe("transcript export", () => {
+  const rows = [
+    { at: "2026-10-17T12:22:15.505Z", speaker: "Ani", language: "ka", text: "რატომ, ხო?", unsure: true, overlap: true, corrected: false },
+    { at: "2026-10-17T12:22:18.571Z", speaker: "Kato", language: "ka", text: 'say "hi"', translation: "hi", unsure: false, overlap: false, corrected: true },
+  ];
+  it("CSV keeps timestamps, speaker labels and flags, quoting commas and quotes", () => {
+    const csv = transcriptCsv(rows).split("\n");
+    expect(csv[0]).toBe("timestamp,speaker,language,text,translation,unsure_speaker,overlap,corrected");
+    expect(csv[1]).toBe('2026-10-17T12:22:15.505Z,Ani,ka,"რატომ, ხო?",,yes,yes,no');
+    expect(csv[2]).toBe('2026-10-17T12:22:18.571Z,Kato,ka,"say ""hi""",hi,no,no,yes');
+  });
+  it("text marks unsure speakers", () => {
+    expect(transcriptText(rows, () => "12:22:15").split("\n")[0]).toBe("[12:22:15] Ani (?): რატომ, ხო?");
   });
 });
