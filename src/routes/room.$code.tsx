@@ -267,8 +267,8 @@ function RoomPage() {
       {/* top bar */}
       <header className="z-20 border-b bg-background/95 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.75rem)] text-base backdrop-blur">
         {/* room identity row: code, who's here, live status */}
-        <div className="flex items-center gap-2 pb-2 text-sm">
-          <span className="font-display text-lg font-bold tracking-wide">Table {room.code}</span>
+        <div className="flex min-w-0 items-center gap-2 pb-2 text-sm">
+          <span className="shrink-0 font-display text-lg font-bold tracking-wide">Table {room.code}</span>
           <span className="flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-online" /> live
           </span>
@@ -361,7 +361,7 @@ function RoomPage() {
 
       {/* action row */}
       <div className="flex items-center gap-3 border-t px-3 py-2">
-      <div className="flex min-w-0 flex-1 flex-wrap gap-2 text-sm">
+      <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-2 overflow-x-auto text-sm [&>*]:shrink-0">
         <PhotoButtons onFile={(f) => void shareOne(f)} />
         <Link to="/history/$code" params={{ code }} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-2">
           <History className="h-4 w-4" /> History
