@@ -43,7 +43,12 @@ function SwipeCard({ card, depth, big, members, onDismiss }: { card: Card; depth
       onPointerUp={() => { if (Math.abs(dx) > 80) onDismiss(); else setDx(0); start.current = null; }}
       onPointerCancel={() => { setDx(0); start.current = null; }}
       className={`animate-slide-down pointer-events-auto relative touch-pan-y select-none rounded-3xl border bg-card p-4 pr-12 shadow-xl ${shared ? "border-primary/60 shadow-primary/20" : ""} ${big ? "text-[20px]" : "text-[17px]"} transition-[transform,opacity]`}
-...
+      style={{
+        transform: `translateX(${dx}px) scale(${1 - depth * 0.03})`,
+        opacity: Math.max(0.2, 1 - Math.abs(dx) / 240) * (1 - depth * 0.12),
+        transitionDuration: start.current === null ? "200ms" : "0ms",
+      }}
+    >
       <p className={`mb-1 flex items-center gap-2 text-sm font-semibold ${shared ? "text-online" : "text-primary"}`}>
         <Icon className="h-4 w-4" aria-hidden /> {card.title}
       </p>
