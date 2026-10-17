@@ -60,6 +60,7 @@ export function useRoom(code: string) {
         supabase.from("photo_captions").select("id, photo_id, language, caption, description, photos!inner(room_id)").eq("photos.room_id", id),
         supabase.from("cards").select().eq("room_id", id).order("created_at"),
         supabase.from("speaker_corrections").select().eq("room_id", id).order("created_at"),
+        supabase.from("media").select().eq("room_id", id).order("created_at"),
       ]);
       if (cancelled) return;
       if ([m, l, a, n].some((x) => x.error)) { setStatus("error"); return; }
