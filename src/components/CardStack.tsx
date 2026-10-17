@@ -5,7 +5,7 @@ import type { Card } from "@/lib/room";
 const ICON = { context: Lightbulb, catchup: Rewind, recap: Star } as const;
 
 /** One private card: slides in, dismisses on a sideways swipe or the close button. */
-function SwipeCard({ card, depth, onDismiss }: { card: Card; depth: number; onDismiss: () => void }) {
+function SwipeCard({ card, depth, big, onDismiss }: { card: Card; depth: number; big: boolean; onDismiss: () => void }) {
   const start = useRef<number | null>(null);
   const [dx, setDx] = useState(0);
   const Icon = ICON[card.kind as keyof typeof ICON] ?? Lightbulb;
@@ -16,7 +16,7 @@ function SwipeCard({ card, depth, onDismiss }: { card: Card; depth: number; onDi
       onPointerMove={(e) => { if (start.current !== null) setDx(e.clientX - start.current); }}
       onPointerUp={() => { if (Math.abs(dx) > 80) onDismiss(); else setDx(0); start.current = null; }}
       onPointerCancel={() => { setDx(0); start.current = null; }}
-      className="animate-slide-down pointer-events-auto relative touch-pan-y select-none rounded-3xl border bg-card p-4 pr-12 text-lg shadow-xl transition-[transform,opacity]"
+      className={`animate-slide-down pointer-events-auto relative touch-pan-y select-none rounded-3xl border bg-card p-4 pr-12 shadow-xl ${big ? "text-[20px]" : "text-[17px]"} transition-[transform,opacity]`}
       style={{
         transform: `translateX(${dx}px) scale(${1 - depth * 0.03})`,
         opacity: Math.max(0.2, 1 - Math.abs(dx) / 240) * (1 - depth * 0.12),
@@ -35,11 +35,11 @@ function SwipeCard({ card, depth, onDismiss }: { card: Card; depth: number; onDi
 }
 
 /** Up to 3 private cards for me, newest on top. */
-export function CardStack({ cards, onDismiss }: { cards: Card[]; onDismiss: (id: string) => void }) {
+export function CardStack({ cards, onDismiss, big = false }: { cards: Card[]; onDismiss: (id: string) => void; big?: boolean }) {
   const top = [...cards].slice(-3).reverse();
   return (
     <>
-      {top.map((c, i) => <SwipeCard key={c.id} card={c} depth={i} onDismiss={() => onDismiss(c.id)} />)}
+      {top.map((c, i) => <SwipeCard key={c.id} card={c} depth={i} big={big} onDismiss={() => onDismiss(c.id)} />)}
     </>
   );
 }
