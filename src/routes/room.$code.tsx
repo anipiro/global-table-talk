@@ -517,11 +517,7 @@ function Feed({ lines, byId, textFor, interim, me, talking, onFix, media, lang, 
 }) {
   const isNewMedia = useIsNew(media);
   // Pictures an agent fetched for something someone said, keyed by the line that triggered them.
-  const byLine = useMemo(() => {
-    const m = new Map<string, Media[]>();
-    for (const x of media) if (x.line_id) m.set(x.line_id, [...(m.get(x.line_id) ?? []), x]);
-    return m;
-  }, [media]);
+  const byLine = useMemo(() => mediaByLine(media), [media]);
 
   const ref = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);

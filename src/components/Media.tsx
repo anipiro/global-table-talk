@@ -8,6 +8,14 @@ export function mediaCaption(m: Media, lang: string): string {
   return caps[lang] ?? caps["en"] ?? Object.values(caps)[0] ?? "";
 }
 
+/** Pictures tied to the line that triggered them, keyed by line id — this is what the live feed renders inline.
+ *  A picture with no triggering line stays out of the feed (it still shows in the notebook). */
+export function mediaByLine(media: Media[]): Map<string, Media[]> {
+  const by = new Map<string, Media[]>();
+  for (const m of media) if (m.line_id) by.set(m.line_id, [...(by.get(m.line_id) ?? []), m]);
+  return by;
+}
+
 /**
  * Renders one media item: a reference image card (image, caption, credit)
  * or a meme (template image with bold outlined top/bottom text).
