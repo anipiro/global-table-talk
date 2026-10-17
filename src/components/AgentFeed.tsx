@@ -198,6 +198,8 @@ export function AgentFeed({ msgs, byId, meId, large = false, status = "live", re
             {shown.map((m) => {
               const from = byId.get(m.from_member_id ?? "");
               const to = m.to_member_id ? byId.get(m.to_member_id) : null;
+              const banter = m.content.startsWith(BANTER_PREFIX);
+              const linked = media && onOpenMedia ? mediaForNote(m, media) : undefined;
               return (
                 <li key={m.id}>
                   {m.id === unreadFrom?.id && (
