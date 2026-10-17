@@ -14,7 +14,364 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      agent_messages: {
+        Row: {
+          content: string
+          created_at: string
+          from_member_id: string | null
+          id: string
+          room_id: string
+          to_member_id: string | null
+          type: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          from_member_id?: string | null
+          id?: string
+          room_id: string
+          to_member_id?: string | null
+          type: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          from_member_id?: string | null
+          id?: string
+          room_id?: string
+          to_member_id?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_messages_from_member_id_fkey"
+            columns: ["from_member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_messages_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_messages_to_member_id_fkey"
+            columns: ["to_member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cards: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          kind: string
+          member_id: string | null
+          room_id: string
+          title: string
+        }
+        Insert: {
+          body?: string
+          created_at?: string
+          id?: string
+          kind: string
+          member_id?: string | null
+          room_id: string
+          title: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          member_id?: string | null
+          room_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cards_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cards_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lines: {
+        Row: {
+          created_at: string
+          id: string
+          language: string
+          loudness: number
+          room_id: string
+          speaker_id: string | null
+          text: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          language: string
+          loudness?: number
+          room_id: string
+          speaker_id?: string | null
+          text: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          language?: string
+          loudness?: number
+          room_id?: string
+          speaker_id?: string | null
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lines_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lines_speaker_id_fkey"
+            columns: ["speaker_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      members: {
+        Row: {
+          approved: boolean
+          color: string
+          created_at: string
+          facts: string
+          id: string
+          language: string
+          name: string
+          role: string
+          room_id: string
+          whisper_on: boolean
+        }
+        Insert: {
+          approved?: boolean
+          color?: string
+          created_at?: string
+          facts?: string
+          id?: string
+          language?: string
+          name: string
+          role?: string
+          room_id: string
+          whisper_on?: boolean
+        }
+        Update: {
+          approved?: boolean
+          color?: string
+          created_at?: string
+          facts?: string
+          id?: string
+          language?: string
+          name?: string
+          role?: string
+          room_id?: string
+          whisper_on?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "members_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notebook: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          kind: string
+          owner_member_id: string | null
+          room_id: string
+          title: string
+        }
+        Insert: {
+          body?: string
+          created_at?: string
+          id?: string
+          kind: string
+          owner_member_id?: string | null
+          room_id: string
+          title: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          owner_member_id?: string | null
+          room_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notebook_owner_member_id_fkey"
+            columns: ["owner_member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notebook_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      photo_captions: {
+        Row: {
+          caption: string
+          description: string
+          id: string
+          language: string
+          photo_id: string
+        }
+        Insert: {
+          caption?: string
+          description?: string
+          id?: string
+          language: string
+          photo_id: string
+        }
+        Update: {
+          caption?: string
+          description?: string
+          id?: string
+          language?: string
+          photo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "photo_captions_photo_id_fkey"
+            columns: ["photo_id"]
+            isOneToOne: false
+            referencedRelation: "photos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      photos: {
+        Row: {
+          created_at: string
+          id: string
+          room_id: string
+          storage_path: string
+          uploader_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          room_id: string
+          storage_path: string
+          uploader_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          room_id?: string
+          storage_path?: string
+          uploader_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "photos_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "photos_uploader_id_fkey"
+            columns: ["uploader_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rooms: {
+        Row: {
+          code: string
+          created_at: string
+          host_member_id: string | null
+          id: string
+          status: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          host_member_id?: string | null
+          id?: string
+          status?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          host_member_id?: string | null
+          id?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      translations: {
+        Row: {
+          id: string
+          language: string
+          line_id: string
+          text: string
+        }
+        Insert: {
+          id?: string
+          language: string
+          line_id: string
+          text: string
+        }
+        Update: {
+          id?: string
+          language?: string
+          line_id?: string
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "translations_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

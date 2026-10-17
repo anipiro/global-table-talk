@@ -1,0 +1,20 @@
+CREATE TABLE public.rooms (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), code text NOT NULL UNIQUE CHECK (code ~ '^[A-Z]{4}$'), host_member_id uuid, status text NOT NULL DEFAULT 'lobby' CHECK (status IN ('lobby','live','ended')), created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE public.members (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), room_id uuid NOT NULL REFERENCES public.rooms(id) ON DELETE CASCADE, name text NOT NULL, language text NOT NULL DEFAULT 'en' CHECK (language IN ('ka','en','ru')), role text NOT NULL DEFAULT 'both' CHECK (role IN ('talk','follow','both')), facts text NOT NULL DEFAULT '', whisper_on boolean NOT NULL DEFAULT false, color text NOT NULL DEFAULT '#E8A35C', approved boolean NOT NULL DEFAULT false, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE public.lines (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), room_id uuid NOT NULL REFERENCES public.rooms(id) ON DELETE CASCADE, speaker_id uuid REFERENCES public.members(id) ON DELETE SET NULL, text text NOT NULL, language text NOT NULL, loudness double precision NOT NULL DEFAULT 0.5, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE public.translations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), line_id uuid NOT NULL REFERENCES public.lines(id) ON DELETE CASCADE, language text NOT NULL, text text NOT NULL);
+CREATE TABLE public.agent_messages (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), room_id uuid NOT NULL REFERENCES public.rooms(id) ON DELETE CASCADE, from_member_id uuid REFERENCES public.members(id) ON DELETE SET NULL, to_member_id uuid REFERENCES public.members(id) ON DELETE SET NULL, type text NOT NULL CHECK (type IN ('ask','answer','note','missed','bridge')), content text NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE public.notebook (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), room_id uuid NOT NULL REFERENCES public.rooms(id) ON DELETE CASCADE, kind text NOT NULL CHECK (kind IN ('person','glossary','decision','moment')), title text NOT NULL, body text NOT NULL DEFAULT '', owner_member_id uuid REFERENCES public.members(id) ON DELETE SET NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE public.photos (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), room_id uuid NOT NULL REFERENCES public.rooms(id) ON DELETE CASCADE, uploader_id uuid REFERENCES public.members(id) ON DELETE SET NULL, storage_path text NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE public.photo_captions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), photo_id uuid NOT NULL REFERENCES public.photos(id) ON DELETE CASCADE, language text NOT NULL, caption text NOT NULL DEFAULT '', description text NOT NULL DEFAULT '');
+CREATE TABLE public.cards (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), room_id uuid NOT NULL REFERENCES public.rooms(id) ON DELETE CASCADE, member_id uuid REFERENCES public.members(id) ON DELETE CASCADE, kind text NOT NULL CHECK (kind IN ('context','catchup','recap')), title text NOT NULL, body text NOT NULL DEFAULT '', created_at timestamptz NOT NULL DEFAULT now());
+DO $$ DECLARE t text; BEGIN
+FOREACH t IN ARRAY ARRAY['rooms','members','lines','translations','agent_messages','notebook','photos','photo_captions','cards'] LOOP
+  EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON public.%I TO anon, authenticated', t);
+  EXECUTE format('GRANT ALL ON public.%I TO service_role', t);
+  EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+  EXECUTE format('CREATE POLICY "guest access" ON public.%I FOR ALL TO anon, authenticated USING (true) WITH CHECK (true)', t);
+  EXECUTE format('ALTER TABLE public.%I REPLICA IDENTITY FULL', t);
+  EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', t);
+END LOOP; END $$;
+CREATE POLICY "photos read" ON storage.objects FOR SELECT TO anon, authenticated USING (bucket_id = 'photos');
+CREATE POLICY "photos upload" ON storage.objects FOR INSERT TO anon, authenticated WITH CHECK (bucket_id = 'photos');
