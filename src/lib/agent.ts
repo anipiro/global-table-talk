@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Lang, Member } from "./room";
+import { arbitrate, ARBITRATION_WINDOW_MS, keepByConfidence, keepByLanguage, passesVoiceGate, VOICE_GATE } from "./crosstalk";
 
 /** Calls the agent server endpoint; throws with a readable message on failure. */
 async function call(body: Record<string, string>) {
@@ -48,7 +49,7 @@ export async function transcribeChunk(blob: Blob, languageHint: Lang): Promise<{
 
 type Rec = {
   lang: string; continuous: boolean; interimResults: boolean;
-  onresult: (e: { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => void;
+  onresult: (e: { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string; confidence: number } }> }) => void;
   onend: () => void; onerror: (e: { error: string }) => void; start: () => void; stop: () => void;
 };
 let rec: Rec | null = null;
@@ -58,6 +59,69 @@ let wanted = false;
 let chunkTimer: ReturnType<typeof setInterval> | null = null;
 let recorder: MediaRecorder | null = null;
 let lastPeak = 0;
+let droppedCount = 0;
+let debugCb: ((d: { rms: number; threshold: number; dropped: number }) => void) | null = null;
+
+/** Debug overlay feed: live RMS, active voice threshold, and dropped-line count. */
+export function setMicDebug(cb: typeof debugCb) {
+  debugCb = cb;
+  if (cb) cb({ rms: 0, threshold: 0, dropped: droppedCount });
+}
+export const getDroppedCount = () => droppedCount;
+
+function noteDrop(threshold: number) {
+  droppedCount++;
+  debugCb?.({ rms: lastPeak, threshold, dropped: droppedCount });
+}
+
+/** Records ~2.5s of speech and returns the member's average speaking RMS (voice calibration). */
+export async function calibrateVoice(): Promise<number> {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  try {
+    const ctx = new AudioContext();
+    const analyser = ctx.createAnalyser();
+    ctx.createMediaStreamSource(stream).connect(analyser);
+    const buf = new Float32Array(analyser.fftSize);
+    const samples: number[] = [];
+    const t0 = performance.now();
+    await new Promise<void>((resolve) => {
+      const tick = () => {
+        analyser.getFloatTimeDomainData(buf);
+        const rms = Math.sqrt(buf.reduce((s, v) => s + v * v, 0) / buf.length);
+        samples.push(rms);
+        if (performance.now() - t0 < 2500) requestAnimationFrame(tick);
+        else resolve();
+      };
+      tick();
+    });
+    await ctx.close().catch(() => {});
+    // average the louder half of frames — the moments they were actually speaking
+    const sorted = [...samples].sort((a, b) => b - a);
+    const speaking = sorted.slice(0, Math.max(1, Math.floor(sorted.length / 2)));
+    return speaking.reduce((s, v) => s + v, 0) / speaking.length;
+  } finally {
+    stream.getTracks().forEach((t) => t.stop());
+  }
+}
+
+/** Loudest phone wins: if another member's phone captured a line in the last 2s, keep only the relatively louder one. */
+async function arbitrateLine(member: Member, lineId: string, loudness: number) {
+  const since = new Date(Date.now() - ARBITRATION_WINDOW_MS).toISOString();
+  const { data: others } = await supabase
+    .from("lines").select("id, speaker_id, loudness").eq("room_id", member.room_id)
+    .neq("speaker_id", member.id).gte("created_at", since);
+  if (!others?.length) return;
+  const { data: members } = await supabase.from("members").select("id, voice_level").eq("room_id", member.room_id);
+  for (const o of others) {
+    const otherLevel = members?.find((m) => m.id === o.speaker_id)?.voice_level;
+    const verdict = arbitrate(
+      { loudness, voiceLevel: member.voice_level },
+      { loudness: o.loudness, voiceLevel: otherLevel },
+    );
+    if (verdict === "keep-mine") await supabase.from("lines").delete().eq("id", o.id);
+    else { await supabase.from("lines").delete().eq("id", lineId); return; }
+  }
+}
 
 export const micSupported = (lang?: Lang) =>
   typeof window !== "undefined" &&
