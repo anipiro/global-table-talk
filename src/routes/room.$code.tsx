@@ -270,7 +270,7 @@ function RoomPage() {
         <div className="flex items-center gap-2 pb-2 text-sm">
           <span className="font-display text-lg font-bold tracking-wide">Table {room.code}</span>
           <span className="flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" /> live
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-online" /> live
           </span>
           <span className="ml-auto flex items-center">
             {members.filter((m) => m.approved).slice(0, 6).map((m, i) => (
