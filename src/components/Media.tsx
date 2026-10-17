@@ -14,7 +14,7 @@ export function MediaCard({ media, lang, large = false }: { media: Media; lang: 
   const caption = mediaCaption(media, lang);
   const isMeme = media.kind === "meme";
   return (
-    <figure className={`overflow-hidden rounded-2xl bg-card ${large ? "" : "max-w-sm"}`}>
+    <figure className={`overflow-hidden rounded-lg bg-card ${large ? "" : "max-w-sm"}`}>
       <div className="relative">
         <img src={media.url} alt={caption || media.query} className="w-full object-contain" loading="lazy" />
         {isMeme && (
@@ -27,7 +27,7 @@ export function MediaCard({ media, lang, large = false }: { media: Media; lang: 
       {!isMeme && (caption || media.credit) && (
         <figcaption className="p-3">
           {caption && <p className={large ? "text-2xl font-semibold" : "font-semibold"}>{caption}</p>}
-          {media.credit && <p className="mt-0.5 text-xs text-muted-foreground">{media.credit}</p>}
+          {media.credit && <p className="mt-0.5 text-sm text-muted-foreground">{media.credit}</p>}
         </figcaption>
       )}
     </figure>

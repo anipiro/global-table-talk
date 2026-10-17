@@ -6,15 +6,16 @@ import { joinRoom, getMemberId, type Member, type Room } from "@/lib/room";
 import { deviceLabel } from "@/lib/agent";
 import { checkInvite, INVITE_ERRORS, loadInvite, type Invite, type InviteCheck } from "@/lib/invites";
 import { JoinForm, Screen, VoiceCalibration } from "@/components/JoinForm";
+import { buttonVariants } from "@/components/ui/button";
 
 export const Route = createFileRoute("/i/$token")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Dinner invite — Gamige" },
-      { name: "description", content: "You've been invited to a dinner table on Gamige." },
-      { property: "og:title", content: "You're invited to dinner on Gamige" },
-      { property: "og:description", content: "Join and follow the conversation in your own language." },
+      { title: "Table invite on Gamige" },
+      { name: "description", content: "You've been invited to a table on Gamige. Join to follow the conversation with live captions and translation." },
+      { property: "og:title", content: "You're invited to a table on Gamige" },
+      { property: "og:description", content: "Join to follow along with live captions and translation in your language." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -42,9 +43,11 @@ function InviteJoin() {
   if (!state.check.ok)
     return (
       <Screen>
-        <h1 className="text-3xl font-bold">Invite not valid</h1>
-        <p className="mt-3 text-lg text-muted-foreground">{INVITE_ERRORS[state.check.reason]}</p>
-        <Link to="/" className="mt-8 text-primary">Go home</Link>
+        <h1 className="text-3xl font-semibold">Invite not valid</h1>
+        <p className="mt-3 font-display text-lg leading-snug text-muted-foreground">{INVITE_ERRORS[state.check.reason]}</p>
+        <Link to="/" className={buttonVariants({ variant: "outline", className: "mt-8 self-start" })}>
+          Go home
+        </Link>
       </Screen>
     );
   const { room, invite } = state;
@@ -63,9 +66,10 @@ function InviteJoin() {
     );
   return (
     <Screen>
-      <p className="text-sm uppercase tracking-[0.3em] text-primary">Table {room!.code}</p>
-      <h1 className="mb-2 mt-1 text-4xl font-bold">You're invited</h1>
-      <p className="mb-8 text-muted-foreground">The host will let you in once you join.</p>
+      <h1 className="text-4xl font-semibold">Join table {room!.code}</h1>
+      <p className="mb-8 mt-2 font-display text-lg leading-snug text-muted-foreground">
+        You’re invited. The host will let you in once you join.
+      </p>
       <JoinForm
         submitLabel="Ask to join"
         onSubmit={async (v) => {

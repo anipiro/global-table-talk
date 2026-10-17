@@ -1,22 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowDown, WifiOff } from "lucide-react";
+import { ArrowDown, MessagesSquare, WifiOff } from "lucide-react";
 import type { AgentMessage, Member } from "@/lib/room";
-
-const TYPE_CLASS: Record<string, string> = {
-  ask: "text-type-ask border-type-ask/40 bg-type-ask/10",
-  answer: "text-type-answer border-type-answer/40 bg-type-answer/10",
-  note: "text-type-note border-type-note/40 bg-type-note/10",
-  missed: "text-type-missed border-type-missed/40 bg-type-missed/10",
-  bridge: "text-type-bridge border-type-bridge/40 bg-type-bridge/10",
-};
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/EmptyState";
 
 export type FeedStatus = "loading" | "live" | "reconnecting" | "offline" | "error";
 
 export function Avatar({ member, size = 32 }: { member: Member | undefined; size?: number }) {
   return (
     <span
-      className="inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-primary-foreground"
-      style={{ width: size, height: size, fontSize: size * 0.45, background: member?.color ?? "var(--muted)" }}
+      className="inline-flex shrink-0 items-center justify-center rounded-full font-extrabold text-foreground"
+      style={{ width: size, height: size, fontSize: size * 0.45, background: member?.color ? `color-mix(in oklab, ${member.color} 85%, var(--background))` : "var(--muted)" }}
       aria-hidden
     >
       {(member?.name ?? "?").slice(0, 1).toUpperCase()}
@@ -125,17 +119,16 @@ export function AgentFeed({ msgs, byId, meId, large = false, status = "live", re
     next.scrollIntoView({ block: "nearest" });
   };
 
-  const av = large ? 48 : 32;
   const big = large ? "text-2xl" : "";
   const live = <p className="sr-only" aria-live="polite" aria-atomic="true">{announce}</p>;
 
   if (status === "loading")
     return (
-      <div className="flex flex-col gap-3 pt-2" aria-busy="true" aria-label="Loading agent messages">
+      <div className="flex flex-col gap-4 pt-2" aria-busy="true" aria-label="Loading agent messages">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="flex items-start gap-3">
-            <span className="animate-pulse rounded-full bg-secondary" style={{ width: av, height: av }} />
-            <div className="h-16 flex-1 animate-pulse rounded-2xl bg-secondary" style={{ opacity: 1 - i * 0.25 }} />
+          <div key={i} className="speaker-rule">
+            <div className="h-4 w-1/3 animate-pulse rounded-sm bg-secondary" style={{ opacity: 1 - i * 0.25 }} />
+            <div className="mt-2 h-10 animate-pulse rounded-sm bg-secondary" style={{ opacity: 1 - i * 0.25 }} />
           </div>
         ))}
       </div>
@@ -143,9 +136,9 @@ export function AgentFeed({ msgs, byId, meId, large = false, status = "live", re
   if (status === "error")
     return (
       <div className={`flex flex-col items-start gap-3 pt-4 ${big}`} role="alert">
-        <p className="flex items-center gap-2 font-semibold"><WifiOff className="h-5 w-5 text-destructive" /> Couldn't load the agents' conversation.</p>
+        <p className="flex items-center gap-2 font-semibold"><WifiOff className="h-5 w-5 text-destructive" aria-hidden /> Couldn't load the agents' conversation.</p>
         <p className="text-muted-foreground">{retryIn ? `Trying again in ${Math.round(retryIn / 1000)}s…` : "Check the connection, then try again."}</p>
-        {onRetry && <button onClick={onRetry} className="min-h-11 rounded-full bg-primary px-4 py-2 font-semibold text-primary-foreground">Try again now</button>}
+        {onRetry && <Button onClick={onRetry}>Try again now</Button>}
       </div>
     );
 
@@ -153,12 +146,12 @@ export function AgentFeed({ msgs, byId, meId, large = false, status = "live", re
     <div className="relative flex h-full min-h-0 flex-col">
       {live}
       {status === "offline" && (
-        <div role="status" className={`mb-2 flex items-center gap-2 rounded-2xl bg-destructive/15 px-3 py-2 ${large ? "text-xl" : "text-sm"}`}>
+        <div role="status" className={`mb-2 flex items-center gap-2 rounded-xl border-2 border-destructive bg-card px-3 py-2 ${large ? "text-xl" : "text-sm"}`}>
           <WifiOff className="h-4 w-4 shrink-0 text-destructive" aria-hidden />
           <span className="flex-1">
-            Connection lost — {retryIn ? `reconnecting in ${Math.round(retryIn / 1000)}s` : "waiting for the network"}. You'll catch up on anything missed.
+            Connection lost. {retryIn ? `Reconnecting in ${Math.round(retryIn / 1000)}s` : "Waiting for the network"}. You'll catch up on anything missed.
           </span>
-          {onRetry && <button onClick={onRetry} className="min-h-11 rounded-full bg-secondary px-3 py-1 font-semibold">Reconnect</button>}
+          {onRetry && <Button variant="secondary" size="sm" onClick={onRetry}>Reconnect</Button>}
         </div>
       )}
       <div
@@ -168,46 +161,41 @@ export function AgentFeed({ msgs, byId, meId, large = false, status = "live", re
         tabIndex={0}
         role="log"
         aria-label={`Agent conversation, ${shown.length} messages${unread ? `, ${unread} unread` : ""}. Use arrow keys to move between messages.`}
-        className="min-h-0 flex-1 overflow-y-auto rounded-xl pr-1 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="min-h-0 flex-1 overflow-y-auto rounded-md pr-1 outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {!msgs.length ? (
-          <div className={`flex flex-col items-center gap-2 py-10 text-center text-muted-foreground ${big}`}>
-            <span className="flex gap-1 text-primary" aria-hidden><span className="typing-dot">•</span><span className="typing-dot">•</span><span className="typing-dot">•</span></span>
-            <p className="text-foreground">The agents are listening quietly.</p>
-            <p className={large ? "text-xl" : "text-sm"}>When someone's agent checks a name, a word or something missed with another agent, it shows up here.</p>
-          </div>
+          <EmptyState icon={MessagesSquare} title="No agent messages yet." large={large}>
+            They appear when an agent asks another agent about a name, a word or a reference.
+          </EmptyState>
         ) : (
-          <ol className={`flex flex-col ${large ? "gap-5" : "gap-3"} pt-2 pb-2`}>
+          <ol className={`flex flex-col ${large ? "gap-6" : "gap-5"} pt-2 pb-2`}>
             {shown.map((m) => {
               const from = byId.get(m.from_member_id ?? "");
               const to = m.to_member_id ? byId.get(m.to_member_id) : null;
               return (
                 <li key={m.id}>
                   {m.id === unreadFrom?.id && (
-                    <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-primary" role="separator" aria-label={unreadFrom.label}>
-                      <span className="h-px flex-1 bg-primary/50" /> {unreadFrom.label} <span className="h-px flex-1 bg-primary/50" />
+                    <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-redbrown" role="separator" aria-label={unreadFrom.label}>
+                      <span className="h-px flex-1 bg-redbrown" /> {unreadFrom.label} <span className="h-px flex-1 bg-redbrown" />
                     </div>
                   )}
                   <div data-msg tabIndex={-1} aria-label={describe(m, byId, meId)}
-                    className={`flex items-start gap-3 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring ${isNew(m.id) ? "animate-msg-in" : ""}`}>
-                    <Avatar member={from} size={av} />
-                    <div className={`min-w-0 flex-1 rounded-2xl rounded-tl-sm bg-secondary ${large ? "p-5" : "p-3"}`}>
-                      <p className={`flex flex-wrap items-center gap-x-1.5 gap-y-1 text-muted-foreground ${large ? "text-xl" : "text-[0.8em]"}`}>
-                        <span className="font-semibold" style={{ color: from?.color }}>{agentName(from, meId)}</span>
-                        <span aria-hidden>→</span>
-                        {to ? <span className="font-semibold" style={{ color: to.color }}>{agentName(to, meId)}</span> : <span>table</span>}
-                        <span className={`ml-1 rounded-full border px-2 ${large ? "text-base" : "text-[0.85em]"} ${TYPE_CLASS[m.type] ?? "border-border"}`}>{m.type}</span>
-                      </p>
-                      <p className={`mt-1 leading-snug ${large ? "text-[30px]" : ""}`}>{m.content}</p>
-                    </div>
+                    className={`speaker-rule rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring ${isNew(m.id) ? "animate-msg-in" : ""}`}
+                    style={{ "--speaker": from?.color } as React.CSSProperties}>
+                    <p className={`flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-muted-foreground ${large ? "text-xl" : "text-sm"}`}>
+                      <span className="speaker-ink font-semibold" style={{ "--speaker": from?.color } as React.CSSProperties}>{agentName(from, meId)}</span>
+                      <span aria-hidden>→</span>
+                      {to ? <span className="speaker-ink font-semibold" style={{ "--speaker": to.color } as React.CSSProperties}>{agentName(to, meId)}</span> : <span>table</span>}
+                      <span className={m.type === "missed" ? "text-destructive" : ""}>· {m.type}</span>
+                    </p>
+                    <p className={`mt-1 font-text ${large ? "text-[clamp(1.5rem,2.2vw,2.25rem)]" : ""}`}>{m.content}</p>
                   </div>
                 </li>
               );
             })}
             {typing && (
-              <li className="flex items-center gap-3 animate-msg-in" aria-hidden>
-                <Avatar member={byId.get(typing.from_member_id ?? "")} size={av} />
-                <div className={`flex items-center gap-2 rounded-2xl rounded-tl-sm bg-secondary text-muted-foreground ${large ? "px-5 py-4 text-xl" : "px-3 py-2 text-sm"}`}>
+              <li className="speaker-rule animate-msg-in" aria-hidden style={{ "--speaker": byId.get(typing.from_member_id ?? "")?.color } as React.CSSProperties}>
+                <div className={`flex items-center gap-2 text-muted-foreground ${large ? "text-xl" : "text-sm"}`}>
                   <span>{agentName(byId.get(typing.from_member_id ?? ""), meId)} is typing</span>
                   <span className="flex gap-1"><span className="typing-dot">•</span><span className="typing-dot">•</span><span className="typing-dot">•</span></span>
                 </div>
@@ -218,7 +206,7 @@ export function AgentFeed({ msgs, byId, meId, large = false, status = "live", re
       </div>
       {unread > 0 && (
         <button onClick={() => { toBottom(); clearUnread(); }}
-          className={`absolute bottom-3 left-1/2 flex min-h-11 -translate-x-1/2 items-center gap-1 rounded-full bg-primary font-semibold text-primary-foreground shadow-lg ${large ? "px-5 py-2 text-xl" : "px-4 py-1.5 text-sm"}`}>
+          className={`absolute inset-x-0 bottom-0 flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brown font-bold text-cream ${large ? "text-xl" : "text-base"}`}>
           {unread} new message{unread === 1 ? "" : "s"} <ArrowDown className="h-4 w-4" aria-hidden />
         </button>
       )}

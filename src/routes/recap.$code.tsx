@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Download, Share2, Sparkles, Star } from "lucide-react";
+import { Download, Share2 } from "lucide-react";
 import { toPng } from "html-to-image";
 import { getMemberId } from "@/lib/room";
 import { useRoom, useSignedUrls } from "@/lib/useRoom";
 import { Screen } from "@/components/JoinForm";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Shimmer } from "@/components/Photos";
 import { isGroupPhoto } from "@/lib/photos";
 import { renderBold } from "@/lib/richText";
@@ -15,9 +16,9 @@ export const Route = createFileRoute("/recap/$code")({
   head: () => ({
     meta: [
       { title: "Tonight's story — Gamige recap" },
-      { name: "description", content: "The memory card of tonight's dinner: the group photo, who was there, best moments and what you decided." },
+      { name: "description", content: "The memory card of the night: the group photo, who was there, best moments and what you decided." },
       { property: "og:title", content: "Our night — Gamige" },
-      { property: "og:description", content: "A memory card of the dinner, written by our agents." },
+      { property: "og:description", content: "A memory card of the night, written by our agents." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -66,55 +67,65 @@ function Recap() {
 
   return (
     <Screen>
-      <div ref={card} className="flex flex-col gap-5 rounded-[2rem] bg-card p-5">
+      <div ref={card} className="flex flex-col gap-5 rounded-lg border bg-card p-5">
         <div>
-          <p className="text-sm uppercase tracking-[0.3em] text-primary">Table {room?.code ?? code.toUpperCase()}</p>
-          <h1 className="mt-1 text-4xl font-bold">Tonight's story</h1>
+          <p className="text-base text-muted-foreground">Table {room?.code ?? code.toUpperCase()}</p>
+          <h1 className="mt-1 text-4xl font-semibold">Tonight's story</h1>
         </div>
         {group ? (
-          <div className="overflow-hidden rounded-3xl bg-secondary">
+          <div className="overflow-hidden rounded-md bg-secondary">
             {urls[group.storage_path] ? <img src={urls[group.storage_path]} crossOrigin="anonymous" alt="Group photo" className="w-full object-cover" /> : <Shimmer className="aspect-[4/3] w-full rounded-none" />}
           </div>
         ) : null}
         <ul className="flex flex-wrap gap-2" aria-label="Who was there">
           {guests.map((m) => (
-            <li key={m.id} className="rounded-full border px-4 py-1.5 text-lg font-semibold" style={{ color: m.color, borderColor: m.color }}>{m.name}</li>
+            <li key={m.id} className="speaker-ink rounded-full border-2 px-3.5 py-1.5 text-lg font-semibold" style={{ "--speaker": m.color, borderColor: `color-mix(in oklab, ${m.color} 60%, var(--card))`, background: `color-mix(in oklab, ${m.color} 35%, var(--card))` } as React.CSSProperties}>{m.name}</li>
           ))}
         </ul>
 
         {writing ? (
-          <div role="status" className="rounded-3xl bg-secondary p-5">
-            <p className="flex items-center gap-2 text-lg text-primary"><Sparkles className="h-5 w-5 animate-pulse" /> Your agents are writing tonight's story…</p>
+          <div role="status" className="rounded-md bg-secondary p-5">
+            <p className="text-lg">Writing the recap…</p>
             <Shimmer className="mt-4 h-4 w-full" /><Shimmer className="mt-2 h-4 w-11/12" /><Shimmer className="mt-2 h-4 w-3/4" />
           </div>
         ) : (
-          story.map((c) => <p key={c.id} className="whitespace-pre-wrap text-[20px] leading-relaxed">{renderBold(c.body)}</p>)
+          story.map((c) => <p key={c.id} lang={members.find((m) => m.id === meId)?.language} className="whitespace-pre-wrap font-text text-[20px]">{renderBold(c.body)}</p>)
         )}
 
-        <section>
-          <h2 className="mb-2 flex items-center gap-2 text-xl font-semibold"><Star className="h-5 w-5 text-primary" /> Best moments</h2>
-          {moments.length ? (
+        {moments.length > 0 && (
+          <section>
+            <h2 className="mb-2 text-xl font-semibold">Best moments</h2>
             <ul className="flex flex-col gap-2">
-              {moments.map((n) => <li key={n.id} className="rounded-2xl bg-secondary p-3 text-lg"><b>{n.title}</b>{n.body ? ` — ${n.body}` : ""}</li>)}
+              {moments.map((n) => (
+                <li key={n.id} className="rounded-md border p-3 text-lg">
+                  <p className="font-semibold">{n.title}</p>
+                  {n.body && <p className="text-muted-foreground">{n.body}</p>}
+                </li>
+              ))}
             </ul>
-          ) : <p className="text-muted-foreground">The best moments live in the story above.</p>}
-        </section>
-        <section>
-          <h2 className="mb-2 text-xl font-semibold">What we decided</h2>
-          {decisions.length ? (
+          </section>
+        )}
+        {decisions.length > 0 && (
+          <section>
+            <h2 className="mb-2 text-xl font-semibold">What we decided</h2>
             <ul className="flex flex-col gap-2">
-              {decisions.map((n) => <li key={n.id} className="rounded-2xl bg-secondary p-3 text-lg"><b>{n.title}</b>{n.body ? ` — ${n.body}` : ""}</li>)}
+              {decisions.map((n) => (
+                <li key={n.id} className="rounded-md border p-3 text-lg">
+                  <p className="font-semibold">{n.title}</p>
+                  {n.body && <p className="text-muted-foreground">{n.body}</p>}
+                </li>
+              ))}
             </ul>
-          ) : <p className="text-muted-foreground">No plans made tonight — just good company.</p>}
-        </section>
-        <p className="text-center text-sm text-muted-foreground">Gamige · understand me</p>
+          </section>
+        )}
+        <p className="text-center text-sm text-muted-foreground">Gamige</p>
       </div>
 
-      <button onClick={share} disabled={saving || writing} className="mt-6 flex min-h-14 items-center justify-center gap-2 rounded-full bg-primary py-4 text-xl font-semibold text-primary-foreground disabled:opacity-60">
-        {typeof navigator !== "undefined" && "share" in navigator ? <Share2 className="h-5 w-5" /> : <Download className="h-5 w-5" />}
+      <Button size="lg" onClick={share} disabled={saving || writing} className="mt-6">
+        {typeof navigator !== "undefined" && "share" in navigator ? <Share2 aria-hidden /> : <Download aria-hidden />}
         {saving ? "Making the image…" : "Share the memory card"}
-      </button>
-      <Link to="/" className="mt-4 min-h-11 py-2 text-center text-muted-foreground">Home</Link>
+      </Button>
+      <Link to="/" className={buttonVariants({ variant: "ghost", className: "mt-2 text-muted-foreground" })}>Home</Link>
     </Screen>
   );
 }

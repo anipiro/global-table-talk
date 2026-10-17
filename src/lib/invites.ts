@@ -26,7 +26,7 @@ export const INVITE_ERRORS: Record<string, string> = {
   missing: "This invite link doesn't exist.",
   revoked: "The host turned off this invite link.",
   expired: "This invite link has expired. Ask the host for a new one.",
-  ended: "This dinner has already ended.",
+  ended: "This table has already ended.",
 };
 
 export const inviteLink = (token: string) => `${window.location.origin}/i/${token}`;

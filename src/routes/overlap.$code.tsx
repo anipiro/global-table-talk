@@ -1,13 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Download, Keyboard, Pause, Play, SkipBack, SkipForward, Undo2, Volume2, VolumeX, Headphones, HelpCircle, X } from "lucide-react";
+import { ArrowLeft, Download, Keyboard, Pause, Play, SkipBack, SkipForward, Undo2, Volume2, VolumeX, Headphones, HelpCircle, X } from "lucide-react";
 import { getMemberId, type Lang, type Line } from "@/lib/room";
 import { useRoom } from "@/lib/useRoom";
 import { findOverlaps } from "@/lib/crosstalk";
 import { activeAt, audibleLanes, schedule, scrubTarget, transcriptCsv, transcriptText, type ExportRow } from "@/lib/overlap";
 import { applyReassign, ReassignSheet } from "@/components/Reassign";
 import { undoCorrection } from "@/lib/speakers";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/overlap/$code")({
   ssr: false,
@@ -119,7 +120,7 @@ function OverlapPage() {
   const toggleMute = (id: string) => setMuted((m) => { const n = new Set(m); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleSolo = (id: string) => setSolo((s) => (s === id ? null : id));
   const lastCorrection = corrections.filter((c) => !c.undone_at).slice(-1)[0];
-  const undo = (id: string) => undoCorrection(id).then((n) => toast(`Undone — ${n} line${n === 1 ? "" : "s"} restored`)).catch(() => toast.error("Couldn't undo"));
+  const undo = (id: string) => undoCorrection(id).then((n) => toast(`Undone. ${n} line${n === 1 ? "" : "s"} restored.`)).catch(() => toast.error("Couldn't undo"));
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -176,29 +177,29 @@ function OverlapPage() {
 
   return (
     <main className="flex h-dvh flex-col text-base">
-      <header className="flex flex-col gap-2 border-b bg-background/95 px-3 py-3 backdrop-blur">
+      <header className="flex flex-col gap-2 border-b bg-background px-3 py-3">
         <div className="flex items-center justify-between gap-2">
-          <Link to="/room/$code" params={{ code }} className="text-muted-foreground">← Back to live</Link>
+          <Link to="/room/$code" params={{ code }} className="-ml-2 flex min-h-11 items-center gap-1 px-2 text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="size-4" aria-hidden /> Back to live
+          </Link>
           <h1 className="text-lg font-semibold">Who said what</h1>
-          <button onClick={() => setGuide(true)} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-1.5 text-sm" aria-label="Keyboard shortcuts">
-            <Keyboard className="h-4 w-4" /> <span className="hidden sm:inline">Shortcuts</span> <kbd className="rounded bg-background px-1 text-xs">?</kbd>
-          </button>
+          <Button variant="secondary" size="sm" onClick={() => setGuide(true)} aria-label="Keyboard shortcuts" className="px-3">
+            <Keyboard aria-hidden /> <span className="hidden sm:inline">Shortcuts</span> <kbd className="rounded-sm bg-background px-1 text-sm">?</kbd>
+          </Button>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button onClick={() => scrub(-1)} aria-label="Previous segment" className="rounded-full bg-secondary p-2"><SkipBack className="h-5 w-5" /></button>
-          <button onClick={() => setPlaying((p) => !p)} aria-label={playing ? "Pause" : "Play"} disabled={!plan.length}
-            className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-40">
+          <Button variant="secondary" size="icon" className="[&_svg]:size-5" onClick={() => scrub(-1)} aria-label="Previous segment"><SkipBack /></Button>
+          <Button size="icon" className="size-12 [&_svg]:size-6" onClick={() => setPlaying((p) => !p)} aria-label={playing ? "Pause" : "Play"} disabled={!plan.length}>
             {playing ? <Pause /> : <Play />}
-          </button>
-          <button onClick={() => scrub(1)} aria-label="Next segment" className="rounded-full bg-secondary p-2"><SkipForward className="h-5 w-5" /></button>
-          <button onClick={() => setSpeed((s) => (s === 1 ? 1.5 : s === 1.5 ? 2 : 1))} className="rounded-full bg-secondary px-3 py-2 text-sm font-semibold">{speed}×</button>
+          </Button>
+          <Button variant="secondary" size="icon" className="[&_svg]:size-5" onClick={() => scrub(1)} aria-label="Next segment"><SkipForward /></Button>
+          <Button variant="secondary" className="min-w-14 px-3" onClick={() => setSpeed((s) => (s === 1 ? 1.5 : s === 1.5 ? 2 : 1))}>{speed}×</Button>
           <input type="range" min={0} max={plan.length ? plan[plan.length - 1]!.at : 0} value={pos} step={100} aria-label="Playback position"
             onChange={(e) => { setPos(Number(e.target.value)); if (playing) { setPlaying(false); setTimeout(() => setPlaying(true), 0); } }}
-            className="min-w-24 flex-1 accent-[var(--primary)]" />
-          <button onClick={() => setOnlyMixed((v) => !v)} aria-pressed={onlyMixed}
-            className={`rounded-full px-3 py-2 text-sm ${onlyMixed ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>Only overlaps</button>
+            className="h-11 min-w-24 flex-1 accent-[var(--primary)]" />
+          <Button variant={onlyMixed ? "default" : "secondary"} onClick={() => setOnlyMixed((v) => !v)} aria-pressed={onlyMixed}>Only overlaps</Button>
         </div>
-        <p className="text-xs text-muted-foreground">Playback reads captions aloud with the phone's voice (no recordings are kept). Lines start at their real moments; overlapping lines cut in.</p>
+        <p className="text-sm text-muted-foreground">Playback reads captions aloud with the phone's voice (no recordings are kept). Lines start at their real moments; overlapping lines cut in.</p>
       </header>
 
       {/* lane headers */}
@@ -210,16 +211,16 @@ function OverlapPage() {
             <div key={m.id} style={{ width: laneW }}
               onClick={() => setLaneIdx(i)}
               data-state={isPlaying ? "playing" : isSolo ? "solo" : "idle"}
-              className={`flex min-w-0 flex-col items-center gap-1 border-l px-1 py-2 transition ${isPlaying ? "bg-primary/20" : isSolo ? "bg-primary/10" : ""} ${isFocus ? "ring-2 ring-inset ring-primary" : ""} ${isMuted || (solo && !isSolo) ? "opacity-50" : ""}`}>
-              <span className="flex max-w-full items-center gap-1 truncate font-semibold" style={{ color: m.color }}>
-                {isPlaying && <Volume2 className="h-4 w-4 shrink-0 animate-pulse" />}{m.name}
+              className={`flex min-w-0 flex-col items-center gap-1 border-l px-1 py-2 ${isPlaying ? "bg-accent" : isSolo ? "bg-secondary" : ""} ${isFocus ? "ring-2 ring-inset ring-primary" : ""} ${isMuted || (solo && !isSolo) ? "opacity-60" : ""}`}>
+              <span className="speaker-ink flex max-w-full items-center gap-1 truncate font-semibold" style={{ "--speaker": m.color } as React.CSSProperties}>
+                {isPlaying && <Volume2 className="size-4 shrink-0 animate-pulse" aria-hidden />}{m.name}
               </span>
-              <div className="flex gap-1">
+              <div className="flex flex-wrap justify-center gap-1">
                 <button onClick={(e) => { e.stopPropagation(); toggleSolo(m.id); }} aria-pressed={isSolo} aria-label={`Solo ${m.name}`}
-                  className={`rounded-full px-2 py-0.5 text-xs font-bold ${isSolo ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>S</button>
+                  className={`flex size-11 items-center justify-center rounded-md text-sm font-bold ${isSolo ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>S</button>
                 <button onClick={(e) => { e.stopPropagation(); toggleMute(m.id); }} aria-pressed={muted.has(m.id)} aria-label={`Mute ${m.name}`}
-                  className={`rounded-full px-2 py-0.5 text-xs ${muted.has(m.id) ? "bg-destructive text-destructive-foreground" : "bg-secondary"}`}>
-                  {muted.has(m.id) ? <VolumeX className="h-3.5 w-3.5" /> : <Headphones className="h-3.5 w-3.5" />}
+                  className={`flex size-11 items-center justify-center rounded-md ${muted.has(m.id) ? "bg-destructive text-destructive-foreground" : "bg-secondary"}`}>
+                  {muted.has(m.id) ? <VolumeX className="size-4" aria-hidden /> : <Headphones className="size-4" aria-hidden />}
                 </button>
               </div>
             </div>
@@ -241,24 +242,24 @@ function OverlapPage() {
             const laneAudible = audible.has(l.speaker_id ?? "");
             return (
               <div key={l.id} className="pointer-events-none absolute inset-x-0 flex" style={{ top: at * PX_PER_MS + 8 }}>
-                <span className="w-16 shrink-0 px-1 pt-1 text-[11px] tabular-nums text-muted-foreground">{fmtSec(l.created_at)}</span>
+                <span className="w-16 shrink-0 px-1 pt-1 text-xs tabular-nums text-muted-foreground">{fmtSec(l.created_at)}</span>
                 <div className="relative flex-1">
                   <button
                     onClick={() => { setSelected(l.id); setPos(at); if (lane >= 0) setLaneIdx(lane); }}
                     onDoubleClick={() => setFixLine(l)}
                     data-active={isActive || undefined}
-                    className={`pointer-events-auto absolute rounded-2xl border bg-card p-2 text-left text-sm leading-snug shadow-sm transition
-                      ${isActive ? "border-primary bg-primary/15 scale-[1.02]" : ""} ${isSel ? "ring-2 ring-primary" : ""}
-                      ${isOverlap ? "border-dashed" : ""} ${!laneAudible ? "opacity-50" : ""}`}
-                    style={{ left: `calc(${laneW} * ${Math.max(0, lane)} + 2px)`, width: `calc(${laneW} - 4px)`, borderLeftColor: sp?.color, borderLeftWidth: 4 }}
+                    className={`pointer-events-auto absolute rounded-md border bg-card p-2 text-left text-sm
+                      ${isActive ? "border-primary bg-secondary" : ""} ${isSel ? "ring-2 ring-primary" : ""}
+                      ${isOverlap ? "border-dashed" : ""} ${!laneAudible ? "opacity-60" : ""}`}
+                    style={{ left: `calc(${laneW} * ${Math.max(0, lane)} + 2px)`, width: `calc(${laneW} - 4px)`, borderLeftColor: sp?.color, borderLeftWidth: 3 }}
                   >
                     {(l.ambiguous || isOverlap) && (
-                      <span className="mb-1 flex flex-wrap gap-1 text-[10px]">
-                        {isOverlap && <span className="rounded-full bg-secondary px-1.5">overlap</span>}
-                        {l.ambiguous && <span className="rounded-full border border-primary/60 px-1.5 text-primary">unsure speaker</span>}
+                      <span className="mb-1 flex flex-wrap gap-x-2 text-xs">
+                        {isOverlap && <span className="text-muted-foreground">overlap</span>}
+                        {l.ambiguous && <span className="text-primary">unsure speaker</span>}
                       </span>
                     )}
-                    {l.text}
+                    <span lang={l.language}>{l.text}</span>
                   </button>
                 </div>
               </div>
@@ -272,15 +273,15 @@ function OverlapPage() {
         {selected && lines.find((l) => l.id === selected) && (
           <div className="mb-3 flex items-center gap-2">
             <p className="flex-1 truncate text-sm">“{lines.find((l) => l.id === selected)!.text}”</p>
-            <button onClick={() => setFixLine(lines.find((l) => l.id === selected)!)} className="flex items-center gap-1 rounded-full bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">
-              <HelpCircle className="h-4 w-4" /> Who said this?
-            </button>
+            <Button size="sm" onClick={() => setFixLine(lines.find((l) => l.id === selected)!)}>
+              <HelpCircle aria-hidden /> Who said this?
+            </Button>
           </div>
         )}
         <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
           <span className="font-semibold text-muted-foreground">Export transcript</span>
-          <button onClick={() => exportAs("csv")} disabled={!lines.length} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-1.5 disabled:opacity-40"><Download className="h-4 w-4" /> Spreadsheet (CSV)</button>
-          <button onClick={() => exportAs("txt")} disabled={!lines.length} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-1.5 disabled:opacity-40"><Download className="h-4 w-4" /> Text</button>
+          <Button variant="secondary" size="sm" onClick={() => exportAs("csv")} disabled={!lines.length}><Download aria-hidden /> Spreadsheet (CSV)</Button>
+          <Button variant="secondary" size="sm" onClick={() => exportAs("txt")} disabled={!lines.length}><Download aria-hidden /> Text</Button>
         </div>
         <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Speaker corrections</h2>
         {!corrections.length && <p className="text-sm text-muted-foreground">None yet. Fixes you make show up here and can be undone.</p>}
@@ -290,18 +291,18 @@ function OverlapPage() {
             const from = [...new Set(changes.map((x) => byId.get(x.from_speaker_id ?? "")?.name ?? "Unknown speaker"))].join(", ");
             const first = lines.find((l) => l.id === c.line_id);
             return (
-              <li key={c.id} className={`flex items-center gap-2 rounded-2xl bg-secondary p-2 text-sm ${c.undone_at ? "opacity-50" : ""}`}>
+              <li key={c.id} className={`flex items-center gap-2 rounded-md border p-2 pl-3 text-sm ${c.undone_at ? "opacity-60" : ""}`}>
                 <div className="min-w-0 flex-1">
-                  <p><b>{from}</b> → <b style={{ color: byId.get(c.to_speaker_id ?? "")?.color }}>{byId.get(c.to_speaker_id ?? "")?.name ?? "?"}</b>
+                  <p><b>{from}</b> → <b className="speaker-ink" style={{ "--speaker": byId.get(c.to_speaker_id ?? "")?.color } as React.CSSProperties}>{byId.get(c.to_speaker_id ?? "")?.name ?? "?"}</b>
                     {" · "}{changes.length} line{changes.length === 1 ? "" : "s"}{changes.length > 1 ? " (incl. nearby)" : ""}
                     {c.by_member_id && <> · by {byId.get(c.by_member_id)?.name ?? "someone"}</>}
                   </p>
                   {first && <p className="truncate text-muted-foreground">“{first.text}”</p>}
                 </div>
-                {c.undone_at ? <span className="text-xs">undone</span> : (
-                  <button onClick={() => void undo(c.id)} className="flex items-center gap-1 rounded-full bg-background px-3 py-1.5" aria-label="Undo correction">
-                    <Undo2 className="h-4 w-4" /> Undo
-                  </button>
+                {c.undone_at ? <span className="text-sm">undone</span> : (
+                  <Button variant="outline" size="sm" onClick={() => void undo(c.id)} aria-label="Undo correction">
+                    <Undo2 aria-hidden /> Undo
+                  </Button>
                 )}
               </li>
             );
@@ -312,21 +313,21 @@ function OverlapPage() {
       {fixLine && <ReassignSheet line={fixLine} members={members} me={me} onClose={() => setFixLine(null)} />}
 
       {guide && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 p-4 backdrop-blur-sm" onClick={() => setGuide(false)}>
-          <div role="dialog" aria-label="Keyboard shortcuts" className="w-full max-w-sm rounded-3xl border bg-card p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4" onClick={() => setGuide(false)}>
+          <div role="dialog" aria-label="Keyboard shortcuts" className="w-full max-w-sm rounded-lg border bg-card p-5" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-xl font-semibold">Keyboard shortcuts</h2>
-              <button onClick={() => setGuide(false)} aria-label="Close"><X className="h-5 w-5" /></button>
+              <button onClick={() => setGuide(false)} aria-label="Close" className="-mr-2 flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-accent"><X className="size-5" /></button>
             </div>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
               {SHORTCUTS.map(([k, d]) => (
                 <div key={k} className="contents">
-                  <dt><kbd className="rounded-lg border bg-secondary px-2 py-0.5 font-mono text-sm">{k}</kbd></dt>
+                  <dt><kbd className="rounded-md border bg-secondary px-2 py-0.5 font-mono text-sm">{k}</kbd></dt>
                   <dd className="text-sm">{d}</dd>
                 </div>
               ))}
             </dl>
-            <p className="mt-4 text-xs text-muted-foreground">On a phone: tap a segment to select it, double-tap or use “Who said this?” to move it.</p>
+            <p className="mt-4 text-sm text-muted-foreground">On a phone: tap a segment to select it, double-tap or use “Who said this?” to move it.</p>
           </div>
         </div>
       )}

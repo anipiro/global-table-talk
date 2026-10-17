@@ -30,3 +30,13 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local environment files. The project .env was committed earlier by the template; new ones should not be.
+.env
+.env.*
+!.env.example
+
+# Design review material and mockups live outside the repo
+public/mockups/
+screenshots/
+uploads/

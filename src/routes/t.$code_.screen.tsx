@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Gauge, Maximize, Minimize, Pause, Play, Square } from "lucide-react";
 import { useRoom } from "@/lib/useRoom";
+import { Button } from "@/components/ui/button";
 import { AgentFeed, Avatar } from "@/components/AgentFeed";
 import { NotebookStrip } from "@/components/Notebook";
 import { replayDemo, type ReplayControl } from "@/lib/demoScript";
@@ -96,50 +97,46 @@ function PresenterView() {
   const stopReplay = () => { ctl.current.cancelled = true; };
 
   return (
-    <main className="flex h-dvh flex-col gap-4 overflow-hidden bg-background p-6 text-foreground">
-      <header className="flex items-center gap-6">
+    <main className="flex h-dvh flex-col gap-4 overflow-hidden bg-background p-4 text-foreground lg:p-6">
+      <header className="flex flex-wrap items-center gap-x-6 gap-y-3">
         <span className="flex items-center gap-3 text-2xl font-semibold">
-          <span className="relative flex h-4 w-4">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-70" />
-            <span className="relative inline-flex h-4 w-4 rounded-full bg-destructive" />
-          </span>
-          live
+          <span className="size-4 animate-pulse rounded-full bg-primary" aria-hidden />
+          Live
         </span>
-        <span className="font-display text-5xl font-bold tracking-[0.2em]">{room.code}</span>
-        <div className="flex -space-x-2">
+        <span className="font-display text-5xl font-semibold tracking-[0.2em]">{room.code}</span>
+        <div className="flex gap-2">
           {visible.map((m) => (
-            <span key={m.id} title={m.name} className="rounded-full ring-4 ring-background"><Avatar member={m} size={48} /></span>
+            <span key={m.id} title={m.name}><Avatar member={m} size={48} /></span>
           ))}
         </div>
         <span className="text-xl text-muted-foreground">{visible.map((m) => m.name).join(" · ")}</span>
         <div className="ml-auto flex items-center gap-2 text-sm">
           {replay ? (
-            <div className="flex items-center gap-1 rounded-full bg-secondary/60 px-2 py-1 text-muted-foreground" role="group" aria-label="Demo replay">
-              <span className="px-1 tabular-nums" aria-live="polite">{paused ? "Paused" : "Replaying"} {replay}</span>
-              <button onClick={togglePause} aria-label={paused ? "Resume replay" : "Pause replay"} className="rounded-full p-1.5 hover:text-foreground">
-                {paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
+            <div className="flex items-center rounded-md bg-secondary text-muted-foreground" role="group" aria-label="Demo replay">
+              <span className="px-3 tabular-nums" aria-live="polite">{paused ? "Paused" : "Replaying"} {replay}</span>
+              <button onClick={togglePause} aria-label={paused ? "Resume replay" : "Pause replay"} className="flex size-11 items-center justify-center rounded-md hover:text-foreground">
+                {paused ? <Play className="size-4" /> : <Pause className="size-4" />}
               </button>
-              <button onClick={cycleSpeed} aria-label={`Replay speed ${speed}x, change`} className="flex items-center gap-1 rounded-full px-1.5 py-1 tabular-nums hover:text-foreground">
-                <Gauge className="h-3.5 w-3.5" /> {speed}×
+              <button onClick={cycleSpeed} aria-label={`Replay speed ${speed}x, change`} className="flex min-h-11 items-center gap-1 rounded-md px-2 tabular-nums hover:text-foreground">
+                <Gauge className="size-4" /> {speed}×
               </button>
-              <button onClick={stopReplay} aria-label="Stop replay" className="rounded-full p-1.5 hover:text-foreground"><Square className="h-3.5 w-3.5" /></button>
+              <button onClick={stopReplay} aria-label="Stop replay" className="flex size-11 items-center justify-center rounded-md hover:text-foreground"><Square className="size-4" /></button>
             </div>
           ) : (
-            <button onClick={runReplay} aria-label="Replay demo"
-              className="flex items-center gap-1 rounded-full bg-secondary/60 px-3 py-1.5 text-muted-foreground hover:text-foreground">
-              <Play className="h-3.5 w-3.5" /> Replay demo
-            </button>
+            <Button variant="secondary" size="sm" onClick={runReplay} aria-label="Replay demo" className="text-muted-foreground hover:text-foreground">
+              <Play /> Replay demo
+            </Button>
           )}
-          <button aria-label={full ? "Exit fullscreen" : "Fullscreen"} className="rounded-full bg-secondary/60 p-2 text-muted-foreground hover:text-foreground"
+          <Button variant="secondary" size="icon" aria-label={full ? "Exit fullscreen" : "Fullscreen"} className="text-muted-foreground hover:text-foreground"
             onClick={() => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {})}>
-            {full ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-          </button>
+            {full ? <Minimize /> : <Maximize />}
+          </Button>
         </div>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-2 gap-6">
-        <section className="flex min-h-0 flex-col rounded-3xl bg-card/60 p-6">
-          <h2 className="mb-4 text-lg uppercase tracking-widest text-muted-foreground">Captions</h2>
+      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-2 gap-4 lg:grid-cols-2 lg:grid-rows-1 lg:gap-6">
+        <section className="flex min-h-0 flex-col rounded-lg border bg-card p-4 lg:p-6">
+          <h2 className="mb-4 text-xl font-semibold">Captions</h2>
           <div className="min-h-0 flex-1 overflow-y-auto pr-2">
             {!lines.length && <p className="text-2xl text-muted-foreground">Waiting for someone to speak…</p>}
             <ul className="flex flex-col gap-6">
@@ -147,10 +144,10 @@ function PresenterView() {
                 const sp = byId.get(l.speaker_id ?? "");
                 const trs = translations.filter((t) => t.line_id === l.id && t.language !== l.language);
                 return (
-                  <li key={l.id} className={seen.current && !seen.current.has(l.id) ? "animate-msg-in" : ""}>
-                    <p className="text-xl font-semibold" style={{ color: sp?.color }}>{sp?.name ?? "Unknown speaker"}</p>
-                    <p className="text-[34px] leading-tight">{l.text}</p>
-                    {trs.map((t) => <p key={t.id} className="mt-1 text-[28px] leading-snug text-muted-foreground">{t.text}</p>)}
+                  <li key={l.id} className={`speaker-rule ${seen.current && !seen.current.has(l.id) ? "animate-msg-in" : ""}`} style={{ "--speaker": sp?.color } as React.CSSProperties}>
+                    <p className="text-[clamp(1.125rem,1.5vw,1.5rem)] font-semibold speaker-ink" style={{ "--speaker": sp?.color } as React.CSSProperties}>{sp?.name ?? "Unknown speaker"}</p>
+                    <p lang={l.language} className="font-text text-[clamp(1.75rem,2.6vw,3rem)]">{l.text}</p>
+                    {trs.map((t) => <p key={t.id} lang={t.language} className="mt-1 font-text text-[clamp(1.5rem,2.1vw,2.25rem)] text-muted-foreground">{t.text}</p>)}
                   </li>
                 );
               })}
@@ -166,8 +163,8 @@ function PresenterView() {
             <PhotoTakeover key={showing.photo.id} photo={showing.photo} captions={captions} by={byId.get(showing.photo.uploader_id ?? "")?.name} group={isGroupPhoto(showing.photo.storage_path)} />
           )
         ) : (
-          <section className="flex min-h-0 flex-col rounded-3xl bg-card/60 p-6">
-            <h2 className="mb-4 text-lg uppercase tracking-widest text-muted-foreground">The agents</h2>
+          <section className="flex min-h-0 flex-col rounded-lg border bg-card p-4 lg:p-6">
+            <h2 className="mb-4 text-xl font-semibold">The agents</h2>
             <div className="min-h-0 flex-1">
               <AgentFeed msgs={agentMessages} byId={byId} large status={status} retryIn={retryIn} onRetry={retry} />
             </div>
@@ -176,7 +173,7 @@ function PresenterView() {
       </div>
 
       <section className="shrink-0">
-        <h2 className="mb-2 text-lg uppercase tracking-widest text-muted-foreground">Notebook</h2>
+        <h2 className="mb-2 text-xl font-semibold">Notebook</h2>
         <NotebookStrip entries={notebook} byId={byId} />
       </section>
     </main>
@@ -188,15 +185,15 @@ function PhotoTakeover({ photo, captions, by, group }: { photo: Photo; captions:
   const caps = captions.filter((c) => c.photo_id === photo.id);
   const main = caps.find((c) => c.language === "en") ?? caps[0];
   return (
-    <section className="animate-takeover flex min-h-0 flex-col gap-4 rounded-3xl bg-card p-6" aria-live="polite">
-      <h2 className="text-lg uppercase tracking-widest text-primary">{group ? "Group photo" : `${by ?? "Someone"} shared a photo`}</h2>
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl bg-secondary">
+    <section className="animate-takeover flex min-h-0 flex-col gap-4 rounded-lg border bg-card p-4 lg:p-6" aria-live="polite">
+      <h2 className="text-xl font-semibold">{group ? "Group photo" : `${by ?? "Someone"} shared a photo`}</h2>
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-md bg-secondary">
         {urls[photo.storage_path] ? <img src={urls[photo.storage_path]} alt={main?.caption ?? "Shared photo"} className="max-h-full max-w-full object-contain" /> : <Shimmer className="h-full w-full" />}
       </div>
       {main ? (
         <div>
-          <p className="text-[34px] font-semibold leading-tight">{main.caption}</p>
-          {caps.filter((c) => c !== main).map((c) => <p key={c.language} className="text-2xl text-muted-foreground">{c.caption}</p>)}
+          <p lang={main.language} className="font-text text-[clamp(1.75rem,2.6vw,3rem)] font-semibold">{main.caption}</p>
+          {caps.filter((c) => c !== main).map((c) => <p key={c.language} lang={c.language} className="font-text text-[clamp(1.25rem,1.8vw,1.75rem)] text-muted-foreground">{c.caption}</p>)}
         </div>
       ) : <div><Shimmer className="h-8 w-2/3" /><Shimmer className="mt-2 h-6 w-1/2" /></div>}
     </section>
@@ -205,11 +202,11 @@ function PhotoTakeover({ photo, captions, by, group }: { photo: Photo; captions:
 
 function MediaTakeover({ media, by }: { media: Media; by?: string | undefined }) {
   return (
-    <section className="animate-takeover flex min-h-0 flex-col gap-4 rounded-3xl bg-card p-6" aria-live="polite">
-      <h2 className="text-lg uppercase tracking-widest text-primary">
+    <section className="animate-takeover flex min-h-0 flex-col gap-4 rounded-lg border bg-card p-4 lg:p-6" aria-live="polite">
+      <h2 className="text-xl font-semibold">
         {media.kind === "meme" ? "A meme from the agents" : `${by ? `${by}'s agent` : "An agent"} found a picture`}
       </h2>
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl bg-secondary">
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-md bg-secondary">
         <MediaCard media={media} lang="en" large />
       </div>
     </section>

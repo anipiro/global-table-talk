@@ -5,29 +5,93 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Design system definition.
+ * Fonts, self-hosted from /public/fonts (SIL OFL 1.1, licences alongside).
  *
- * The @theme inline block maps CSS custom properties to Tailwind utility
- * classes (e.g. --color-primary -> bg-primary, text-primary).
+ *   Instrument Serif (400 and italic, Latin): the Gamige title and the headings
+ *   Onest (variable 100-900, Latin and Cyrillic): body, captions, controls
+ *   Noto Sans Georgian (variable 100-900): Georgian, matched to Onest by size-adjust
  *
- * The :root and .dark blocks define the actual color values using oklch.
- * All colors MUST use oklch format.
+ * Instrument Serif has no Cyrillic or Georgian, so those characters fall through the
+ * font stack to Onest and Noto Sans Georgian. unicode-range means the browser only
+ * fetches the scripts present on the page.
+ */
+@font-face {
+  font-family: "Instrument Serif";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/instrument-serif-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Instrument Serif";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/instrument-serif-latin-italic.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Onest";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/onest-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Onest";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/onest-cyrillic.woff2") format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: "Noto Sans Georgian";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  size-adjust: 97%;
+  src: url("/fonts/noto-sans-georgian-georgian.woff2") format("woff2");
+  unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBA, U+1CBD-1CBF, U+205A, U+2D00-2D2F, U+2E31;
+}
+
+/*
+ * Design system: "Editorial", the cosy version.
+ *
+ * A deep tan-oat ground with a faint paper grain, paper-coloured cards, ink text, and a
+ * warm dark brown (--primary) for the primary buttons and the bars. Terracotta is kept for
+ * the mic and the red-brown for the italic "e" of the title. Speaker colours are stored
+ * data (set inline as --speaker), softened here with color-mix and never used as text:
+ * a speaker is named inside a chip, not in a coloured font.
+ *
+ * Flat: no gradients on surfaces, no blur, no drop shadows. The only radial fades are the
+ * mic's warm glow and the ambient shapes. Motion is transform and opacity only, and it
+ * stops for users who ask (see the reduced-motion block).
+ *
+ * The @theme inline block maps CSS custom properties to Tailwind utility classes
+ * (e.g. --color-primary -> bg-primary, text-primary-foreground).
+ *
+ * :root holds the only theme. All colors MUST use oklch format.
  *
  * To add a new semantic color:
- * 1. Add the variable to :root (light value) and .dark (dark value)
+ * 1. Add the variable to :root
  * 2. Register it in @theme inline as --color-<name>: var(--<name>)
  */
 
 @theme inline {
-  --font-display: "Figtree", system-ui, sans-serif;
-  --font-sans: "Figtree", system-ui, sans-serif;
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+  --font-sans: "Onest", "Noto Sans Georgian", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-text: var(--font-sans);
+  --font-display: "Instrument Serif", "Onest", "Noto Sans Georgian", Georgia, serif;
+  /* Round and friendly: 8 to 32px. Avatars, the mic and chips use rounded-full. */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 22px;
+  --radius-2xl: 24px;
+  --radius-3xl: 28px;
+  --radius-4xl: 32px;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -36,10 +100,13 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-placeholder: var(--placeholder);
+  --color-pick-hover: var(--pick-hover);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
@@ -60,6 +127,24 @@
   --color-type-bridge: var(--type-bridge);
   --color-online: var(--online);
   --color-speaking: var(--speaking);
+  --color-cream: var(--cream);
+  --color-cream-2: var(--cream-2);
+  --color-brown: var(--brown);
+  --color-aubergine: var(--aubergine);
+  --color-terracotta: var(--terracotta);
+  --color-redbrown: var(--redbrown);
+  --color-apricot: var(--apricot);
+  --color-spk-blue: var(--spk-blue);
+  --color-spk-sage: var(--spk-sage);
+  --color-spk-mauve: var(--spk-mauve);
+  --color-code-1: var(--code-1);
+  --color-code-2: var(--code-2);
+  --color-code-3: var(--code-3);
+  --color-code-4: var(--code-4);
+  --color-tab-active: var(--tab-active);
+  --color-scroll-thumb: var(--scroll-thumb);
+  --color-scroll-thumb-hover: var(--scroll-thumb-hover);
+  --color-sheet: var(--sheet);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -71,84 +156,90 @@
 }
 
 :root {
-  --radius: 0.75rem;
-  /* Discord-inspired dark canvas */
-  --background: oklch(0.29 0.008 255); /* #313338 */
-  --foreground: oklch(0.96 0.003 255); /* #F2F3F5 */
-  --card: oklch(0.27 0.008 255); /* #2B2D31 */
-  --card-foreground: oklch(0.96 0.003 255);
-  --popover: oklch(0.25 0.007 255); /* #232428 */
-  --popover-foreground: oklch(0.96 0.003 255);
-  --primary: oklch(0.52 0.21 272); /* Blurple #5865F2 */
-  --primary-foreground: oklch(0.98 0.005 255);
-  --secondary: oklch(0.33 0.01 255); /* #383A40 */
-  --secondary-foreground: oklch(0.89 0.005 255); /* #DBDEE1 */
-  --muted: oklch(0.27 0.008 255);
-  --muted-foreground: oklch(0.68 0.012 255); /* #949BA4 */
-  --accent: oklch(0.33 0.01 255);
-  --accent-foreground: oklch(0.96 0.003 255);
-  --destructive: oklch(0.59 0.22 25); /* Coral #ED4245 */
-  --destructive-foreground: oklch(0.98 0.005 255);
-  --border: oklch(0.36 0.01 255 / 60%); /* #3F4147 */
-  --input: oklch(0.23 0.007 255); /* #1E1F22 */
-  --ring: oklch(0.52 0.21 272);
-  --chart-1: oklch(0.52 0.21 272);
-  --chart-2: oklch(0.85 0.21 150);
-  --chart-3: oklch(0.9 0.17 95);
-  --chart-4: oklch(0.68 0.18 300);
-  --chart-5: oklch(0.59 0.22 25);
-  /* presence: green = online/mic live, amber = speaking/warning */
-  --online: oklch(0.85 0.21 150); /* #57F287 */
-  --speaking: oklch(0.9 0.17 95); /* #FEE75C */
-  /* agent message type labels — subtle, distinct hues at the same lightness */
-  --type-ask: oklch(0.75 0.12 260);
-  --type-answer: oklch(0.85 0.18 150);
-  --type-note: oklch(0.85 0.08 95);
-  --type-missed: oklch(0.68 0.19 25);
-  --type-bridge: oklch(0.72 0.15 300);
-  --sidebar: oklch(0.25 0.007 255);
-  --sidebar-foreground: oklch(0.96 0.003 255);
-  --sidebar-primary: oklch(0.52 0.21 272);
-  --sidebar-primary-foreground: oklch(0.98 0.005 255);
-  --sidebar-accent: oklch(0.33 0.01 255);
-  --sidebar-accent-foreground: oklch(0.96 0.003 255);
-  --sidebar-border: oklch(0.36 0.01 255 / 60%);
-  --sidebar-ring: oklch(0.52 0.21 272);
-}
-
-.dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.208 0.042 265.755);
-  --sidebar-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.279 0.041 260.031);
-  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.551 0.027 264.364);
+  color-scheme: light;
+  /* Ground, cards, text. The theme-color meta is #e4d2b6. */
+  --background: oklch(0.871 0.042 78.9);
+  --foreground: oklch(0.246 0.025 44.2);
+  --card: oklch(0.932 0.032 81);
+  --card-foreground: oklch(0.246 0.025 44.2);
+  --popover: oklch(0.932 0.032 81);
+  --popover-foreground: oklch(0.246 0.025 44.2);
+  --secondary: oklch(0.932 0.032 81);
+  --secondary-foreground: oklch(0.246 0.025 44.2);
+  --muted: oklch(0.891 0.041 81.7);
+  --muted-foreground: oklch(0.394 0.029 41.2);
+  /* Placeholder text in form fields: lighter than muted text, 4.6:1 on the beige field fill (--card). */
+  --placeholder: oklch(0.517 0.027 52.3);
+  /* Hover fill for the picker buttons: a clear step darker than the cream card (the old accent hover was 1.14:1). */
+  --pick-hover: oklch(0.826 0.061 78.4);
+  --accent: oklch(0.891 0.041 81.7);
+  --accent-foreground: oklch(0.246 0.025 44.2);
+  /* The warm dark brown: primary buttons, the nav and tab bars. Cream on it is 12.4:1. */
+  --brown: oklch(0.297 0.033 46.3);
+  --primary: var(--brown);
+  --primary-hover: oklch(0.372 0.04 49.5);
+  --primary-foreground: oklch(0.961 0.025 81.1);
+  --cream: oklch(0.961 0.025 81.1);
+  --cream-2: oklch(0.901 0.028 72.8);
+  --aubergine: oklch(0.291 0.032 13);
+  /* Terracotta: the mic. Red-brown: the italic e. Apricot: the active tab and the small badges. */
+  --terracotta: oklch(0.538 0.15 34.2);
+  --redbrown: oklch(0.466 0.119 34.7);
+  --apricot: oklch(0.836 0.088 65.6);
+  /* The bottom sheet's field: soft apricot, not grey and not mustard. Ink on it is 11.0:1, muted text 6.4:1, destructive text
+     5.5:1, the speaker-name text at least 6.4:1 and a field border 4.1:1. It stays a step darker than the cards on it (1.22:1). */
+  --sheet: oklch(0.871 0.073 76.9);
+  /* Errors and removals: a dark red that stays 4.6:1 or better on the ground, cards and the sheet. */
+  --destructive: oklch(0.447 0.15 30.4);
+  --destructive-foreground: oklch(0.961 0.025 81.1);
+  /* Hairline (1.4:1, decorative) and field border (3:1 or better on the ground, cards and the sheet): the brown at 20% and 65%. */
+  --border: oklch(0.297 0.033 46.3 / 0.2);
+  --input: oklch(0.297 0.033 46.3 / 0.65);
+  --ring: var(--brown);
+  --chart-1: oklch(0.538 0.15 34.2);
+  --chart-2: oklch(0.836 0.088 65.6);
+  --chart-3: var(--spk-blue);
+  --chart-4: var(--spk-sage);
+  --chart-5: var(--spk-mauve);
+  /* Muted tints for the Home artwork and the lobby code tiles. Ink on each is 5.3:1 or better. */
+  --spk-blue: oklch(0.673 0.062 265.4);
+  --spk-sage: oklch(0.752 0.061 120.5);
+  --spk-mauve: oklch(0.766 0.04 355.4);
+  /* The four lobby code tiles: deep brown, caramel, red-brown, cocoa sand. Dark and light alternate so neighbours stay apart.
+     Cream on the dark two is 12.4:1 and 6.0:1, ink on the light two is 5.5:1 and 5.9:1. */
+  --code-1: oklch(0.297 0.033 46.3);
+  --code-2: oklch(0.681 0.1 61.8);
+  --code-3: oklch(0.484 0.098 42.4);
+  --code-4: oklch(0.695 0.056 63.9);
+  /* The active tab's pill in the bottom bar: a calm caramel instead of the bright apricot. Ink label on it is 5.5:1; the pill stands
+     4.7:1 apart from the brown bar. */
+  --tab-active: oklch(0.681 0.1 61.8);
+  /* Scrollbar thumb: the brown at 60%. 3.3:1 or better on the ground, cards, sheet and rose shape; the track is transparent. */
+  --scroll-thumb: oklch(0.297 0.033 46.3 / 0.6);
+  --scroll-thumb-hover: oklch(0.297 0.033 46.3 / 0.8);
+  /* The live dot, and nothing else. Talking uses a brown ring. */
+  --online: oklch(0.532 0.109 135.3);
+  --speaking: var(--brown);
+  /* Agent message types are plain words, not tinted chips. */
+  --type-ask: var(--muted-foreground);
+  --type-answer: var(--muted-foreground);
+  --type-note: var(--muted-foreground);
+  --type-missed: var(--destructive);
+  --type-bridge: var(--muted-foreground);
+  --sidebar: oklch(0.932 0.032 81);
+  --sidebar-foreground: oklch(0.246 0.025 44.2);
+  --sidebar-primary: oklch(0.297 0.033 46.3);
+  --sidebar-primary-foreground: oklch(0.961 0.025 81.1);
+  --sidebar-accent: oklch(0.891 0.041 81.7);
+  --sidebar-accent-foreground: oklch(0.246 0.025 44.2);
+  --sidebar-border: oklch(0.297 0.033 46.3 / 0.2);
+  --sidebar-ring: var(--brown);
+  /* Ambient shapes behind every screen: three soft tints of the palette. */
+  --tint-1: oklch(0.847 0.025 43.1);
+  --tint-2: oklch(0.854 0.046 99);
+  --tint-3: oklch(0.855 0.064 70.6);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --spring: cubic-bezier(0.34, 1.5, 0.64, 1);
 }
 
 @layer base {
@@ -156,35 +247,355 @@
     border-color: var(--color-border);
   }
 
+  /*
+   * Scrollbars: a slim, rounded, warm brown thumb on a transparent track, with no arrow buttons, instead of the browser's white
+   * bar. Chrome and Safari use WebKit's own selectors (Chrome ignores them once scrollbar-width or scrollbar-color is set, so the
+   * standard properties are only given to browsers without them, i.e. Firefox). The thumb is 6px wide inside a 12px lane.
+   */
+  @supports selector(::-webkit-scrollbar) {
+    *::-webkit-scrollbar { width: 12px; height: 12px; background: transparent; }
+    *::-webkit-scrollbar-track { background: transparent; }
+    *::-webkit-scrollbar-corner { background: transparent; }
+    *::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+    *::-webkit-scrollbar-thumb { background-color: var(--scroll-thumb); background-clip: padding-box; border: 3px solid transparent; border-radius: 999px; }
+    *::-webkit-scrollbar-thumb:hover { background-color: var(--scroll-thumb-hover); }
+  }
+  @supports not selector(::-webkit-scrollbar) {
+    * { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+  }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Headings are Instrument Serif, which has one weight. font-synthesis stops the browser
+     from faking a bold when a component asks for font-semibold. */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-synthesis: none;
+    letter-spacing: -0.02em;
+  }
+
+  /* One shared focus ring. Components that draw their own ring opt out with outline-none. */
+  :focus-visible {
+    outline: 3px solid var(--color-ring);
+    outline-offset: 3px;
+    border-radius: 8px;
+  }
+
+  /* Georgian needs more line height than Latin for its tall ascenders and descenders. */
+  :lang(ka) {
+    line-height: 1.55;
   }
 }
 
-body { font-family: var(--font-sans); -webkit-tap-highlight-color: transparent; }
-h1, h2, h3, .font-display { font-family: var(--font-display); }
-@keyframes slide-down { from { transform: translateY(-120%); opacity: 0 } to { transform: none; opacity: 1 } }
-.animate-slide-down { animation: slide-down 0.35s ease-out; }
+/* A line in a list: a thin rule in the speaker's colour (set --speaker). */
+.speaker-rule {
+  border-inline-start: 4px solid color-mix(in oklab, var(--speaker, var(--border)) 45%, var(--foreground));
+  padding-inline-start: 0.75rem;
+}
+/* A speaker's name as text: their stored colour pulled toward the ink so it stays at 5.4:1 or better on every surface. */
+.speaker-ink { color: color-mix(in oklab, var(--speaker, var(--foreground)) 25%, var(--foreground)); }
 
-@keyframes msg-in { from { transform: translateY(14px); opacity: 0 } to { transform: none; opacity: 1 } }
-.animate-msg-in { animation: msg-in 0.45s cubic-bezier(.2,.7,.2,1); }
-@keyframes glow { 0% { box-shadow: 0 0 0 0 oklch(0.52 0.21 272 / 0.7) } 40% { box-shadow: 0 0 0 6px oklch(0.52 0.21 272 / 0.35) } 100% { box-shadow: 0 0 0 0 oklch(0.52 0.21 272 / 0) } }
-.animate-glow { animation: msg-in 0.45s ease-out, glow 2.2s ease-out; }
+/*
+ * Ambient background: three soft tinted shapes drifting slowly, under a faint paper grain.
+ * Both layers sit behind everything (z-index -1) and never take input. The grain is static.
+ * Transform only.
+ */
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ambient i {
+  position: absolute;
+  border-radius: 50%;
+  will-change: transform;
+}
+.ambient .a { width: 80vmax; height: 80vmax; left: -34vmax; top: -44vmax; background: var(--tint-1); animation: drift-a 36s ease-in-out infinite alternate; }
+.ambient .b { width: 62vmax; height: 62vmax; right: -30vmax; top: 8vmax; background: var(--tint-2); animation: drift-b 44s ease-in-out infinite alternate; }
+.ambient .c { width: 56vmax; height: 56vmax; left: -20vmax; bottom: -34vmax; background: var(--tint-3); animation: drift-c 40s ease-in-out infinite alternate; }
+@keyframes drift-a { from { transform: translate3d(0, 0, 0) scale(1) } to { transform: translate3d(10vmax, 8vmax, 0) scale(1.1) } }
+@keyframes drift-b { from { transform: translate3d(0, 0, 0) scale(1.05) } to { transform: translate3d(-8vmax, 10vmax, 0) scale(0.94) } }
+@keyframes drift-c { from { transform: translate3d(0, 0, 0) scale(0.96) } to { transform: translate3d(12vmax, -8vmax, 0) scale(1.1) } }
+.grain {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.28;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'140'%20height%3D'140'%3E%3Cfilter%20id%3D'n'%20x%3D'0'%20y%3D'0'%20width%3D'100%25'%20height%3D'100%25'%3E%3CfeTurbulence%20type%3D'fractalNoise'%20baseFrequency%3D'.8'%20numOctaves%3D'2'%20stitchTiles%3D'stitch'%2F%3E%3CfeColorMatrix%20values%3D'0%200%200%200%20.23%200%200%200%200%20.15%200%200%200%200%20.1%201.3%200%200%200%20-.42'%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D'140'%20height%3D'140'%20filter%3D'url(%23n)'%2F%3E%3C%2Fsvg%3E");
+  background-size: 140px 140px;
+}
+
+/* Staggered entrance: set --i on each block (0, 1, 2 ...). */
+@keyframes rise { from { transform: translateY(32px); opacity: 0 } }
+.rise { animation: rise 0.95s var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * 85ms + 90ms); }
+@keyframes screen-in { from { opacity: 0 } }
+.screen-in { animation: screen-in 0.6s var(--ease-out) backwards; }
+
+/* Someone is talking: the avatar bobs and a brown ring pulses out of it. */
+.is-talking { position: relative; animation: bob 1.3s ease-in-out infinite; }
+.is-talking::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid var(--brown);
+  pointer-events: none;
+  animation: ring 1.5s ease-out infinite;
+}
+@keyframes bob { 0%, 100% { transform: scale(1) } 50% { transform: scale(1.1) } }
+@keyframes ring { from { transform: scale(0.8); opacity: 0.9 } to { transform: scale(1.55); opacity: 0 } }
+
+/*
+ * Home artwork: flat circles, a half circle, a pill and a ring slide in and then drift.
+ * Pure geometry. The four member discs sit on top.
+ */
+.home-art { position: relative; overflow: hidden; border-radius: 24px; background: var(--aubergine); aspect-ratio: 1; }
+.home-art i { position: absolute; display: block; will-change: transform; }
+.home-art .s1 { width: 64%; aspect-ratio: 1; left: -10%; top: -8%; border-radius: 50%; background: var(--spk-blue); animation: slide-in 1.1s var(--ease-out) 0.35s backwards, drift-1 22s ease-in-out 1.5s infinite alternate; }
+.home-art .s2 { width: 46%; aspect-ratio: 1; right: -12%; top: 8%; border-radius: 50%; background: var(--terracotta); clip-path: inset(0 0 50% 0); animation: slide-in 1.1s var(--ease-out) 0.5s backwards, drift-2 26s ease-in-out 1.6s infinite alternate; }
+.home-art .s3 { width: 56%; height: 22%; left: 30%; bottom: 18%; border-radius: 999px; background: var(--apricot); animation: slide-in 1.1s var(--ease-out) 0.65s backwards, drift-3 18s ease-in-out 1.7s infinite alternate; }
+.home-art .s4 { width: 38%; aspect-ratio: 1; left: 6%; bottom: -12%; border-radius: 50%; border: 14px solid var(--spk-mauve); animation: slide-in 1.1s var(--ease-out) 0.8s backwards, drift-2 30s ease-in-out 1.8s infinite alternate-reverse; }
+.home-art .s5 { width: 12%; aspect-ratio: 1; right: 14%; bottom: 12%; border-radius: 50%; background: var(--cream); animation: slide-in 1s var(--spring) 0.95s backwards; }
+.home-art .discs { position: absolute; left: 50%; top: 50%; display: flex; transform: translate(-50%, -50%); animation: disc-in 1.1s var(--spring) 1s backwards; }
+@keyframes slide-in { from { transform: translate3d(-24%, 18%, 0) scale(0.4); opacity: 0 } }
+@keyframes disc-in { from { transform: translate(-50%, -50%) translateY(18%) scale(0.4); opacity: 0 } }
+@keyframes drift-1 { from { transform: translate3d(0, 0, 0) rotate(0) } to { transform: translate3d(8%, 6%, 0) rotate(18deg) } }
+@keyframes drift-2 { from { transform: translate3d(0, 0, 0) rotate(0) } to { transform: translate3d(-9%, 8%, 0) rotate(-14deg) } }
+@keyframes drift-3 { from { transform: translate3d(0, 0, 0) } to { transform: translate3d(-12%, -14%, 0) } }
+
+/* Home layout: title, artwork, then headline and buttons on a phone; two columns from 900px. */
+.hg-head { container-type: inline-size; }
+.home-title {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  font-size: min(37cqw, 340px);
+  line-height: 0.84;
+  letter-spacing: -0.035em;
+  margin: 14px 0 14px -0.02em;
+  padding: 0 0.04em 0.06em 0;
+}
+.home-title em { font-style: italic; color: var(--redbrown); }
+.hg-art { width: min(80vw, 500px); margin: 14px auto 16px; }
+@media (min-width: 900px) {
+  .home-grid {
+    grid-template-columns: 1.25fr 0.75fr;
+    grid-template-areas: "head art" "rest art";
+    column-gap: 36px;
+    align-content: center;
+  }
+  .hg-head { grid-area: head; align-self: end; }
+  .hg-rest { grid-area: rest; align-self: start; }
+  .hg-art { grid-area: art; align-self: center; width: min(32vw, 460px); margin: 0; }
+}
+
+/* A code tile in the lobby drops in one by one (set --j). */
+@keyframes drop { from { transform: translateY(-60px) scale(0.6); opacity: 0 } }
+.code-tile { animation: drop 0.95s var(--spring) backwards; animation-delay: calc(var(--j, 0) * 110ms + 350ms); }
+
+/*
+ * The live transcript, in the style of film subtitles. The newest line is the biggest;
+ * older lines step down in size and fade a little. They never fade below 0.88, which keeps their
+ * muted text above 4.5:1 on the ground; the name row and the original line keep 12px and 13px floors.
+ * Set data-age (0 = newest) and --speaker (the member's stored colour).
+ * The thread and chip derive their colours from --speaker and are never used as text.
+ */
+.tline { --s: 1; --o: 1; font-size: calc(var(--s) * 1em); padding-top: calc(var(--s) * 1.1em); }
+.tline[data-age="1"] { --s: 0.84; --o: 1; }
+.tline[data-age="2"] { --s: 0.72; --o: 0.95; }
+.tline[data-age="3"] { --s: 0.66; --o: 0.9; }
+.tline[data-age="4"], .tline[data-age="5"], .tline[data-age="6"] { --s: 0.6; --o: 0.88; }
+.tl-in {
+  position: relative;
+  padding: 2px 0 2px 20px;
+  opacity: var(--o);
+  transition: opacity 0.6s var(--ease-out);
+}
+.tl-in::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 5px;
+  border-radius: 3px;
+  background: color-mix(in oklab, var(--speaker, var(--sheet)) 45%, var(--foreground));
+}
+.tl-who { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 14px; }
+.tl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 14px 3px 3px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--speaker, var(--sheet)) 85%, var(--background));
+  color: var(--foreground);
+  font-weight: 700;
+  transform-origin: left center;
+}
+.tl-disc {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--brown);
+  color: var(--cream);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+.tl-lang { padding: 2px 9px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--border); color: var(--muted-foreground); font-size: 12px; font-weight: 600; }
+.tl-big { font-size: 1.3em; font-weight: 600; line-height: 1.15; letter-spacing: -0.03em; text-wrap: pretty; }
+.tl-big:lang(ka) { font-weight: 650; line-height: 1.4; letter-spacing: -0.005em; }
+.tl-w { display: inline-block; }
+.tl-small { margin-top: 0.4em; font-size: max(13px, 0.85em); line-height: 1.45; color: var(--muted-foreground); }
+@media (min-width: 640px) { .tl-big { font-size: 1.7em; } }
+
+/* The newest line arrives: its chip widens, the line rises, each word fades up in turn (set --w on each word). */
+@keyframes line-in { from { opacity: 0; transform: translateY(28px) } }
+@keyframes word-in { from { opacity: 0; transform: translateY(0.6em) scale(0.94) } }
+@keyframes chip-in { from { transform: scaleX(0.2); opacity: 0 } }
+.tline-new .tl-in { animation: line-in 0.9s var(--spring) backwards; }
+.tline-new .tl-chip { animation: chip-in 0.8s var(--spring) backwards; }
+.tline-new .tl-w { animation: word-in 0.85s var(--spring) backwards; animation-delay: calc(var(--w, 0) * 70ms + 320ms); }
+
+/* "Listening to you": a brown pill with four moving bars, shown while the mic is on. */
+.tl-listening {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 16px 9px 14px;
+  border-radius: 999px;
+  background: var(--brown);
+  color: var(--cream);
+  font-size: 14px;
+  font-weight: 600;
+}
+.tl-eq { display: inline-flex; align-items: center; gap: 3px; height: 18px; }
+.tl-eq i { width: 3px; height: 18px; border-radius: 2px; background: var(--apricot); transform: scaleY(0.3); animation: eq 1s ease-in-out infinite; }
+.tl-eq i:nth-child(2) { animation-delay: 0.18s }
+.tl-eq i:nth-child(3) { animation-delay: 0.36s }
+.tl-eq i:nth-child(4) { animation-delay: 0.54s }
+@keyframes eq { 0%, 100% { transform: scaleY(0.3) } 50% { transform: scaleY(1) } }
+
+/* The mic: terracotta when live, with pulse rings, a waveform ring and a faint warm glow behind it. */
+.mic-btn { position: relative; isolation: isolate; transition: transform 0.4s var(--spring); }
+.mic-btn:active { transform: scale(0.93); }
+.mic-btn::before {
+  content: "";
+  position: absolute;
+  inset: -40px;
+  z-index: -1;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(closest-side, oklch(0.538 0.15 34.2 / 0.5), oklch(0.538 0.15 34.2 / 0));
+  opacity: 0;
+  transform: scale(0.88);
+}
+.mic-btn[data-on="true"]::before { animation: glow 3.6s ease-in-out infinite alternate; }
+@keyframes glow { from { transform: scale(0.88); opacity: 0.5 } to { transform: scale(1.1); opacity: 0.95 } }
+.mic-pulse { position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--terracotta); opacity: 0; pointer-events: none; }
+.mic-btn[data-on="true"] .mic-pulse { animation: pulse 2.4s ease-out infinite; }
+.mic-btn[data-on="true"] .mic-pulse + .mic-pulse { animation-delay: 1.2s; }
+@keyframes pulse { from { transform: scale(1); opacity: 0.9 } to { transform: scale(1.9); opacity: 0 } }
+.mic-wave { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.5s; }
+.mic-btn[data-on="true"] .mic-wave { opacity: 1; }
+.mic-wave i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  height: 14px;
+  margin: -7px 0 0 -1.5px;
+  border-radius: 3px;
+  background: var(--terracotta);
+  transform: rotate(var(--ang)) translateY(-52px) scaleY(0.3);
+  animation: wave 1.6s ease-in-out infinite;
+  animation-delay: calc(var(--k) * -57ms);
+}
+@keyframes wave { 0%, 100% { transform: rotate(var(--ang)) translateY(-52px) scaleY(0.3) } 50% { transform: rotate(var(--ang)) translateY(-52px) scaleY(1.45) } }
+
+/*
+ * Motion only where it signals state: a new line, a new card, someone talking,
+ * live status, a sheet opening. All of it stops for users who ask.
+ */
+@keyframes slide-down { from { transform: translateY(-44px) scale(0.93); opacity: 0 } to { transform: none; opacity: 1 } }
+.animate-slide-down { animation: slide-down 1s var(--spring); }
+
+@keyframes msg-in { from { transform: translateY(10px); opacity: 0 } to { transform: none; opacity: 1 } }
+.animate-msg-in { animation: msg-in 0.5s var(--ease-out); }
+
+/* A new entry starts one tone darker so it can be spotted, then settles into its own background. */
+@keyframes fresh { from { background-color: var(--accent) } }
+.animate-fresh { animation: msg-in 0.5s var(--ease-out), fresh 2.4s ease-out; }
+
 @keyframes typing-dot { 0%, 80%, 100% { opacity: .25; transform: none } 40% { opacity: 1; transform: translateY(-3px) } }
 .typing-dot { animation: typing-dot 1.2s infinite; }
 .typing-dot:nth-child(2) { animation-delay: .15s }
 .typing-dot:nth-child(3) { animation-delay: .3s }
+
 @keyframes sheet-up { from { transform: translateY(100%) } to { transform: none } }
-.animate-sheet-up { animation: sheet-up 0.3s ease-out; }
+.animate-sheet-up { animation: sheet-up 0.7s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/*
+ * Switching tabs in the bottom sheet. The active pill is ONE element that slides under the tab buttons
+ * (set --n tabs and --i active index; the tabs are equal width with a 2px gap), so it travels instead of
+ * fading out on one button and in on the next. The old panel fades and lifts away quickly, then the new one
+ * rises in. Everything here is opacity or transform, and the reduced-motion block turns all of it off.
+ */
+.tab-indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc((100% - (var(--n, 1) - 1) * 2px) / var(--n, 1));
+  border-radius: var(--radius-2xl);
+  background: var(--tab-active);
+  transform: translateX(calc(var(--i, 0) * (100% + 2px)));
+  transition: transform 0.5s var(--ease-out), opacity 0.25s ease;
+  pointer-events: none;
+}
+@keyframes tab-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes tab-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-8px); } }
+.tab-enter { animation: tab-in 0.4s var(--ease-out) both; }
+.tab-leave { animation: tab-out 0.14s ease-in both; }
+
+/* Empty states in the bottom sheet: on a short phone the sheet has no room for the badge, so only the text stays. */
+@media (max-width: 639px) and (max-height: 760px) { .empty-badge { display: none; } }
+
+@keyframes takeover { from { opacity: 0 } to { opacity: 1 } }
+.animate-takeover { animation: takeover .4s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+  .typing-dot { opacity: .6; }
+}
 
 /* iPhone safe areas (notch, home indicator) */
 .pt-safe { padding-top: max(env(safe-area-inset-top), 0px); }
 .pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 0px); }
 .px-safe { padding-left: max(env(safe-area-inset-left), 0px); padding-right: max(env(safe-area-inset-right), 0px); }
 html, body { overflow-x: hidden; overscroll-behavior-y: none; }
-@keyframes takeover { from { opacity: 0; transform: scale(.97) } to { opacity: 1; transform: none } }
-.animate-takeover { animation: takeover .5s ease-out; }
 
 /* Meme caption text: bold white Impact-style with black outline. */
 .meme-text {
