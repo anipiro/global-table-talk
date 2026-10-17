@@ -124,7 +124,10 @@ function RoomPage() {
     if (!me!.can_speak) { toast("The host has muted your mic"); return; }
     if (!micSupported(me!.language as Lang)) { setMicIssue("unsupported"); return; }
     try {
-      await startMic(me!, setInterim, (m) => toast.error(m));
+      await startMic(me!, setInterim, (m) => {
+        if (m === "__disconnected__") { setMicOn(false); setMicIssue("disconnected"); }
+        else toast.error(m);
+      });
       setMicOn(true);
       setMicIssue(null);
     } catch (e) {

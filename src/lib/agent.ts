@@ -61,6 +61,7 @@ let recorder: MediaRecorder | null = null;
 let lastPeak = 0;
 let droppedCount = 0;
 let debugCb: ((d: { rms: number; threshold: number; dropped: number }) => void) | null = null;
+const onErrorRef: { current: ((msg: string) => void) | null } = { current: null };
 
 /** Debug overlay feed: live RMS, active voice threshold, and dropped-line count. */
 export function setMicDebug(cb: typeof debugCb) {
@@ -168,6 +169,7 @@ export async function startMic(
   onInterim: (text: string) => void,
   onError: (msg: string) => void,
 ) {
+  onErrorRef.current = onError;
   const engine = speechEngine(member.language as Lang);
   if (engine === "webspeech") {
     const SR = (window as never)["SpeechRecognition"] || (window as never)["webkitSpeechRecognition"];
