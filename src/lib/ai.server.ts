@@ -46,7 +46,6 @@ export function aiStream(
     },
   });
   const messages: ModelMessage[] = [
-    { role: "system", content: system },
     {
       role: "user",
       content: opts.imageUrl
@@ -59,7 +58,9 @@ export function aiStream(
   ];
   return streamText({
     model: provider.responses(MODEL),
+    instructions: system,
     messages,
+    onError: ({ error }) => console.error("AI stream error", error),
     abortSignal: request.signal,
     providerOptions: {
       openai: {
