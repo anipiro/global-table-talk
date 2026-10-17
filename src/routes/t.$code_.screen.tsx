@@ -128,6 +128,7 @@ function PresenterView() {
             <span key={m.id} title={m.name} className="rounded-full ring-4 ring-background"><Avatar member={m} size={48} /></span>
           ))}
         </div>
+        {handshake && <HandshakeOverlay msg={handshake} members={visible} />}
         <span className="text-xl text-muted-foreground">{visible.map((m) => m.name).join(" · ")}</span>
         <div className="ml-auto flex items-center gap-2 text-sm">
           {replay ? (
@@ -176,7 +177,9 @@ function PresenterView() {
           </div>
         </section>
 
-        {showing ? (
+        {openPoll ? (
+          <PollTakeover key={openPoll.id} poll={openPoll} votes={pollVotes} members={members} />
+        ) : showing ? (
           showing.kind === "media" ? (
             <MediaTakeover key={showing.media.id} media={showing.media} by={byId.get(showing.media.created_by_member_id ?? "")?.name} />
           ) : (
