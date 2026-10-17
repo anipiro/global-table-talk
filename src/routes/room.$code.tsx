@@ -541,8 +541,14 @@ function Feed({ lines, byId, textFor, interim, me, talking, onFix }: {
                     </button>
                   )}
                   <button onClick={() => onFix(l)} aria-label={`Change speaker: ${sp?.name ?? "Unknown speaker"}`}
-                    className={`mb-0.5 px-1 text-left text-[0.6em] font-semibold ${sp ? "" : "italic text-muted-foreground"}`} style={{ color: sp?.color }}>
-                    {sp?.name ?? "Unknown speaker"}{l.ambiguous ? "?" : ""} <span className="font-normal text-muted-foreground">· {fmtTime(l.created_at)}</span>
+                    className={`mb-0.5 flex items-center gap-1.5 px-1 text-left text-[0.6em] font-semibold ${sp ? "" : "italic text-muted-foreground"}`} style={{ color: sp?.color }}>
+                    {sp?.name ?? "Unknown speaker"}{l.ambiguous ? "?" : ""}
+                    {sp && (
+                      <span className="rounded-full border border-border bg-secondary px-1.5 py-px text-[0.85em] font-medium text-muted-foreground">
+                        {sp.role === "talk" ? "Local" : sp.role === "follow" ? "Tourist" : "Local · Tourist"} · {sp.language.toUpperCase()}
+                      </span>
+                    )}
+                    <span className="font-normal text-muted-foreground">{fmtTime(l.created_at)}</span>
                   </button>
                   <button
                     className={`block w-full rounded-3xl border px-4 py-3 text-left shadow-sm transition ${
