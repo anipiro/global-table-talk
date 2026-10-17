@@ -12,7 +12,7 @@ export type PollOption = { id: string; label_by_language: Record<string, string>
 /** Pick text in the viewer's language, falling back to English then any language. */
 export function pollText(map: unknown, lang: string): string {
   const m = (map ?? {}) as Record<string, string>;
-  return m[lang] ?? m.en ?? Object.values(m)[0] ?? "";
+  return m[lang] ?? m["en"] ?? Object.values(m)[0] ?? "";
 }
 
 export function pollOptions(poll: Poll): PollOption[] {
@@ -31,8 +31,8 @@ export async function votePoll(pollId: string, memberId: string, optionId: strin
  *  until it exists we log a TODO so the UI is complete and safe to ship. */
 export async function settlePoll(pollId: string) {
   const mod = (await import("@/lib/agent")) as Record<string, unknown>;
-  if (typeof mod.settlePoll === "function") {
-    await (mod.settlePoll as (id: string) => Promise<void>)(pollId);
+  if (typeof mod["settlePoll"] === "function") {
+    await (mod["settlePoll"] as (id: string) => Promise<void>)(pollId);
   } else {
     console.log("TODO: settlePoll not implemented yet in src/lib/agent.ts — would settle poll", pollId);
   }

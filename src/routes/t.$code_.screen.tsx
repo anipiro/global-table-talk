@@ -65,11 +65,10 @@ function PresenterView() {
     const fresh = agentMessages.filter((m) => !knownNotes.current!.has(m.id));
     fresh.forEach((m) => knownNotes.current!.add(m.id));
     const shake = fresh.find((m) => m.content.startsWith("🤝"));
-    if (shake) {
-      setHandshake(shake);
-      const t = setTimeout(() => setHandshake(null), 3000);
-      return () => clearTimeout(t);
-    }
+    if (!shake) return;
+    setHandshake(shake);
+    const t = setTimeout(() => setHandshake(null), 3000);
+    return () => clearTimeout(t);
   }, [agentMessages, status]);
   const openPoll = polls.filter((p) => p.status === "open").slice(-1)[0];
   const showing = queue[0];
