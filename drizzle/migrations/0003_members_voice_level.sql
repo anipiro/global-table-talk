@@ -1,0 +1,2 @@
+ALTER TABLE public.members ADD COLUMN voice_level double precision;
+COMMENT ON COLUMN public.members.voice_level IS 'Average speaking RMS measured during voice calibration; used to gate crosstalk from nearby phones.';

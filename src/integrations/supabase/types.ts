@@ -217,6 +217,7 @@ export type Database = {
           name: string
           role: string
           room_id: string
+          voice_level: number | null
           whisper_on: boolean
         }
         Insert: {
@@ -231,6 +232,7 @@ export type Database = {
           name: string
           role?: string
           room_id: string
+          voice_level?: number | null
           whisper_on?: boolean
         }
         Update: {
@@ -245,6 +247,7 @@ export type Database = {
           name?: string
           role?: string
           room_id?: string
+          voice_level?: number | null
           whisper_on?: boolean
         }
         Relationships: [

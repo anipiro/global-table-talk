@@ -15,3 +15,4 @@
 - [x] /test/mic: session comparison view (latency, accuracy, reliability deltas across devices)
 - [ ] Crosstalk fixes: language filter (Gemini detected-lang drop, Web Speech confidence<0.5 drop), voice calibration (members.voice_level, 60% RMS gate), loudest-phone-wins arbitration (2s window), hold-to-talk toggle, debug overlay (RMS/threshold/dropped)
 - [ ] Automated tests for crosstalk rules: language mismatch, zero-confidence, 60% threshold, loudest-phone arbitration
+- [ ] Settings action to recalibrate voice_level with success confirmation
