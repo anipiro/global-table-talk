@@ -9,6 +9,7 @@ import { Screen } from "@/components/JoinForm";
 import { Shimmer } from "@/components/Photos";
 import { isGroupPhoto } from "@/lib/photos";
 import { renderBold } from "@/lib/richText";
+import { mediaCaption, newestTonightMedia } from "@/components/Media";
 
 export const Route = createFileRoute("/recap/$code")({
   ssr: false,
@@ -27,8 +28,10 @@ export const Route = createFileRoute("/recap/$code")({
 
 function Recap() {
   const { code } = Route.useParams();
-  const { room, members, photos, cards, notebook, status } = useRoom(code);
+  const { room, members, photos, cards, notebook, media, status } = useRoom(code);
   const meId = getMemberId(code);
+  const myLang = members.find((m) => m.id === meId)?.language ?? "en";
+  const painting = newestTonightMedia(media);
   const group = [...photos].reverse().find((p) => isGroupPhoto(p.storage_path));
   const urls = useSignedUrls(group ? [group.storage_path] : []);
   const story = cards.filter((c) => c.kind === "recap" && c.member_id === meId);
@@ -67,6 +70,20 @@ function Recap() {
   return (
     <Screen>
       <div ref={card} className="flex flex-col gap-5 rounded-[2rem] bg-card p-5">
+        {painting ? (
+          <figure className="overflow-hidden rounded-3xl bg-secondary">
+            <img src={painting.url} crossOrigin="anonymous" alt={mediaCaption(painting, myLang) || "Tonight, painted"} className="aspect-[3/2] w-full object-cover" />
+            <figcaption className="p-3">
+              <p className="text-lg font-semibold">{mediaCaption(painting, myLang)}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">AI illustration</p>
+            </figcaption>
+          </figure>
+        ) : (
+          <div role="status" className="relative overflow-hidden rounded-3xl bg-secondary">
+            <Shimmer className="aspect-[3/2] w-full rounded-none" />
+            <p className="absolute inset-0 flex items-center justify-center gap-2 text-lg text-muted-foreground"><Sparkles className="h-5 w-5" /> Painting tonight…</p>
+          </div>
+        )}
         <div>
           <p className="text-sm uppercase tracking-[0.3em] text-primary">Table {room?.code ?? code.toUpperCase()}</p>
           <h1 className="mt-1 text-4xl font-bold">Tonight's story</h1>

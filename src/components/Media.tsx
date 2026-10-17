@@ -2,6 +2,15 @@ import { useEffect } from "react";
 import { Maximize2, X } from "lucide-react";
 import type { Media, Member } from "@/lib/room";
 
+export function isTonightMedia(media: Media): boolean {
+  return media.kind === "reference_image" && media.query === "tonight";
+}
+
+export function newestTonightMedia(media: Media[]): Media | undefined {
+  return media.filter(isTonightMedia).reduce<Media | undefined>((newest, item) =>
+    !newest || item.created_at > newest.created_at ? item : newest, undefined);
+}
+
 /** Caption in the viewer's language, falling back to English then any language. */
 export function mediaCaption(m: Media, lang: string): string {
   const caps = (m.caption_by_language ?? {}) as Record<string, string>;
