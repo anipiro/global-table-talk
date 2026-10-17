@@ -264,7 +264,24 @@ function RoomPage() {
   return (
     <div className={`px-safe flex h-dvh flex-col overflow-x-hidden ${big ? "text-[28px]" : "text-[20px]"}`}>
       {/* top bar */}
-      <header className="z-20 flex items-center gap-2 border-b bg-background/95 px-3 pb-3 pt-[max(env(safe-area-inset-top),0.75rem)] text-base backdrop-blur">
+      <header className="z-20 border-b bg-background/95 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.75rem)] text-base backdrop-blur">
+        {/* room identity row: code, who's here, live status */}
+        <div className="flex items-center gap-2 pb-2 text-sm">
+          <span className="font-display text-lg font-bold tracking-wide">Table {room.code}</span>
+          <span className="flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" /> live
+          </span>
+          <span className="ml-auto flex items-center">
+            {members.filter((m) => m.approved).slice(0, 6).map((m, i) => (
+              <span key={m.id} className="inline-flex h-6 w-6 items-center justify-center rounded-full border-2 border-background text-[0.6rem] font-semibold text-primary-foreground"
+                style={{ background: m.color, marginLeft: i ? -6 : 0, zIndex: 6 - i }} title={m.name}>
+                {m.name.slice(0, 1).toUpperCase()}
+              </span>
+            ))}
+            <span className="ml-2 text-xs text-muted-foreground">{members.filter((m) => m.approved).length} here</span>
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
         <IconBtn
           label="Whisper in my headphones"
           active={me.whisper_on}
@@ -281,6 +298,7 @@ function RoomPage() {
         <IconBtn label="Big text" active={big} onClick={() => setBig(!big)}>
           <Type />
         </IconBtn>
+        </div>
       </header>
       {me.whisper_on && (
         <div className="flex justify-center border-b bg-background/95 py-1.5 text-sm">
