@@ -79,57 +79,23 @@ export async function joinRoom(
 }
 
 export async function seedDemo(): Promise<Room> {
+  const { DEMO_SCRIPT, DEMO_SPEAKERS, insertStep } = await import("./demoScript");
   const room = await createRoom("live");
   const { data: ms, error } = await supabase
     .from("members")
     .insert([
-      { room_id: room.id, name: "You", language: "en", role: "both", facts: "Visiting Tbilisi\nLove food\nLearning Georgian", color: COLORS[0]!, approved: true },
-      { room_id: room.id, name: "Nika", language: "ka", role: "talk", facts: "Grew up in Kakheti\nMakes wine\nHosts tonight", color: COLORS[1]!, approved: true },
-      { room_id: room.id, name: "Anna", language: "en", role: "follow", facts: "From Berlin\nVegetarian\nFirst time in Georgia", color: COLORS[2]!, approved: true },
+      { room_id: room.id, name: DEMO_SPEAKERS.en, language: "en", role: "both", facts: "Visiting Tbilisi\nLoves food\nLearning Georgian", color: COLORS[0]!, approved: true },
+      { room_id: room.id, name: DEMO_SPEAKERS.ka, language: "ka", role: "talk", facts: "Grew up in Kakheti\nMakes wine\nHosts tonight", color: COLORS[1]!, approved: true },
     ])
     .select();
   if (error || !ms) throw error;
-  const [you, nika, anna] = ms as [Member, Member, Member];
+  const [you, nika] = ms as [Member, Member];
   await supabase.from("rooms").update({ host_member_id: you.id }).eq("id", room.id);
   setMemberId(room.code, you.id);
-
-  const t0 = Date.now() - 6 * 60_000;
-  const at = (m: number) => new Date(t0 + m * 60_000).toISOString();
-  const sample = [
-    { s: nika, l: "ka", text: "გაუმარჯოს ჩვენს სტუმრებს!", en: "To our guests!", m: 0 },
-    { s: anna, l: "en", text: "Thank you, this khachapuri is incredible.", ka: "გმადლობთ, ეს ხაჭაპური საოცარია.", m: 1 },
-    { s: nika, l: "ka", text: "ეს ღვინო ჩემი ბაბუის მარანიდანაა.", en: "This wine is from my grandfather's cellar.", m: 2 },
-    { s: you, l: "en", text: "How long has your family made wine?", ka: "რამდენი ხანია თქვენი ოჯახი ღვინოს აყენებს?", m: 3 },
-    { s: nika, l: "ka", text: "სამ თაობაზე მეტია. ქვევრში ვაყენებთ.", en: "More than three generations. We make it in qvevri.", m: 4 },
-  ];
-  for (const x of sample) {
-    const { data: line } = await supabase
-      .from("lines")
-      .insert({ room_id: room.id, speaker_id: x.s.id, text: x.text, language: x.l, loudness: 0.5, created_at: at(x.m) })
-      .select()
-      .single();
-    if (!line) continue;
-    const tr = [];
-    if (x.en) tr.push({ line_id: line.id, language: "en", text: x.en });
-    if (x.ka) tr.push({ line_id: line.id, language: "ka", text: x.ka });
-    await supabase.from("translations").insert(tr);
+  // Scripted scene, spaced 20s apart in the recent past, in script order.
+  const t0 = Date.now() - DEMO_SCRIPT.length * 20_000;
+  for (let i = 0; i < DEMO_SCRIPT.length; i++) {
+    await insertStep(room.id, DEMO_SCRIPT[i]!, { ka: nika, en: you }, new Date(t0 + i * 20_000).toISOString());
   }
-  await supabase.from("notebook").insert([
-    { room_id: room.id, kind: "person", title: "Nika", body: "Host, winemaker from Kakheti.", owner_member_id: you.id },
-    { room_id: room.id, kind: "glossary", title: "Qvevri (ქვევრი)", body: "Clay vessel buried underground for making wine.", owner_member_id: you.id },
-    { room_id: room.id, kind: "glossary", title: "Gaumarjos (გაუმარჯოს)", body: "Cheers — literally 'victory to you'.", owner_member_id: anna.id },
-    { room_id: room.id, kind: "moment", title: "First toast", body: "Nika toasted the guests.", owner_member_id: nika.id },
-    { room_id: room.id, kind: "decision", title: "Cellar visit", body: "Visit the wine cellar on Sunday.", owner_member_id: nika.id },
-  ]);
-  await supabase.from("agent_messages").insert([
-    { room_id: room.id, from_member_id: anna.id, to_member_id: nika.id, type: "ask", content: "Anna is vegetarian — anything on the table without meat?", created_at: at(1) },
-    { room_id: room.id, from_member_id: nika.id, to_member_id: anna.id, type: "answer", content: "The badrijani and pkhali are meat-free.", created_at: at(2) },
-    { room_id: room.id, from_member_id: you.id, to_member_id: null, type: "note", content: "Saved 'qvevri' to the glossary.", created_at: at(4) },
-    { room_id: room.id, from_member_id: nika.id, to_member_id: you.id, type: "bridge", content: "Nika's toast was about welcoming guests as a gift from God.", created_at: at(5) },
-  ]);
-  await supabase.from("cards").insert({
-    room_id: room.id, member_id: you.id, kind: "context", title: "About the toasts",
-    body: "In Georgia the tamada (toastmaster) leads toasts. It's polite to wait for the toast before drinking.",
-  });
   return room;
 }
