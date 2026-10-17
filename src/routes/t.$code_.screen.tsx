@@ -160,7 +160,11 @@ function PresenterView() {
         </section>
 
         {showing ? (
-          <PhotoTakeover key={showing.id} photo={showing} captions={captions} by={byId.get(showing.uploader_id ?? "")?.name} group={isGroupPhoto(showing.storage_path)} />
+          showing.kind === "media" ? (
+            <MediaTakeover key={showing.media.id} media={showing.media} by={byId.get(showing.media.created_by_member_id ?? "")?.name} />
+          ) : (
+            <PhotoTakeover key={showing.photo.id} photo={showing.photo} captions={captions} by={byId.get(showing.photo.uploader_id ?? "")?.name} group={isGroupPhoto(showing.photo.storage_path)} />
+          )
         ) : (
           <section className="flex min-h-0 flex-col rounded-3xl bg-card/60 p-6">
             <h2 className="mb-4 text-lg uppercase tracking-widest text-muted-foreground">The agents</h2>
@@ -195,6 +199,19 @@ function PhotoTakeover({ photo, captions, by, group }: { photo: Photo; captions:
           {caps.filter((c) => c !== main).map((c) => <p key={c.language} className="text-2xl text-muted-foreground">{c.caption}</p>)}
         </div>
       ) : <div><Shimmer className="h-8 w-2/3" /><Shimmer className="mt-2 h-6 w-1/2" /></div>}
+    </section>
+  );
+}
+
+function MediaTakeover({ media, by }: { media: Media; by?: string | undefined }) {
+  return (
+    <section className="animate-takeover flex min-h-0 flex-col gap-4 rounded-3xl bg-card p-6" aria-live="polite">
+      <h2 className="text-lg uppercase tracking-widest text-primary">
+        {media.kind === "meme" ? "A meme from the agents" : `${by ? `${by}'s agent` : "An agent"} found a picture`}
+      </h2>
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl bg-secondary">
+        <MediaCard media={media} lang="en" large />
+      </div>
     </section>
   );
 }
