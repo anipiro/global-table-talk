@@ -4,3 +4,4 @@
 - Client-side agent entry points live in `src/lib/agent.ts`; speech capture and whisper use the browser's built-in speech APIs — why: no extra providers needed.
 - Room data loads and subscribes via `useRoom` in `src/lib/useRoom.ts`; screens never open their own realtime channels for room tables — why: one channel per room avoids leaks.
 - The photos bucket is private; display via signed URLs — why: workspace blocks public buckets.
+- Browser end-to-end regressions live in tests/e2e as Python Playwright unittest cases against the running app — why: the sandbox supplies Python Playwright and Chromium without extra project dependencies.
