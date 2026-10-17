@@ -118,6 +118,7 @@ export function JoinForm({
           className="rounded-2xl border bg-card px-4 py-3 text-lg outline-none focus:ring-2 focus:ring-ring"
           placeholder={"From Berlin\nVegetarian\nFirst time in Georgia"}
         />
+        <span className="text-xs text-muted-foreground">Your agent may use these to find things you have in common with others. Only the overlap is shared.</span>
       </label>
       <button
         disabled={busy || !name.trim()}
