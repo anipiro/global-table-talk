@@ -9,7 +9,11 @@ export type Step =
   | { type: "notebook"; owner: "ka" | "en"; kind: "person" | "glossary" | "decision" | "moment"; title: string; body: string }
   | { type: "card"; to: "ka" | "en"; kind: "context" | "catchup" | "recap"; title: string; body: string }
   /** A picture or meme an agent made for the thing just said — attaches to the line before it. */
-  | { type: "media"; who: "ka" | "en"; subject: string; url: string; caps: Record<string, string>; credit: string; kind?: "reference_image" | "meme" };
+  | { type: "media"; who: "ka" | "en"; subject: string; url: string; caps: Record<string, string>; credit: string; kind?: "reference_image" | "meme" }
+  /** An agent poll, pre-voted by the cast so the phones settle it live. */
+  | { type: "poll"; who: "ka" | "en"; question: Record<string, string>; options: { id: string; label: Record<string, string> }[]; votes: { who: "ka" | "en"; option: string }[] }
+  /** Shared ground: a 🤝 note plus a private "shared" card for each cast member. */
+  | { type: "shared"; note: string; title: string; body: string };
 
 export const DEMO_SPEAKERS = { ka: "Nika", en: "You" } as const;
 
@@ -21,6 +25,8 @@ export const DEMO_SCRIPT: Step[] = [
   { type: "agent", from: "ka", to: "en", kind: "answer", content: "Nika's uncle, owns a vineyard in Kakheti." },
   { type: "notebook", owner: "en", kind: "person", title: "Sulkhan", body: "Nika's uncle, owns a vineyard in Kakheti." },
   { type: "card", to: "en", kind: "context", title: "Who's Sulkhan?", body: "Nika's uncle. He owns a vineyard in Kakheti and sent tonight's wine." },
+  { type: "shared", note: "🤝 Nika and You both live for good wine and a long table.",
+    title: "You and Nika both…", body: "…put wine at the center of a good evening. Ask Nika which Kakheti vintage she would pour you first." },
   { type: "line", who: "en", text: "It's wonderful. Did he make it himself?", tr: "საოცარია. თვითონ დააყენა?" },
   { type: "line", who: "ka", text: "კი, ყოველ შემოდგომას რთველს აწყობს.", tr: "Yes, he holds a grape harvest every autumn." },
   { type: "notebook", owner: "ka", kind: "glossary", title: "Rtveli (რთველი)", body: "The grape harvest — a family celebration every autumn." },
