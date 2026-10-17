@@ -99,6 +99,13 @@
       "when": 1792258601344,
       "tag": "0013_create_polls",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792258832953,
+      "tag": "0014_allow_shared_card_kind",
+      "breakpoints": true
     }
   ]
 }
