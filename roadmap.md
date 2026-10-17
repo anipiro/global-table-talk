@@ -34,3 +34,5 @@
 - [ ] Overlap view: synced playback with solo/mute per lane (reads captions aloud — no audio is stored)
 - [ ] Overlap view keyboard shortcuts: scrub, switch lane, apply reassignment
 - [ ] Overlap view: highlight the soloed/playing lane and keep its segments in sync with playback
+- [ ] Overlap view: playback clock follows segment timestamps so overlapping lanes keep their relative timing
+- [ ] Overlap view: discoverable keyboard-shortcut guide (scrub, switch lane, reassign)
