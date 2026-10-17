@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { AgentMessage, Card, Line, Member, NotebookEntry, Photo, PhotoCaption, Room, Translation } from "./room";
+import type { AgentMessage, Card, Line, Member, NotebookEntry, Photo, PhotoCaption, Room, SpeakerCorrection, Translation } from "./room";
 
 type Row = { id: string; created_at?: string };
 function apply<R extends Row>(list: R[], p: { eventType: string; new: unknown; old: unknown }): R[] {
@@ -24,6 +24,7 @@ export function useRoom(code: string) {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [captions, setCaptions] = useState<PhotoCaption[]>([]);
   const [cards, setCards] = useState<Card[]>([]);
+  const [corrections, setCorrections] = useState<SpeakerCorrection[]>([]);
   const lineIds = useRef(new Set<string>());
   const photoIds = useRef(new Set<string>());
   useEffect(() => {
@@ -42,7 +43,7 @@ export function useRoom(code: string) {
       setRoom(r);
       if (!r) return;
       const id = r.id;
-      const [m, l, t, a, n, p, c, k] = await Promise.all([
+      const [m, l, t, a, n, p, c, k, sc] = await Promise.all([
         supabase.from("members").select().eq("room_id", id).order("created_at"),
         supabase.from("lines").select().eq("room_id", id).order("created_at"),
         supabase.from("translations").select("id, line_id, language, text, lines!inner(room_id)").eq("lines.room_id", id),
@@ -51,6 +52,7 @@ export function useRoom(code: string) {
         supabase.from("photos").select().eq("room_id", id).order("created_at"),
         supabase.from("photo_captions").select("id, photo_id, language, caption, description, photos!inner(room_id)").eq("photos.room_id", id),
         supabase.from("cards").select().eq("room_id", id).order("created_at"),
+        supabase.from("speaker_corrections").select().eq("room_id", id).order("created_at"),
       ]);
       if (cancelled) return;
       setMembers(m.data ?? []);
@@ -61,6 +63,7 @@ export function useRoom(code: string) {
       setPhotos(p.data ?? []);
       setCaptions((c.data ?? []).map(({ photos: _x, ...rest }) => rest));
       setCards(k.data ?? []);
+      setCorrections(sc.data ?? []);
       const f = `room_id=eq.${id}`;
       channel = supabase
         .channel(`room-${id}`)
@@ -73,6 +76,7 @@ export function useRoom(code: string) {
         .on("postgres_changes", { event: "*", schema: "public", table: "notebook", filter: f }, (p) => setNotebook((x) => apply(x, p)))
         .on("postgres_changes", { event: "*", schema: "public", table: "photos", filter: f }, (p) => setPhotos((x) => apply(x, p)))
         .on("postgres_changes", { event: "*", schema: "public", table: "cards", filter: f }, (p) => setCards((x) => apply(x, p)))
+        .on("postgres_changes", { event: "*", schema: "public", table: "speaker_corrections", filter: f }, (p) => setCorrections((x) => apply(x, p)))
         .on("postgres_changes", { event: "*", schema: "public", table: "translations" }, (p) => {
           const row = (p.new ?? p.old) as Translation;
           if (p.eventType === "DELETE" || lineIds.current.has(row.line_id)) setTranslations((x) => apply(x, p));
@@ -89,7 +93,7 @@ export function useRoom(code: string) {
     };
   }, [code]);
 
-  return { room, members, lines, translations, agentMessages, notebook, photos, captions, cards };
+  return { room, members, lines, translations, agentMessages, notebook, photos, captions, cards, corrections };
 }
 
 export function useSignedUrls(paths: string[]) {
