@@ -28,13 +28,18 @@ describe("keepByConfidence (Web Speech)", () => {
   });
 });
 
-describe("passesVoiceGate (60% of calibrated voice_level)", () => {
-  it("passes speech at or above 60% of voice_level", () => {
+describe("passesVoiceGate (30% floor of calibrated voice_level)", () => {
+  it("passes speech at or above 30% of voice_level", () => {
+    expect(passesVoiceGate(0.03, 0.1)).toBe(true);
     expect(passesVoiceGate(0.06, 0.1)).toBe(true);
-    expect(passesVoiceGate(VOICE_GATE * 0.1, 0.1)).toBe(true);
+    expect(VOICE_GATE).toBe(0.3);
   });
-  it("drops speech quieter than 60% of voice_level (crosstalk)", () => {
-    expect(passesVoiceGate(0.05, 0.1)).toBe(false);
+  it("drops speech quieter than 30% of voice_level", () => {
+    expect(passesVoiceGate(0.02, 0.1)).toBe(false);
+  });
+  it("does not silence someone whose setup came out 3x louder than their talking", () => {
+    // Kato calibrated at 0.171 but talked around 0.06 — the old 60% gate dropped all of it.
+    expect(passesVoiceGate(0.06, 0.171)).toBe(true);
   });
   it("passes everything when the member never calibrated", () => {
     expect(passesVoiceGate(0.001, null)).toBe(true);
@@ -114,5 +119,38 @@ describe("findOverlaps", () => {
       { id: "a", speaker_id: "ani", created_at: t(0) },
       { id: "b", speaker_id: "ani", created_at: t(1) },
     ]).size).toBe(0);
+  });
+});
+
+import { cleanTranscript, isLoudestFrame, ownsChunk } from "./crosstalk";
+
+describe("live loudest-phone check", () => {
+  it("a frame is mine when I hear it at least ~as loud as every other phone", () => {
+    expect(isLoudestFrame(0.08, [0.03])).toBe(true);
+    expect(isLoudestFrame(0.03, [0.08])).toBe(false);
+    expect(isLoudestFrame(0.05, [])).toBe(true);
+  });
+  it("the neighbour's phone does not own a chunk it only overheard", () => {
+    const f = Array.from({ length: 10 }, (_, i) => ({ speech: true, loudest: i < 2 }));
+    expect(ownsChunk(f)).toBe(false);
+  });
+  it("the speaker's phone owns the chunk, also when both talk at once", () => {
+    const f = Array.from({ length: 10 }, (_, i) => ({ speech: true, loudest: i < 5 }));
+    expect(ownsChunk(f)).toBe(true);
+  });
+  it("silence-only chunks are never uploaded", () => {
+    expect(ownsChunk([{ speech: false, loudest: true }])).toBe(false);
+  });
+});
+
+describe("cleanTranscript", () => {
+  it("strips stray letters from other scripts in Georgian text", () => {
+    expect(cleanTranscript("მე მგوني ჩვენი", "ka")).toBe("მე მგ ჩვენი");
+  });
+  it("drops a chunk that came back mostly in another script", () => {
+    expect(cleanTranscript("那么同样面临着摄影的方面", "ka")).toBe("");
+  });
+  it("keeps normal Georgian", () => {
+    expect(cleanTranscript("აბა რას შვებით?", "ka")).toBe("აბა რას შვებით?");
   });
 });

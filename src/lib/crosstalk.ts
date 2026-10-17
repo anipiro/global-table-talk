@@ -1,7 +1,8 @@
 /** Pure crosstalk rules — shared by the mic engines and covered by automated tests. */
 
-/** A chunk/utterance is only sent when its RMS is at least this fraction of the member's calibrated voice_level. */
-export const VOICE_GATE = 0.6;
+/** Soft floor: a chunk/utterance is only sent when its level is at least this fraction of the member's
+ *  calibrated voice_level. Kept lenient — iPhones calibrate very differently, and a strict gate silenced people. */
+export const VOICE_GATE = 0.3;
 
 /** Web Speech results below this confidence are dropped (likely the other person's voice). */
 export const MIN_CONFIDENCE = 0.5;
@@ -21,7 +22,7 @@ export function keepByConfidence(confidence: number): boolean {
   return confidence >= MIN_CONFIDENCE;
 }
 
-/** Voice gate: only send speech at least 60% as loud as the member's calibrated level. No calibration → no gate. */
+/** Voice floor: only send speech at least 30% as loud as the member's calibrated level. No calibration → no gate. */
 export function passesVoiceGate(utteranceRms: number, voiceLevel: number | null | undefined): boolean {
   if (!voiceLevel) return true;
   return utteranceRms >= VOICE_GATE * voiceLevel;
@@ -81,4 +82,44 @@ export function findOverlaps(lines: { id: string; speaker_id: string | null; cre
     }
   }
   return out;
+}
+
+/** Live "loudest phone" check: phones share their raw mic level a few times a second. A frame belongs to
+ *  this phone when it hears the sound at least about as loud as any other phone (within `tolerance`). */
+export function isLoudestFrame(mine: number, others: number[], tolerance = 0.85): boolean {
+  const top = Math.max(0, ...others);
+  return mine >= top * tolerance;
+}
+
+/** Fraction of speech frames in which this phone was the loudest needed to upload a chunk. Two people
+ *  talking at once are each loudest on their own phone, so both still go through. */
+export const OWN_SPEECH_SHARE = 0.4;
+
+/** Decides whether this phone owns a chunk: enough of its speech frames were loudest here. */
+export function ownsChunk(frames: { speech: boolean; loudest: boolean }[], share = OWN_SPEECH_SHARE): boolean {
+  const speech = frames.filter((f) => f.speech);
+  if (!speech.length) return false;
+  return speech.filter((f) => f.loudest).length / speech.length >= share;
+}
+
+const SCRIPTS: Record<string, RegExp> = {
+  ka: /[\u10A0-\u10FF\u1C90-\u1CBF\u2D00-\u2D2F]/u,
+  ru: /[\u0400-\u04FF]/u,
+  en: /[A-Za-z]/,
+};
+
+/** Cleans a transcript for the speaker's language: strips letters from unrelated scripts (the transcriber
+ *  sometimes hallucinates Arabic/Gurmukhi/Chinese characters) and returns "" when most letters were foreign. */
+export function cleanTranscript(text: string, lang: string): string {
+  const own = SCRIPTS[lang];
+  if (!own) return text.trim();
+  let ownCount = 0, foreign = 0;
+  const kept = [...text].filter((ch) => {
+    if (!/\p{L}/u.test(ch)) return true;
+    if (own.test(ch) || /[A-Za-z]/.test(ch)) { ownCount++; return true; }
+    foreign++;
+    return false;
+  }).join("");
+  if (ownCount === 0 || foreign > ownCount) return "";
+  return kept.replace(/\s+/g, " ").trim();
 }
