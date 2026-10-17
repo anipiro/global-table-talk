@@ -25,6 +25,7 @@ export function useRoom(code: string) {
   const [captions, setCaptions] = useState<PhotoCaption[]>([]);
   const [cards, setCards] = useState<Card[]>([]);
   const [corrections, setCorrections] = useState<SpeakerCorrection[]>([]);
+  const [media, setMedia] = useState<Media[]>([]);
   /** loading → live; "offline" when the realtime connection drops; "error" when the first load failed. */
   const [status, setStatus] = useState<"loading" | "live" | "reconnecting" | "offline" | "error">("loading");
   const [nonce, setNonce] = useState(0);
@@ -49,7 +50,7 @@ export function useRoom(code: string) {
       setRoom(r);
       if (!r) { setStatus("live"); return; }
       const id = r.id;
-      const [m, l, t, a, n, p, c, k, sc] = await Promise.all([
+      const [m, l, t, a, n, p, c, k, sc, md] = await Promise.all([
         supabase.from("members").select().eq("room_id", id).order("created_at"),
         supabase.from("lines").select().eq("room_id", id).order("created_at"),
         supabase.from("translations").select("id, line_id, language, text, lines!inner(room_id)").eq("lines.room_id", id),
