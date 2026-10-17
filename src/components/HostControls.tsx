@@ -126,3 +126,33 @@ export function GuestList({ room, members }: { room: Room; members: Member[] }) 
 }
 
 const Dot = ({ c }: { c: string }) => <span className="h-4 w-4 shrink-0 rounded-full" style={{ background: c }} />;
+
+/** Host-only switch for rooms.roast_mode: lets the agents tease people (kindly) about things said out loud. */
+export function RoastToggle({ room }: { room: Room }) {
+  const on = room.roast_mode === true;
+  const [busy, setBusy] = useState(false);
+  return (
+    <section className="flex items-center justify-between gap-3 rounded-2xl bg-secondary px-4 py-3">
+      <div className="min-w-0">
+        <h3 className="text-lg font-semibold">Roast mode</h3>
+        <p className="text-sm text-muted-foreground">Let the agents tease the table about things said out loud. Always kind, never personal.</p>
+      </div>
+      <button
+        role="switch"
+        aria-checked={on}
+        aria-label="Roast mode"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          const { error } = await supabase.from("rooms").update({ roast_mode: !on }).eq("id", room.id);
+          setBusy(false);
+          if (error) toast.error("Couldn't save roast mode");
+          else toast.success(!on ? "Roast mode on — agents may tease the table" : "Roast mode off");
+        }}
+        className={`relative h-8 w-14 shrink-0 rounded-full transition-colors ${on ? "bg-speaking" : "bg-muted"} disabled:opacity-60`}
+      >
+        <span className={`absolute top-1 h-6 w-6 rounded-full bg-foreground transition-all ${on ? "left-7" : "left-1"}`} aria-hidden />
+      </button>
+    </section>
+  );
+}
