@@ -34,19 +34,6 @@ export const setMemberId = (code: string, id: string) => localStorage.setItem(me
 
 export const inviteUrl = (code: string) => `${window.location.origin}/t/${code}`;
 
-export async function shareInvite(code: string) {
-  const url = inviteUrl(code);
-  if (navigator.share) {
-    try {
-      await navigator.share({ title: "Join my table on Gamige", url });
-      return "shared";
-    } catch {
-      /* fall through to copy */
-    }
-  }
-  await navigator.clipboard.writeText(url);
-  return "copied";
-}
 
 function randomCode() {
   const a = "ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -71,15 +58,20 @@ export async function getRoomByCode(code: string) {
 export async function joinRoom(
   room: Room,
   input: { name: string; language: Lang; role: Role; facts: string },
+  inviteId?: string,
 ): Promise<Member> {
   const { count } = await supabase.from("members").select("id", { count: "exact", head: true }).eq("room_id", room.id);
   const isHost = !room.host_member_id;
   const { data, error } = await supabase
     .from("members")
-    .insert({ room_id: room.id, ...input, color: COLORS[(count ?? 0) % COLORS.length], approved: isHost })
+    .insert({ room_id: room.id, ...input, color: COLORS[(count ?? 0) % COLORS.length], approved: isHost, invite_id: inviteId ?? null })
     .select()
     .single();
   if (error) throw error;
+  if (inviteId) {
+    const { data: inv } = await supabase.from("invites").select("uses").eq("id", inviteId).single();
+    if (inv) await supabase.from("invites").update({ uses: inv.uses + 1 }).eq("id", inviteId);
+  }
   if (isHost) await supabase.from("rooms").update({ host_member_id: data.id }).eq("id", room.id);
   setMemberId(room.code, data.id);
   return data;
