@@ -64,6 +64,13 @@
       "when": 1792239972035,
       "tag": "0008_insert_line_raw_loudness",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792240681972,
+      "tag": "0009_line_confidence_unknown_speaker",
+      "breakpoints": true
     }
   ]
 }
