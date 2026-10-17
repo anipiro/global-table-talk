@@ -8,7 +8,8 @@ import { replayDemo, type ReplayControl } from "@/lib/demoScript";
 import { useSignedUrls } from "@/lib/useRoom";
 import { Shimmer } from "@/components/Photos";
 import { isGroupPhoto } from "@/lib/photos";
-import type { Photo } from "@/lib/room";
+import { MediaCard } from "@/components/Media";
+import type { Media, Photo } from "@/lib/room";
 
 export const Route = createFileRoute("/t/$code_/screen")({
   ssr: false,
@@ -27,7 +28,7 @@ export const Route = createFileRoute("/t/$code_/screen")({
 
 function PresenterView() {
   const { code } = Route.useParams();
-  const { room, members, lines, translations, agentMessages, notebook, photos, captions, status, retryIn, retry } = useRoom(code);
+  const { room, members, lines, translations, agentMessages, notebook, photos, captions, media, status, retryIn, retry } = useRoom(code);
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const [full, setFull] = useState(false);
   const [replay, setReplay] = useState<string | null>(null);
@@ -36,22 +37,30 @@ function PresenterView() {
   const [speed, setSpeed] = useState(1);
   const SPEEDS = [0.5, 1, 2];
 
-  // A newly shared photo takes over the right half for 8 seconds.
+  // A newly shared photo takes over the right half for 8 seconds; a new media item for 6.
   const knownPhotos = useRef<Set<string> | null>(null);
-  const [queue, setQueue] = useState<Photo[]>([]);
+  const knownMedia = useRef<Set<string> | null>(null);
+  const [queue, setQueue] = useState<({ kind: "photo"; photo: Photo } | { kind: "media"; media: Media })[]>([]);
   useEffect(() => {
     if (status === "loading") return;
     if (!knownPhotos.current) { knownPhotos.current = new Set(photos.map((p) => p.id)); return; }
     const fresh = photos.filter((p) => !knownPhotos.current!.has(p.id));
     fresh.forEach((p) => knownPhotos.current!.add(p.id));
-    if (fresh.length) setQueue((q) => [...q, ...fresh]);
+    if (fresh.length) setQueue((q) => [...q, ...fresh.map((photo) => ({ kind: "photo" as const, photo }))]);
   }, [photos, status]);
+  useEffect(() => {
+    if (status === "loading") return;
+    if (!knownMedia.current) { knownMedia.current = new Set(media.map((m) => m.id)); return; }
+    const fresh = media.filter((m) => !knownMedia.current!.has(m.id));
+    fresh.forEach((m) => knownMedia.current!.add(m.id));
+    if (fresh.length) setQueue((q) => [...q, ...fresh.map((m) => ({ kind: "media" as const, media: m }))]);
+  }, [media, status]);
   const showing = queue[0];
   useEffect(() => {
     if (!showing) return;
-    const t = setTimeout(() => setQueue((q) => q.slice(1)), 8000);
+    const t = setTimeout(() => setQueue((q) => q.slice(1)), showing.kind === "media" ? 6000 : 8000);
     return () => clearTimeout(t);
-  }, [showing?.id]);
+  }, [showing?.kind === "photo" ? showing.photo.id : showing?.media.id]);
   const capEnd = useRef<HTMLDivElement>(null);
   const seen = useRef<Set<string> | null>(null);
   if (seen.current === null && lines.length) seen.current = new Set(lines.map((l) => l.id));
