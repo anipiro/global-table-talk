@@ -223,6 +223,77 @@ export type Database = {
           },
         ]
       }
+      media: {
+        Row: {
+          caption_by_language: Json
+          created_at: string
+          created_by_member_id: string | null
+          credit: string
+          id: string
+          kind: string
+          line_id: string | null
+          notebook_id: string | null
+          query: string
+          room_id: string
+          url: string
+        }
+        Insert: {
+          caption_by_language?: Json
+          created_at?: string
+          created_by_member_id?: string | null
+          credit?: string
+          id?: string
+          kind: string
+          line_id?: string | null
+          notebook_id?: string | null
+          query?: string
+          room_id: string
+          url: string
+        }
+        Update: {
+          caption_by_language?: Json
+          created_at?: string
+          created_by_member_id?: string | null
+          credit?: string
+          id?: string
+          kind?: string
+          line_id?: string | null
+          notebook_id?: string | null
+          query?: string
+          room_id?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_created_by_member_id_fkey"
+            columns: ["created_by_member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_notebook_id_fkey"
+            columns: ["notebook_id"]
+            isOneToOne: false
+            referencedRelation: "notebook"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       members: {
         Row: {
           approved: boolean

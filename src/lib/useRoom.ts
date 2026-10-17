@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { AgentMessage, Card, Line, Member, NotebookEntry, Photo, PhotoCaption, Room, SpeakerCorrection, Translation } from "./room";
+import type { AgentMessage, Card, Line, Media, Member, NotebookEntry, Photo, PhotoCaption, Room, SpeakerCorrection, Translation } from "./room";
 
 type Row = { id: string; created_at?: string };
 function apply<R extends Row>(list: R[], p: { eventType: string; new: unknown; old: unknown }): R[] {
@@ -25,6 +25,7 @@ export function useRoom(code: string) {
   const [captions, setCaptions] = useState<PhotoCaption[]>([]);
   const [cards, setCards] = useState<Card[]>([]);
   const [corrections, setCorrections] = useState<SpeakerCorrection[]>([]);
+  const [media, setMedia] = useState<Media[]>([]);
   /** loading → live; "offline" when the realtime connection drops; "error" when the first load failed. */
   const [status, setStatus] = useState<"loading" | "live" | "reconnecting" | "offline" | "error">("loading");
   const [nonce, setNonce] = useState(0);
@@ -49,7 +50,7 @@ export function useRoom(code: string) {
       setRoom(r);
       if (!r) { setStatus("live"); return; }
       const id = r.id;
-      const [m, l, t, a, n, p, c, k, sc] = await Promise.all([
+      const [m, l, t, a, n, p, c, k, sc, md] = await Promise.all([
         supabase.from("members").select().eq("room_id", id).order("created_at"),
         supabase.from("lines").select().eq("room_id", id).order("created_at"),
         supabase.from("translations").select("id, line_id, language, text, lines!inner(room_id)").eq("lines.room_id", id),
@@ -59,6 +60,7 @@ export function useRoom(code: string) {
         supabase.from("photo_captions").select("id, photo_id, language, caption, description, photos!inner(room_id)").eq("photos.room_id", id),
         supabase.from("cards").select().eq("room_id", id).order("created_at"),
         supabase.from("speaker_corrections").select().eq("room_id", id).order("created_at"),
+        supabase.from("media").select().eq("room_id", id).order("created_at"),
       ]);
       if (cancelled) return;
       if ([m, l, a, n].some((x) => x.error)) { setStatus("error"); return; }
@@ -71,6 +73,7 @@ export function useRoom(code: string) {
       setCaptions((c.data ?? []).map(({ photos: _x, ...rest }) => rest));
       setCards(k.data ?? []);
       setCorrections(sc.data ?? []);
+      setMedia(md.data ?? []);
       const f = `room_id=eq.${id}`;
       channel = supabase
         .channel(`room-${id}`)
@@ -84,6 +87,7 @@ export function useRoom(code: string) {
         .on("postgres_changes", { event: "*", schema: "public", table: "photos", filter: f }, (p) => setPhotos((x) => apply(x, p)))
         .on("postgres_changes", { event: "*", schema: "public", table: "cards", filter: f }, (p) => setCards((x) => apply(x, p)))
         .on("postgres_changes", { event: "*", schema: "public", table: "speaker_corrections", filter: f }, (p) => setCorrections((x) => apply(x, p)))
+        .on("postgres_changes", { event: "*", schema: "public", table: "media", filter: f }, (p) => setMedia((x) => apply(x, p)))
         .on("postgres_changes", { event: "*", schema: "public", table: "translations" }, (p) => {
           const row = (p.new ?? p.old) as Translation;
           if (p.eventType === "DELETE" || lineIds.current.has(row.line_id)) setTranslations((x) => apply(x, p));
@@ -145,7 +149,7 @@ export function useRoom(code: string) {
 
   /** Reloads the room and reconnects (used by "Try again" buttons). */
   const retry = () => setNonce((n) => n + 1);
-  return { status, retryIn, retry, room, members, lines, translations, agentMessages, notebook, photos, captions, cards, corrections };
+  return { status, retryIn, retry, room, members, lines, translations, agentMessages, notebook, photos, captions, cards, corrections, media };
 }
 
 /** Reconnect delay for the n-th consecutive attempt: 1s, 2s, 4s, 8s, 16s, then 30s. */

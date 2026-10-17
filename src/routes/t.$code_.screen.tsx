@@ -8,7 +8,8 @@ import { replayDemo, type ReplayControl } from "@/lib/demoScript";
 import { useSignedUrls } from "@/lib/useRoom";
 import { Shimmer } from "@/components/Photos";
 import { isGroupPhoto } from "@/lib/photos";
-import type { Photo } from "@/lib/room";
+import { MediaCard } from "@/components/Media";
+import type { Media, Photo } from "@/lib/room";
 
 export const Route = createFileRoute("/t/$code_/screen")({
   ssr: false,
@@ -27,7 +28,7 @@ export const Route = createFileRoute("/t/$code_/screen")({
 
 function PresenterView() {
   const { code } = Route.useParams();
-  const { room, members, lines, translations, agentMessages, notebook, photos, captions, status, retryIn, retry } = useRoom(code);
+  const { room, members, lines, translations, agentMessages, notebook, photos, captions, media, status, retryIn, retry } = useRoom(code);
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const [full, setFull] = useState(false);
   const [replay, setReplay] = useState<string | null>(null);
@@ -36,22 +37,30 @@ function PresenterView() {
   const [speed, setSpeed] = useState(1);
   const SPEEDS = [0.5, 1, 2];
 
-  // A newly shared photo takes over the right half for 8 seconds.
+  // A newly shared photo takes over the right half for 8 seconds; a new media item for 6.
   const knownPhotos = useRef<Set<string> | null>(null);
-  const [queue, setQueue] = useState<Photo[]>([]);
+  const knownMedia = useRef<Set<string> | null>(null);
+  const [queue, setQueue] = useState<({ kind: "photo"; photo: Photo } | { kind: "media"; media: Media })[]>([]);
   useEffect(() => {
     if (status === "loading") return;
     if (!knownPhotos.current) { knownPhotos.current = new Set(photos.map((p) => p.id)); return; }
     const fresh = photos.filter((p) => !knownPhotos.current!.has(p.id));
     fresh.forEach((p) => knownPhotos.current!.add(p.id));
-    if (fresh.length) setQueue((q) => [...q, ...fresh]);
+    if (fresh.length) setQueue((q) => [...q, ...fresh.map((photo) => ({ kind: "photo" as const, photo }))]);
   }, [photos, status]);
+  useEffect(() => {
+    if (status === "loading") return;
+    if (!knownMedia.current) { knownMedia.current = new Set(media.map((m) => m.id)); return; }
+    const fresh = media.filter((m) => !knownMedia.current!.has(m.id));
+    fresh.forEach((m) => knownMedia.current!.add(m.id));
+    if (fresh.length) setQueue((q) => [...q, ...fresh.map((m) => ({ kind: "media" as const, media: m }))]);
+  }, [media, status]);
   const showing = queue[0];
   useEffect(() => {
     if (!showing) return;
-    const t = setTimeout(() => setQueue((q) => q.slice(1)), 8000);
+    const t = setTimeout(() => setQueue((q) => q.slice(1)), showing.kind === "media" ? 6000 : 8000);
     return () => clearTimeout(t);
-  }, [showing?.id]);
+  }, [showing?.kind === "photo" ? showing.photo.id : showing?.media.id]);
   const capEnd = useRef<HTMLDivElement>(null);
   const seen = useRef<Set<string> | null>(null);
   if (seen.current === null && lines.length) seen.current = new Set(lines.map((l) => l.id));
@@ -151,7 +160,11 @@ function PresenterView() {
         </section>
 
         {showing ? (
-          <PhotoTakeover key={showing.id} photo={showing} captions={captions} by={byId.get(showing.uploader_id ?? "")?.name} group={isGroupPhoto(showing.storage_path)} />
+          showing.kind === "media" ? (
+            <MediaTakeover key={showing.media.id} media={showing.media} by={byId.get(showing.media.created_by_member_id ?? "")?.name} />
+          ) : (
+            <PhotoTakeover key={showing.photo.id} photo={showing.photo} captions={captions} by={byId.get(showing.photo.uploader_id ?? "")?.name} group={isGroupPhoto(showing.photo.storage_path)} />
+          )
         ) : (
           <section className="flex min-h-0 flex-col rounded-3xl bg-card/60 p-6">
             <h2 className="mb-4 text-lg uppercase tracking-widest text-muted-foreground">The agents</h2>
@@ -186,6 +199,19 @@ function PhotoTakeover({ photo, captions, by, group }: { photo: Photo; captions:
           {caps.filter((c) => c !== main).map((c) => <p key={c.language} className="text-2xl text-muted-foreground">{c.caption}</p>)}
         </div>
       ) : <div><Shimmer className="h-8 w-2/3" /><Shimmer className="mt-2 h-6 w-1/2" /></div>}
+    </section>
+  );
+}
+
+function MediaTakeover({ media, by }: { media: Media; by?: string | undefined }) {
+  return (
+    <section className="animate-takeover flex min-h-0 flex-col gap-4 rounded-3xl bg-card p-6" aria-live="polite">
+      <h2 className="text-lg uppercase tracking-widest text-primary">
+        {media.kind === "meme" ? "A meme from the agents" : `${by ? `${by}'s agent` : "An agent"} found a picture`}
+      </h2>
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl bg-secondary">
+        <MediaCard media={media} lang="en" large />
+      </div>
     </section>
   );
 }

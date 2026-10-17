@@ -43,7 +43,7 @@ function RoomPage() {
   const { code } = Route.useParams();
   const nav = useNavigate();
   const data = useRoom(code);
-  const { room, members, lines, translations, agentMessages, notebook, photos, captions, cards, corrections } = data;
+  const { room, members, lines, translations, agentMessages, notebook, photos, captions, cards, corrections, media } = data;
   const meId = getMemberId(code);
   const me = members.find((m) => m.id === meId);
   const isHost = !!room && room.host_member_id === meId;
@@ -437,7 +437,7 @@ function RoomPage() {
         </div>
         {sheetOpen && (
           <div className={`h-[calc(55dvh-3.5rem)] px-4 ${tab === "agents" ? "overflow-hidden pb-2" : "overflow-y-auto pb-6"}`}>
-            {tab === "notebook" && <NotebookSections entries={notebook} byId={byId} />}
+            {tab === "notebook" && <NotebookSections entries={notebook} byId={byId} media={media} lang={me.language} />}
             {tab === "agents" && <AgentFeed msgs={agentMessages} byId={byId} meId={me.id} status={data.status} retryIn={data.retryIn} onRetry={data.retry} />}
             {tab === "photos" && <PhotoGrid photos={photos} captions={captions} lang={me.language} onOpen={setViewPhoto} />}
             {tab === "diagnostics" && debugOn && <Diagnostics lines={lines} members={members} />}
