@@ -69,6 +69,8 @@ export function useRoom(code: string) {
         supabase.from("cards").select().eq("room_id", id).order("created_at"),
         supabase.from("speaker_corrections").select().eq("room_id", id).order("created_at"),
         supabase.from("media").select().eq("room_id", id).order("created_at"),
+        supabase.from("polls").select().eq("room_id", id).order("created_at"),
+        supabase.from("poll_votes").select("id, poll_id, member_id, option_id, created_at, polls!inner(room_id)").eq("polls.room_id", id),
       ]);
       if (cancelled) return;
       if ([m, l, a, n].some((x) => x.error)) { setStatus("error"); return; }
@@ -82,6 +84,8 @@ export function useRoom(code: string) {
       setCards(k.data ?? []);
       setCorrections(sc.data ?? []);
       setMedia(md.data ?? []);
+      setPolls(pl.data ?? []);
+      setPollVotes((pv.data ?? []).map(({ polls: _x, ...rest }) => rest));
       const f = `room_id=eq.${id}`;
       channel = supabase
         .channel(`room-${id}`)
@@ -96,6 +100,11 @@ export function useRoom(code: string) {
         .on("postgres_changes", { event: "*", schema: "public", table: "cards", filter: f }, (p) => setCards((x) => apply(x, p)))
         .on("postgres_changes", { event: "*", schema: "public", table: "speaker_corrections", filter: f }, (p) => setCorrections((x) => apply(x, p)))
         .on("postgres_changes", { event: "*", schema: "public", table: "media", filter: f }, (p) => setMedia((x) => apply(x, p)))
+        .on("postgres_changes", { event: "*", schema: "public", table: "polls", filter: f }, (p) => setPolls((x) => apply(x, p)))
+        .on("postgres_changes", { event: "*", schema: "public", table: "poll_votes" }, (p) => {
+          const row = (p.new ?? p.old) as PollVote;
+          if (p.eventType === "DELETE" || pollIds.current.has(row.poll_id)) setPollVotes((x) => apply(x, p));
+        })
         .on("postgres_changes", { event: "*", schema: "public", table: "translations" }, (p) => {
           const row = (p.new ?? p.old) as Translation;
           if (p.eventType === "DELETE" || lineIds.current.has(row.line_id)) setTranslations((x) => apply(x, p));
@@ -157,7 +166,7 @@ export function useRoom(code: string) {
 
   /** Reloads the room and reconnects (used by "Try again" buttons). */
   const retry = () => setNonce((n) => n + 1);
-  return { status, retryIn, retry, room, members, lines, translations, agentMessages, notebook, photos, captions, cards, corrections, media };
+  return { status, retryIn, retry, room, members, lines, translations, agentMessages, notebook, photos, captions, cards, corrections, media, polls, pollVotes };
 }
 
 /** Reconnect delay for the n-th consecutive attempt: 1s, 2s, 4s, 8s, 16s, then 30s. */
