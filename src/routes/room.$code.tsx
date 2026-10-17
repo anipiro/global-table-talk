@@ -88,6 +88,7 @@ function RoomPage() {
   const [tab, setTab] = useState<Tab>("notebook");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [dismissedPolls, setDismissedPolls] = useState<Set<string>>(new Set());
   const [streaming, setStreaming] = useState<string | null>(null);
   const [catchDone, setCatchDone] = useState(false);
   const [ending, setEnding] = useState(false);
@@ -389,15 +390,15 @@ function RoomPage() {
         <CardStack big={big} cards={myCards} members={members} onDismiss={(id) => setDismissed((d) => new Set(d).add(id))} />
       </div>
 
-      {/* polls: the newest open one slides up; a freshly closed one shows its result briefly */}
+      {/* polls: the newest open one slides up; a freshly closed one shows its result briefly; X hides it on this phone */}
       {(() => {
         const open = polls.filter((p) => p.status === "open").slice(-1)[0];
         const fresh = polls.filter((p) => p.status === "closed" && Date.now() - new Date(p.created_at).getTime() < 10 * 60_000).slice(-1)[0];
         const shown = open ?? (fresh && Date.now() - new Date(fresh.closes_at).getTime() < 30_000 ? fresh : null);
-        if (!shown) return null;
+        if (!shown || dismissedPolls.has(shown.id)) return null;
         return (
           <div className="pointer-events-none absolute inset-x-0 bottom-40 z-30 px-3">
-            <PollCard key={shown.id} poll={shown} votes={pollVotes} members={members} meId={me.id} lang={me.language} big={big} />
+            <PollCard key={shown.id} poll={shown} votes={pollVotes} members={members} meId={me.id} lang={me.language} big={big} onDismiss={(id) => setDismissedPolls((d) => new Set(d).add(id))} />
           </div>
         );
       })()}

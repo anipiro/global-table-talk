@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, PartyPopper } from "lucide-react";
+import { BarChart3, PartyPopper, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Member } from "@/lib/room";
 import type { Database } from "@/integrations/supabase/types";
@@ -64,6 +64,7 @@ export function PollCard({
   meId,
   lang,
   big,
+  onDismiss,
 }: {
   poll: Poll;
   votes: PollVote[];
@@ -71,6 +72,7 @@ export function PollCard({
   meId: string;
   lang: string;
   big?: boolean;
+  onDismiss?: (pollId: string) => void;
 }) {
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const options = pollOptions(poll);
@@ -86,7 +88,18 @@ export function PollCard({
     >
       <p className="mb-1 flex items-center justify-between gap-2 text-sm font-semibold text-primary">
         <span className="flex items-center gap-2"><BarChart3 className="h-4 w-4" aria-hidden /> The agents are asking</span>
-        {open && <Countdown closesAt={poll.closes_at} />}
+        <span className="flex items-center gap-2">
+          {open && <Countdown closesAt={poll.closes_at} />}
+          {onDismiss && (
+            <button
+              aria-label="Dismiss poll"
+              onClick={() => onDismiss(poll.id)}
+              className="-m-1 rounded-full p-1 text-muted-foreground transition hover:text-foreground active:scale-90"
+            >
+              <X className="h-4 w-4" aria-hidden />
+            </button>
+          )}
+        </span>
       </p>
       <p className="mb-3 font-semibold leading-snug">{pollText(poll.question_by_language, lang)}</p>
       <div className="flex flex-col gap-2">

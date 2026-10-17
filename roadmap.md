@@ -61,3 +61,4 @@
 - [ ] Keep mic/Gemini pipelines intact
 
 - [x] Discord redesign: live room screen + stacked original/translation bubble feed (done 2026-10-17)
+- [x] Poll card: X button to dismiss it on this phone (stuck demo poll)
