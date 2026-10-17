@@ -416,6 +416,80 @@ export type Database = {
         }
         Relationships: []
       }
+      speaker_corrections: {
+        Row: {
+          by_member_id: string | null
+          changes: Json
+          created_at: string
+          id: string
+          line_id: string | null
+          room_id: string
+          to_speaker_id: string | null
+          undone_at: string | null
+        }
+        Insert: {
+          by_member_id?: string | null
+          changes?: Json
+          created_at?: string
+          id?: string
+          line_id?: string | null
+          room_id: string
+          to_speaker_id?: string | null
+          undone_at?: string | null
+        }
+        Update: {
+          by_member_id?: string | null
+          changes?: Json
+          created_at?: string
+          id?: string
+          line_id?: string | null
+          room_id?: string
+          to_speaker_id?: string | null
+          undone_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "speaker_corrections_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      speaker_eval_runs: {
+        Row: {
+          ambiguous_caught: number
+          ambiguous_expected: number
+          correct: number
+          created_at: string
+          details: Json
+          device: string | null
+          id: string
+          total: number
+        }
+        Insert: {
+          ambiguous_caught?: number
+          ambiguous_expected?: number
+          correct: number
+          created_at?: string
+          details?: Json
+          device?: string | null
+          id?: string
+          total: number
+        }
+        Update: {
+          ambiguous_caught?: number
+          ambiguous_expected?: number
+          correct?: number
+          created_at?: string
+          details?: Json
+          device?: string | null
+          id?: string
+          total?: number
+        }
+        Relationships: []
+      }
       translations: {
         Row: {
           id: string
@@ -462,7 +536,15 @@ export type Database = {
       }
       line_similarity: { Args: { a: string; b: string }; Returns: number }
       reassign_line: {
-        Args: { p_line_id: string; p_speaker_id: string }
+        Args: {
+          p_by_member_id?: string
+          p_line_id: string
+          p_speaker_id: string
+        }
+        Returns: string
+      }
+      undo_speaker_correction: {
+        Args: { p_correction_id: string }
         Returns: number
       }
     }
