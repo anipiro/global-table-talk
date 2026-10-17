@@ -42,3 +42,4 @@
 - [ ] Speed up captions: shorter pause/max chunk, instant "is talking…" indicator
 - [ ] Diagnostics: capture-to-caption delay and speaker-attribution confidence per line, plus this phone’s keep/drop decisions
 - [ ] "Unknown speaker" label for low-confidence lines (never credited to a silent member); fixable via reassign
+- [ ] Correct the speaker on any caption (incl. "someone not at the table"); phones learn from corrections to improve future attribution
