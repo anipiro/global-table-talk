@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, PartyPopper } from "lucide-react";
+import { BarChart3, PartyPopper, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Member } from "@/lib/room";
 import type { Database } from "@/integrations/supabase/types";
@@ -64,6 +64,7 @@ export function PollCard({
   meId,
   lang,
   big,
+  onDismiss,
 }: {
   poll: Poll;
   votes: PollVote[];
@@ -71,6 +72,7 @@ export function PollCard({
   meId: string;
   lang: string;
   big?: boolean;
+  onDismiss?: (pollId: string) => void;
 }) {
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const options = pollOptions(poll);
