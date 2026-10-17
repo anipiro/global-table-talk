@@ -490,6 +490,36 @@ export async function generateRecap(roomId: string) {
   await call({ task: "recap", roomId });
 }
 
+let audioUnlocked = false;
+/** iPhone Safari only allows sound after a tap: call this inside the tap handler. Plays a silent
+ *  clip and an empty utterance so later whispers (speech synthesis) are allowed to play. */
+export function unlockAudio() {
+  if (audioUnlocked || typeof window === "undefined") return;
+  audioUnlocked = true;
+  try {
+    const a = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=");
+    a.muted = false;
+    a.volume = 0;
+    void a.play().catch(() => {});
+    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (Ctx) {
+      const ctx = new Ctx();
+      const src = ctx.createBufferSource();
+      src.buffer = ctx.createBuffer(1, 1, 22050);
+      src.connect(ctx.destination);
+      src.start(0);
+      void ctx.resume().then(() => setTimeout(() => void ctx.close(), 200));
+    }
+    if (typeof speechSynthesis !== "undefined") {
+      const u = new SpeechSynthesisUtterance(" ");
+      u.volume = 0;
+      speechSynthesis.speak(u);
+    }
+  } catch {
+    audioUnlocked = false;
+  }
+}
+
 /** Speaks a translated line quietly through the headphones. */
 export async function playWhisper(text: string, language: string) {
   if (typeof speechSynthesis === "undefined") return;

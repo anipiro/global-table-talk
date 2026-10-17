@@ -5,7 +5,7 @@ import { Mic, MicOff, Headphones, Sparkles, Type, Camera, ImagePlus, History, Sh
 import { supabase } from "@/integrations/supabase/client";
 import { getMemberId, inviteUrl, type Lang, type Line, type Member } from "@/lib/room";
 import { fmtTime, useRoom, useSignedUrls, useWakeLock } from "@/lib/useRoom";
-import { learnCorrection, loadLearning, watchTalking, describePhoto, deviceLabel, generateRecap, listMics, micDeviceId, micSupported, playWhisper, requestCatchUp, setMicDebug, setMicDeviceId, startMic, stopMic } from "@/lib/agent";
+import { learnCorrection, loadLearning, unlockAudio, watchTalking, describePhoto, deviceLabel, generateRecap, listMics, micDeviceId, micSupported, playWhisper, requestCatchUp, setMicDebug, setMicDeviceId, startMic, stopMic } from "@/lib/agent";
 import { classifyMicError, needsRecalibration } from "@/lib/crosstalk";
 import { VoiceCalibration } from "@/components/JoinForm";
 import { shareLink } from "@/lib/invites";
@@ -13,6 +13,10 @@ import { GuestList, InvitePanel } from "@/components/HostControls";
 import { Screen } from "@/components/JoinForm";
 import { ReassignSheet } from "@/components/Reassign";
 import { Diagnostics } from "@/components/Diagnostics";
+import { AgentFeed } from "@/components/AgentFeed";
+import { NotebookSections } from "@/components/Notebook";
+import { CardStack } from "@/components/CardStack";
+import { LANGS } from "@/lib/room";
 
 export const Route = createFileRoute("/room/$code")({
   ssr: false,
@@ -76,6 +80,7 @@ function RoomPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [streaming, setStreaming] = useState<string | null>(null);
+  const [catchDone, setCatchDone] = useState(false);
   const [ending, setEnding] = useState(false);
   const groupInput = useRef<HTMLInputElement>(null);
 
@@ -142,7 +147,7 @@ function RoomPage() {
   const textFor = (l: Line) =>
     l.language === me.language ? null : translations.find((t) => t.line_id === l.id && t.language === me.language)?.text ?? null;
 
-  const myCards = cards.filter((c) => c.member_id === me.id && c.kind !== "recap" && !dismissed.has(c.id));
+  const myCards = cards.filter((c) => c.member_id === me.id && !dismissed.has(c.id));
 
   async function micStart() {
     if (!me!.can_speak) { toast("The host has muted your mic"); return; }
@@ -178,13 +183,14 @@ function RoomPage() {
   }
 
   async function catchUp() {
+    setCatchDone(false);
     setStreaming("");
     try {
       await requestCatchUp(me!.id, setStreaming);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Catch-up failed");
     } finally {
-      setTimeout(() => setStreaming(null), 1200);
+      setCatchDone(true);
     }
   }
 
@@ -250,17 +256,27 @@ function RoomPage() {
         <IconBtn
           label="Whisper in my headphones"
           active={me.whisper_on}
-          onClick={() => supabase.from("members").update({ whisper_on: !me.whisper_on }).eq("id", me.id)}
+          onClick={() => {
+            unlockAudio(); // must run inside the tap so iPhone Safari allows later playback
+            void supabase.from("members").update({ whisper_on: !me.whisper_on }).eq("id", me.id).then(({ error }) => error && toast.error("Couldn't save whisper setting"));
+          }}
         >
           <Headphones />
         </IconBtn>
-        <button onClick={catchUp} disabled={streaming !== null} className="flex h-12 flex-1 items-center justify-center gap-2 rounded-full bg-secondary px-3 font-semibold disabled:opacity-60">
+        <button onClick={catchUp} disabled={streaming !== null && !catchDone} className="flex h-12 flex-1 items-center justify-center gap-2 rounded-full bg-secondary px-3 font-semibold disabled:opacity-60">
           <Sparkles className="h-5 w-5 text-primary" /> Catch me up
         </button>
         <IconBtn label="Big text" active={big} onClick={() => setBig(!big)}>
           <Type />
         </IconBtn>
       </header>
+      {me.whisper_on && (
+        <div className="flex justify-center border-b bg-background/95 py-1.5 text-sm">
+          <span className="flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-0.5 text-primary">
+            <Headphones className="h-3.5 w-3.5" /> Whispering in {LANGS.find((l) => l.id === me.language)?.label ?? me.language}
+          </span>
+        </div>
+      )}
 
       {/* mic recovery states */}
       {micIssue && (
@@ -291,22 +307,23 @@ function RoomPage() {
 
       {/* private cards */}
       <div className="pointer-events-none absolute inset-x-0 top-20 z-30 flex flex-col gap-2 px-3">
-        {streaming !== null && (
-          <div className="animate-slide-down pointer-events-auto rounded-3xl border border-primary/40 bg-card p-4 text-lg shadow-xl">
-            <p className="mb-1 text-sm font-semibold text-primary">Your agent · catching you up</p>
-            <p className="whitespace-pre-wrap">{streaming || "Thinking…"}</p>
-          </div>
-        )}
-        {streaming === null && myCards.slice(-2).map((c) => (
-          <div key={c.id} className="animate-slide-down pointer-events-auto relative rounded-3xl border bg-card p-4 pr-12 text-lg shadow-xl">
-            <p className="mb-1 text-sm font-semibold text-primary">{c.title}</p>
-            <p className="whitespace-pre-wrap">{c.body}</p>
-            <button aria-label="Dismiss" onClick={() => setDismissed(new Set(dismissed).add(c.id))} className="absolute right-3 top-3 rounded-full p-1 text-muted-foreground">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-        ))}
+        <CardStack cards={myCards} onDismiss={(id) => setDismissed((d) => new Set(d).add(id))} />
       </div>
+
+      {streaming !== null && (
+        <div className="fixed inset-0 z-50 flex items-end bg-background/60 backdrop-blur-sm" onClick={() => catchDone && setStreaming(null)}>
+          <div role="dialog" aria-label="Catching you up" className="animate-sheet-up max-h-[70dvh] w-full overflow-y-auto rounded-t-3xl border-t bg-card p-5 pb-8" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 flex items-center justify-between">
+              <p className="flex items-center gap-2 text-sm font-semibold text-primary"><Sparkles className="h-4 w-4" /> Your agent · catching you up</p>
+              <button aria-label="Close" onClick={() => setStreaming(null)} className="rounded-full p-1 text-muted-foreground"><X className="h-5 w-5" /></button>
+            </div>
+            <p className="whitespace-pre-wrap text-xl leading-relaxed">
+              {streaming ? renderBold(streaming) : "Thinking…"}
+              {!catchDone && <span className="ml-1 inline-block h-5 w-2 animate-pulse rounded-sm bg-primary align-middle" />}
+            </p>
+          </div>
+        </div>
+      )}
 
       <Feed lines={lines} byId={byId} textFor={textFor} interim={micOn ? interim : ""} me={me} onFix={setFixLine} />
       {talking.length > 0 && (
@@ -383,9 +400,9 @@ function RoomPage() {
           </button>
         </div>
         {sheetOpen && (
-          <div className="h-[calc(55dvh-3.5rem)] overflow-y-auto px-4 pb-6">
-            {tab === "notebook" && <NotebookTab entries={notebook} />}
-            {tab === "agents" && <AgentsTab msgs={agentMessages} byId={byId} />}
+          <div className={`h-[calc(55dvh-3.5rem)] px-4 ${tab === "agents" ? "overflow-hidden pb-2" : "overflow-y-auto pb-6"}`}>
+            {tab === "notebook" && <NotebookSections entries={notebook} byId={byId} />}
+            {tab === "agents" && <AgentFeed msgs={agentMessages} byId={byId} meId={me.id} status={data.status} onRetry={data.retry} />}
             {tab === "photos" && <PhotosTab photos={photos} captions={captions} lang={me.language} />}
             {tab === "diagnostics" && debugOn && <Diagnostics lines={lines} members={members} />}
             {tab === "guests" && isHost && (
@@ -435,6 +452,13 @@ function MicIssueBanner({ kind, onRetry, onClose }: { kind: "denied" | "disconne
         </div>
       )}
     </div>
+  );
+}
+
+/** Shows **bold** from the agent's reply as bold text instead of asterisks. */
+function renderBold(text: string) {
+  return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+    part.startsWith("**") && part.endsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : part.replace(/\*\*/g, ""),
   );
 }
 
@@ -517,57 +541,6 @@ function PhotoButtons({ onFile }: { onFile: (f: File) => void }) {
       <input ref={cam} type="file" accept="image/*" capture="environment" hidden onChange={pick} />
       <input ref={gal} type="file" accept="image/*" hidden onChange={pick} />
     </>
-  );
-}
-
-const KIND_LABEL: Record<string, string> = { person: "People", glossary: "Words", decision: "Plans", moment: "Moments" };
-function NotebookTab({ entries }: { entries: ReturnType<typeof useRoom>["notebook"] }) {
-  if (!entries.length) return <p className="pt-4 text-muted-foreground">The agents will jot down people, words and plans here.</p>;
-  return (
-    <div className="flex flex-col gap-5 pt-2">
-      {Object.keys(KIND_LABEL).map((k) => {
-        const list = entries.filter((e) => e.kind === k);
-        if (!list.length) return null;
-        return (
-          <div key={k}>
-            <h3 className="mb-2 text-sm uppercase tracking-widest text-muted-foreground">{KIND_LABEL[k]}</h3>
-            <div className="flex flex-col gap-2">
-              {list.map((e) => (
-                <div key={e.id} className="rounded-2xl bg-secondary p-3">
-                  <p className="font-semibold">{e.title}</p>
-                  {e.body && <p className="text-muted-foreground">{e.body}</p>}
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function AgentsTab({ msgs, byId }: { msgs: ReturnType<typeof useRoom>["agentMessages"]; byId: Map<string, Member> }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => ref.current?.scrollIntoView({ block: "end" }), [msgs.length]);
-  if (!msgs.length) return <p className="pt-4 text-muted-foreground">Agents talk to each other here.</p>;
-  return (
-    <div ref={ref} className="flex flex-col gap-3 pt-2">
-      {msgs.map((m) => {
-        const from = byId.get(m.from_member_id ?? "");
-        const to = m.to_member_id ? byId.get(m.to_member_id) : null;
-        return (
-          <div key={m.id} className="rounded-2xl rounded-tl-sm bg-secondary p-3" style={{ borderLeft: `4px solid ${from?.color ?? "transparent"}` }}>
-            <p className="text-sm text-muted-foreground">
-              <span style={{ color: from?.color }}>{from?.name ?? "An"}'s agent</span>
-              {" → "}
-              {to ? <span style={{ color: to.color }}>{to.name}'s agent</span> : "everyone"}
-              <span className="ml-2 rounded-full border px-2 text-xs">{m.type}</span>
-            </p>
-            <p className="mt-1">{m.content}</p>
-          </div>
-        );
-      })}
-    </div>
   );
 }
 

@@ -25,6 +25,9 @@ export function useRoom(code: string) {
   const [captions, setCaptions] = useState<PhotoCaption[]>([]);
   const [cards, setCards] = useState<Card[]>([]);
   const [corrections, setCorrections] = useState<SpeakerCorrection[]>([]);
+  /** loading → live; "offline" when the realtime connection drops; "error" when the first load failed. */
+  const [status, setStatus] = useState<"loading" | "live" | "offline" | "error">("loading");
+  const [nonce, setNonce] = useState(0);
   const lineIds = useRef(new Set<string>());
   const photoIds = useRef(new Set<string>());
   useEffect(() => {
@@ -38,10 +41,12 @@ export function useRoom(code: string) {
     let cancelled = false;
     let channel: ReturnType<typeof supabase.channel> | null = null;
     (async () => {
-      const { data: r } = await supabase.from("rooms").select().eq("code", code.toUpperCase()).maybeSingle();
+      setStatus("loading");
+      const { data: r, error: roomErr } = await supabase.from("rooms").select().eq("code", code.toUpperCase()).maybeSingle();
       if (cancelled) return;
+      if (roomErr) { setStatus("error"); return; }
       setRoom(r);
-      if (!r) return;
+      if (!r) { setStatus("live"); return; }
       const id = r.id;
       const [m, l, t, a, n, p, c, k, sc] = await Promise.all([
         supabase.from("members").select().eq("room_id", id).order("created_at"),
@@ -55,6 +60,7 @@ export function useRoom(code: string) {
         supabase.from("speaker_corrections").select().eq("room_id", id).order("created_at"),
       ]);
       if (cancelled) return;
+      if ([m, l, a, n].some((x) => x.error)) { setStatus("error"); return; }
       setMembers(m.data ?? []);
       setLines(l.data ?? []);
       setTranslations((t.data ?? []).map(({ lines: _x, ...rest }) => rest));
@@ -85,15 +91,21 @@ export function useRoom(code: string) {
           const row = (p.new ?? p.old) as PhotoCaption;
           if (p.eventType === "DELETE" || photoIds.current.has(row.photo_id)) setCaptions((x) => apply(x, p));
         })
-        .subscribe();
-    })();
+        .subscribe((st) => {
+          if (cancelled) return;
+          if (st === "SUBSCRIBED") setStatus("live");
+          else if (st === "CHANNEL_ERROR" || st === "TIMED_OUT" || st === "CLOSED") setStatus("offline");
+        });
+    })().catch(() => { if (!cancelled) setStatus("error"); });
     return () => {
       cancelled = true;
       if (channel) supabase.removeChannel(channel);
     };
-  }, [code]);
+  }, [code, nonce]);
 
-  return { room, members, lines, translations, agentMessages, notebook, photos, captions, cards, corrections };
+  /** Reloads the room and reconnects (used by "Try again" buttons). */
+  const retry = () => setNonce((n) => n + 1);
+  return { status, retry, room, members, lines, translations, agentMessages, notebook, photos, captions, cards, corrections };
 }
 
 export function useSignedUrls(paths: string[]) {
