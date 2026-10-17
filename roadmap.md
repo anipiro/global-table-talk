@@ -23,3 +23,7 @@
 - [x] Retry + mic device selection in denied/disconnected states
 - [x] /test/mic cases: retry reacquires mic, device selection switches input
 - [x] Mid-session mic loss recovery with device-choice prompt; remember selected mic, graceful fallback if gone
+- [ ] Side-by-side fix: same-utterance arbitration by text similarity (wider window, real overlapping dialogue kept), voice gate on speaking level comparable to calibration, calibration prompt for host/skipped members
+- [ ] Keep nearby voices separate during simultaneous speech (no blending one phone's words into another speaker)
+- [ ] Flag lines with ambiguous speaker attribution and show it in the feed/history
+- [ ] Regression test: two people side by side with overlapping dialogue stay assigned to the right speakers
