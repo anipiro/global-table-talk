@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Lang, Member } from "./room";
+import { keepByConfidence, keepByLanguage, passesVoiceGate, VOICE_GATE } from "./crosstalk";
 
 /** Calls the agent server endpoint; throws with a readable message on failure. */
 async function call(body: Record<string, string>) {
@@ -48,7 +49,7 @@ export async function transcribeChunk(blob: Blob, languageHint: Lang): Promise<{
 
 type Rec = {
   lang: string; continuous: boolean; interimResults: boolean;
-  onresult: (e: { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => void;
+  onresult: (e: { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string; confidence: number } }> }) => void;
   onend: () => void; onerror: (e: { error: string }) => void; start: () => void; stop: () => void;
 };
 let rec: Rec | null = null;
@@ -58,6 +59,103 @@ let wanted = false;
 let chunkTimer: ReturnType<typeof setInterval> | null = null;
 let recorder: MediaRecorder | null = null;
 let lastPeak = 0;
+let droppedCount = 0;
+let debugCb: ((d: { rms: number; threshold: number; dropped: number }) => void) | null = null;
+const onErrorRef: { current: ((msg: string) => void) | null } = { current: null };
+
+/** Debug overlay feed: live RMS, active voice threshold, and dropped-line count. */
+export function setMicDebug(cb: typeof debugCb) {
+  debugCb = cb;
+  if (cb) cb({ rms: 0, threshold: 0, dropped: droppedCount });
+}
+export const getDroppedCount = () => droppedCount;
+
+function noteDrop(threshold: number) {
+  droppedCount++;
+  debugCb?.({ rms: lastPeak, threshold, dropped: droppedCount });
+}
+
+/** Records ~2.5s of speech and returns the member's average speaking RMS (voice calibration). */
+export async function calibrateVoice(): Promise<number> {
+  const stream = await openMic();
+  try {
+    const ctx = new AudioContext();
+    const analyser = ctx.createAnalyser();
+    ctx.createMediaStreamSource(stream).connect(analyser);
+    const buf = new Float32Array(analyser.fftSize);
+    const samples: number[] = [];
+    const t0 = performance.now();
+    await new Promise<void>((resolve) => {
+      const tick = () => {
+        analyser.getFloatTimeDomainData(buf);
+        const rms = Math.sqrt(buf.reduce((s, v) => s + v * v, 0) / buf.length);
+        samples.push(rms);
+        if (performance.now() - t0 < 2500) requestAnimationFrame(tick);
+        else resolve();
+      };
+      tick();
+    });
+    await ctx.close().catch(() => {});
+    // average the louder half of frames — the moments they were actually speaking
+    const sorted = [...samples].sort((a, b) => b - a);
+    const speaking = sorted.slice(0, Math.max(1, Math.floor(sorted.length / 2)));
+    return speaking.reduce((s, v) => s + v, 0) / speaking.length;
+  } finally {
+    stream.getTracks().forEach((t) => t.stop());
+  }
+}
+
+/** Short device label stored with voice calibration; a change flags recalibration. */
+export function deviceLabel(): string {
+  const ua = navigator.userAgent;
+  const iphone = /iPhone|iPad/.test(ua);
+  const safari = /^((?!chrome|android).)*safari/i.test(ua);
+  return `${iphone ? "iPhone/iPad" : /Android/.test(ua) ? "Android" : "Desktop"} · ${safari ? "Safari" : "Chromium"}`;
+}
+
+/** Chosen microphone (localStorage "gamige-mic-device"); null = system default. */
+export const micDeviceId = () => (typeof localStorage === "undefined" ? null : localStorage.getItem("gamige-mic-device"));
+export const setMicDeviceId = (id: string | null) =>
+  id ? localStorage.setItem("gamige-mic-device", id) : localStorage.removeItem("gamige-mic-device");
+
+/** Lists available microphones (labels need mic permission first). */
+export async function listMics(): Promise<{ deviceId: string; label: string }[]> {
+  const devs = await navigator.mediaDevices.enumerateDevices();
+  return devs.filter((d) => d.kind === "audioinput").map((d, i) => ({ deviceId: d.deviceId, label: d.label || `Microphone ${i + 1}` }));
+}
+
+const audioConstraints = () => {
+  const id = micDeviceId();
+  return { audio: id ? { deviceId: { exact: id } } : true };
+};
+
+/** Opens the mic, falling back to the default device when the remembered one is gone. */
+export async function openMic(): Promise<MediaStream> {
+  try {
+    return await navigator.mediaDevices.getUserMedia(audioConstraints());
+  } catch (e) {
+    const name = (e as { name?: string })?.name;
+    if (micDeviceId() && (name === "OverconstrainedError" || name === "NotFoundError")) {
+      setMicDeviceId(null); // remembered mic no longer exists — forget it and use the default
+      return navigator.mediaDevices.getUserMedia({ audio: true });
+    }
+    throw e;
+  }
+}
+
+/** Inserts a line through the atomic server-side arbitration (loudest phone wins).
+ *  Returns the new line id, or null when another phone's line won and ours was dropped. */
+async function insertLine(member: Member, text: string, loudness: number): Promise<string | null> {
+  const { data, error } = await supabase.rpc("insert_line", {
+    p_room_id: member.room_id,
+    p_speaker_id: member.id,
+    p_text: text,
+    p_language: member.language,
+    p_loudness: loudness,
+  });
+  if (error) throw error;
+  return data;
+}
 
 export const micSupported = (lang?: Lang) =>
   typeof window !== "undefined" &&
@@ -71,6 +169,7 @@ export async function startMic(
   onInterim: (text: string) => void,
   onError: (msg: string) => void,
 ) {
+  onErrorRef.current = onError;
   const engine = speechEngine(member.language as Lang);
   if (engine === "webspeech") {
     const SR = (window as never)["SpeechRecognition"] || (window as never)["webkitSpeechRecognition"];
@@ -78,11 +177,16 @@ export async function startMic(
   } else if (typeof MediaRecorder === "undefined" || !pickAudioMime()) {
     throw new Error("This browser can't record audio for transcription.");
   }
-  micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  micStream = await openMic();
+  // Mid-session mic loss (unplugged, taken by another app): report and surface a recovery state.
+  micStream.getAudioTracks().forEach((t) => {
+    t.onended = () => { if (wanted) { void stopMic(); onErrorRef.current?.("__disconnected__"); } };
+  });
   audioCtx = new AudioContext();
   const analyser = audioCtx.createAnalyser();
   audioCtx.createMediaStreamSource(micStream).connect(analyser);
   const buf = new Float32Array(analyser.fftSize);
+  const threshold = member.voice_level ? VOICE_GATE * member.voice_level : 0;
   let peak = 0;
   const sample = () => {
     if (!audioCtx) return;
@@ -90,6 +194,7 @@ export async function startMic(
     const rms = Math.sqrt(buf.reduce((s, v) => s + v * v, 0) / buf.length);
     peak = Math.max(peak * 0.98, rms);
     lastPeak = peak;
+    debugCb?.({ rms: peak, threshold, dropped: droppedCount });
     requestAnimationFrame(sample);
   };
   sample();
@@ -113,13 +218,19 @@ export async function startMic(
       if (!r.isFinal) { interim += text + " "; continue; }
       if (!text) continue;
       const loudness = Math.min(1, peak * 4);
+      if (!keepByConfidence(r[0].confidence ?? 0) || !passesVoiceGate(peak, member.voice_level)) {
+        peak = 0;
+        noteDrop(threshold);
+        continue;
+      }
       peak = 0;
-      const { data, error } = await supabase
-        .from("lines")
-        .insert({ room_id: member.room_id, speaker_id: member.id, text, language: member.language, loudness })
-        .select("id").single();
-      if (error) onError("Couldn't save what you said.");
-      else call({ task: "translate", lineId: data.id }).catch((err) => onError(err.message));
+      try {
+        const lineId = await insertLine(member, text, loudness);
+        if (!lineId) { noteDrop(threshold); continue; } // another phone's line won the arbitration
+        call({ task: "translate", lineId }).catch((err) => onError(err.message));
+      } catch {
+        onError("Couldn't save what you said.");
+      }
     }
     onInterim(interim.trim());
   };
@@ -148,17 +259,21 @@ function startGeminiMic(member: Member, stream: MediaStream, getPeak: () => numb
       const loudness = Math.min(1, getPeak() * 4);
       if (!wanted || !chunks.length) return;
       if (loudness < SILENCE * 4) return; // silent chunk — skip the upload
+      const chunkThreshold = member.voice_level ? VOICE_GATE * member.voice_level : 0;
+      if (!passesVoiceGate(getPeak(), member.voice_level)) { noteDrop(chunkThreshold); return; } // too quiet vs my calibrated voice — crosstalk
       const blob = new Blob(chunks, { type: mime || "audio/webm" });
       try {
         const { text, language } = await transcribeChunk(blob, member.language as Lang);
         const clean = text.trim();
         if (!clean) return;
-        const { data, error } = await supabase
-          .from("lines")
-          .insert({ room_id: member.room_id, speaker_id: member.id, text: clean, language: language ?? member.language, loudness })
-          .select("id").single();
-        if (error) onError("Couldn't save what you said.");
-        else call({ task: "translate", lineId: data.id }).catch((err) => onError(err.message));
+        if (!keepByLanguage(language, member.language)) { noteDrop(chunkThreshold); return; } // detected a different language — the neighbour's voice
+        try {
+          const lineId = await insertLine(member, clean, loudness);
+          if (!lineId) { noteDrop(chunkThreshold); return; } // another phone's line won the arbitration
+          call({ task: "translate", lineId }).catch((err) => onError(err.message));
+        } catch {
+          onError("Couldn't save what you said.");
+        }
       } catch (e) {
         onError(e instanceof Error ? e.message : "Transcription failed");
       }

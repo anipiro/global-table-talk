@@ -1,9 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { joinRoom, getMemberId, type Room } from "@/lib/room";
+import { supabase } from "@/integrations/supabase/client";
+import { joinRoom, getMemberId, type Member, type Room } from "@/lib/room";
+import { deviceLabel } from "@/lib/agent";
 import { checkInvite, INVITE_ERRORS, loadInvite, type Invite, type InviteCheck } from "@/lib/invites";
-import { JoinForm, Screen } from "@/components/JoinForm";
+import { JoinForm, Screen, VoiceCalibration } from "@/components/JoinForm";
 
 export const Route = createFileRoute("/i/$token")({
   ssr: false,
@@ -24,6 +26,7 @@ function InviteJoin() {
   const { token } = Route.useParams();
   const nav = useNavigate();
   const [state, setState] = useState<{ invite: Invite | null; room: Room | null; check: InviteCheck } | null>(null);
+  const [joined, setJoined] = useState<Member | null>(null);
 
   useEffect(() => {
     loadInvite(token).then(({ invite, room }) => {
@@ -45,6 +48,19 @@ function InviteJoin() {
       </Screen>
     );
   const { room, invite } = state;
+  if (joined)
+    return (
+      <Screen>
+        <VoiceCalibration
+          name={joined.name}
+          onDone={async (level) => {
+            if (level)
+              await supabase.from("members").update({ voice_level: level, voice_calibrated_at: new Date().toISOString(), voice_device: deviceLabel() }).eq("id", joined.id);
+            nav({ to: "/room/$code", params: { code: room!.code } });
+          }}
+        />
+      </Screen>
+    );
   return (
     <Screen>
       <p className="text-sm uppercase tracking-[0.3em] text-primary">Table {room!.code}</p>
@@ -60,8 +76,8 @@ function InviteJoin() {
             setState({ ...again, check: c });
             return;
           }
-          await joinRoom(again.room!, v, invite!.id);
-          nav({ to: "/room/$code", params: { code: room!.code } });
+          const m = await joinRoom(again.room!, v, invite!.id);
+          setJoined(m);
         }}
       />
     </Screen>

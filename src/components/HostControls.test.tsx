@@ -17,6 +17,7 @@ const room: Room = { id: "room-1", code: "TEST", host_member_id: "host-1", statu
 const guest: Member = {
   id: "guest-1", room_id: room.id, name: "Guest", language: "en", role: "both", facts: "",
   whisper_on: false, color: "", approved: false, created_at: room.created_at, can_speak: true, invite_id: null,
+  voice_level: null, voice_calibrated_at: null, voice_device: null,
 };
 
 describe("Guest controls execute their writes", () => {

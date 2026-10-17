@@ -13,3 +13,13 @@
 - [x] /test/mic: pass/fail per protocol thresholds (≥90% word accuracy, median ≤3s, p90 ≤6s chunk latency)
 - [x] /test/mic: CSV + JSON export of sessions (device, chunk timing, transcripts, pass/fail)
 - [x] /test/mic: session comparison view (latency, accuracy, reliability deltas across devices)
+- [x] Crosstalk fixes: language filter (Gemini detected-lang drop, Web Speech confidence<0.5 drop), voice calibration (members.voice_level, 60% RMS gate), loudest-phone-wins arbitration (2s window), hold-to-talk toggle, debug overlay (RMS/threshold/dropped)
+- [x] Automated tests for crosstalk rules: language mismatch, zero-confidence, 60% threshold, loudest-phone arbitration
+- [x] Settings action to recalibrate voice_level with success confirmation
+- [x] Make loudest-phone arbitration atomic via a database function (rpc insert_line)
+- [x] Recovery states: mic denial, device disconnect, unsupported speech recognition
+- [x] Store voice_level calibration time + device; flag recalibration after phone change
+- [x] Automated tests for recovery states: denial, disconnect, unsupported speech, phone-change recalibration flag
+- [x] Retry + mic device selection in denied/disconnected states
+- [x] /test/mic cases: retry reacquires mic, device selection switches input
+- [x] Mid-session mic loss recovery with device-choice prompt; remember selected mic, graceful fallback if gone

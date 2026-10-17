@@ -1,11 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Mic, MicOff, Headphones, Sparkles, Type, Camera, ImagePlus, History, Share2, Moon, X, ChevronUp, ChevronDown } from "lucide-react";
+import { Mic, MicOff, Headphones, Sparkles, Type, Camera, ImagePlus, History, Share2, Moon, X, ChevronUp, ChevronDown, Hand, Activity, AudioLines } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getMemberId, inviteUrl, type Lang, type Line, type Member } from "@/lib/room";
 import { fmtTime, useRoom, useSignedUrls, useWakeLock } from "@/lib/useRoom";
-import { describePhoto, generateRecap, micSupported, playWhisper, requestCatchUp, startMic, stopMic } from "@/lib/agent";
+import { describePhoto, deviceLabel, generateRecap, listMics, micDeviceId, micSupported, playWhisper, requestCatchUp, setMicDebug, setMicDeviceId, startMic, stopMic } from "@/lib/agent";
+import { classifyMicError, needsRecalibration } from "@/lib/crosstalk";
+import { VoiceCalibration } from "@/components/JoinForm";
 import { shareLink } from "@/lib/invites";
 import { GuestList, InvitePanel } from "@/components/HostControls";
 import { Screen } from "@/components/JoinForm";
@@ -40,6 +42,11 @@ function RoomPage() {
 
   const [big, setBig] = useState(false);
   const [micOn, setMicOn] = useState(false);
+  const [micIssue, setMicIssue] = useState<"denied" | "disconnected" | "unsupported" | null>(null);
+  const [holdMode, setHoldMode] = useState(() => localStorage.getItem("gamige-hold-to-talk") === "1");
+  const [debugOn, setDebugOn] = useState(() => localStorage.getItem("gamige-debug-mic") === "1");
+  const [debug, setDebug] = useState({ rms: 0, threshold: 0, dropped: 0 });
+  const [recalibrating, setRecalibrating] = useState(false);
   const [interim, setInterim] = useState("");
   const [tab, setTab] = useState<Tab>("notebook");
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -47,6 +54,11 @@ function RoomPage() {
   const [streaming, setStreaming] = useState<string | null>(null);
   const [ending, setEnding] = useState(false);
   const groupInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setMicDebug(debugOn ? setDebug : null);
+    return () => setMicDebug(null);
+  }, [debugOn]);
 
   useEffect(() => {
     if (room?.status === "ended" && !ending) nav({ to: "/recap/$code", params: { code } });
@@ -108,21 +120,35 @@ function RoomPage() {
 
   const myCards = cards.filter((c) => c.member_id === me.id && c.kind !== "recap" && !dismissed.has(c.id));
 
-  async function toggleMic() {
-    if (micOn) {
-      await stopMic();
-      setMicOn(false);
-      setInterim("");
-      return;
-    }
+  async function micStart() {
     if (!me!.can_speak) { toast("The host has muted your mic"); return; }
-    if (!micSupported(me!.language as Lang)) { toast.error("Live captions need Chrome, Edge or Safari."); return; }
+    if (!micSupported(me!.language as Lang)) { setMicIssue("unsupported"); return; }
     try {
-      await startMic(me!, setInterim, (m) => toast.error(m));
+      await startMic(me!, setInterim, (m) => {
+        if (m === "__disconnected__") { setMicOn(false); setMicIssue("disconnected"); }
+        else toast.error(m);
+      });
       setMicOn(true);
+      setMicIssue(null);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Mic unavailable");
+      const kind = classifyMicError(e);
+      setMicIssue(kind === "unknown" ? "disconnected" : kind);
     }
+  }
+
+  async function micStop() {
+    await stopMic();
+    setMicOn(false);
+    setInterim("");
+  }
+
+  async function toggleMic() {
+    if (micOn) return micStop();
+    return micStart();
+  }
+
+  async function recalibrate() {
+    setRecalibrating(true);
   }
 
   async function catchUp() {
@@ -164,17 +190,35 @@ function RoomPage() {
     }
   }
 
+  if (recalibrating)
+    return (
+      <Screen>
+        <VoiceCalibration
+          name={me.name}
+          onDone={async (level) => {
+            setRecalibrating(false);
+            if (level) {
+              await supabase.from("members").update({ voice_level: level, voice_calibrated_at: new Date().toISOString(), voice_device: deviceLabel() }).eq("id", me.id);
+              toast.success("Voice calibrated — your phone will ignore quieter voices now");
+            }
+          }}
+        />
+      </Screen>
+    );
+
   return (
     <div className={`flex h-dvh flex-col ${big ? "text-[28px]" : "text-[20px]"}`}>
       {/* top bar */}
       <header className="z-20 flex items-center gap-2 border-b bg-background/95 px-3 py-3 text-base backdrop-blur">
         <button
-          onClick={toggleMic}
-          aria-label={micOn ? "Stop mic" : "Start mic"}
+          {...(holdMode
+            ? { onPointerDown: () => void micStart(), onPointerUp: () => void micStop(), onPointerLeave: () => micOn && void micStop() }
+            : { onClick: toggleMic })}
+          aria-label={micOn ? "Stop mic" : holdMode ? "Hold to talk" : "Start mic"}
           disabled={!me.can_speak}
           className={`flex h-14 w-14 items-center justify-center rounded-full transition ${micOn ? "bg-primary text-primary-foreground shadow-[0_0_0_6px] shadow-primary/25" : "bg-secondary"} disabled:opacity-40`}
         >
-          {micOn ? <Mic /> : <MicOff />}
+          {micOn ? <Mic /> : holdMode ? <Hand /> : <MicOff />}
         </button>
         <IconBtn
           label="Whisper in my headphones"
@@ -190,6 +234,33 @@ function RoomPage() {
           <Type />
         </IconBtn>
       </header>
+
+      {/* mic recovery states */}
+      {micIssue && (
+        <MicIssueBanner
+          kind={micIssue}
+          onRetry={() => void micStart()}
+          onClose={() => setMicIssue(null)}
+        />
+      )}
+      {!micIssue && needsRecalibration(me, deviceLabel()) && !recalibrating && (
+        <button onClick={recalibrate} className="flex items-center gap-2 border-b bg-secondary px-4 py-2 text-left text-sm">
+          <AudioLines className="h-4 w-4 shrink-0 text-primary" />
+          {me.voice_level ? "You seem to be on a different phone — recalibrate your voice" : "Calibrate your voice so your phone ignores the neighbours"}
+        </button>
+      )}
+
+      {/* debug overlay */}
+      {debugOn && (
+        <div className="pointer-events-none fixed bottom-40 left-3 z-40 rounded-2xl bg-background/90 p-3 font-mono text-xs shadow-lg backdrop-blur">
+          <p>RMS {debug.rms.toFixed(4)}</p>
+          <p>threshold {debug.threshold ? debug.threshold.toFixed(4) : "off"}</p>
+          <p>dropped {debug.dropped}</p>
+          <div className="mt-1 h-2 w-32 overflow-hidden rounded-full bg-secondary">
+            <div className={`h-full ${debug.threshold && debug.rms < debug.threshold ? "bg-destructive" : "bg-primary"}`} style={{ width: `${Math.min(100, debug.rms * 400)}%` }} />
+          </div>
+        </div>
+      )}
 
       {/* private cards */}
       <div className="pointer-events-none absolute inset-x-0 top-20 z-30 flex flex-col gap-2 px-3">
@@ -220,6 +291,24 @@ function RoomPage() {
         </Link>
         <button onClick={() => shareLink(inviteUrl(room.code)).then((r) => r === "copied" && toast.success("Table link copied"))} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-2" aria-label="Invite">
           <Share2 className="h-4 w-4" />
+        </button>
+        <button
+          onClick={() => { const v = !holdMode; setHoldMode(v); localStorage.setItem("gamige-hold-to-talk", v ? "1" : "0"); if (!v && micOn) void micStop(); }}
+          aria-pressed={holdMode}
+          className={`flex items-center gap-1 rounded-full px-3 py-2 ${holdMode ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
+        >
+          <Hand className="h-4 w-4" /> Hold to talk
+        </button>
+        <button
+          onClick={() => { const v = !debugOn; setDebugOn(v); localStorage.setItem("gamige-debug-mic", v ? "1" : "0"); }}
+          aria-pressed={debugOn}
+          className={`flex items-center gap-1 rounded-full px-3 py-2 ${debugOn ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
+          aria-label="Mic debug overlay"
+        >
+          <Activity className="h-4 w-4" />
+        </button>
+        <button onClick={recalibrate} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-2" aria-label="Recalibrate my voice">
+          <AudioLines className="h-4 w-4" />
         </button>
         {isHost && (
           <>
@@ -266,6 +355,43 @@ function RoomPage() {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function MicIssueBanner({ kind, onRetry, onClose }: { kind: "denied" | "disconnected" | "unsupported"; onRetry: () => void; onClose: () => void }) {
+  const [mics, setMics] = useState<{ deviceId: string; label: string }[]>([]);
+  useEffect(() => {
+    if (kind === "disconnected") listMics().then(setMics).catch(() => {});
+  }, [kind]);
+  const text =
+    kind === "denied"
+      ? "Microphone permission was denied. Allow it in your browser settings, then retry."
+      : kind === "disconnected"
+        ? "The microphone disappeared or is busy (another app, or it was unplugged)."
+        : "This browser doesn't support live captions. Use Chrome, Edge or Safari.";
+  return (
+    <div className="flex flex-col gap-2 border-b bg-destructive/15 px-4 py-3 text-sm">
+      <div className="flex items-start justify-between gap-2">
+        <p>{text}</p>
+        <button onClick={onClose} aria-label="Dismiss"><X className="h-4 w-4" /></button>
+      </div>
+      {kind !== "unsupported" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={onRetry} className="rounded-full bg-primary px-4 py-2 font-semibold text-primary-foreground">Retry</button>
+          {mics.length > 1 && (
+            <select
+              value={micDeviceId() ?? ""}
+              onChange={(e) => { setMicDeviceId(e.target.value || null); onRetry(); }}
+              className="rounded-full bg-secondary px-3 py-2"
+              aria-label="Choose microphone"
+            >
+              <option value="">Default microphone</option>
+              {mics.map((m) => <option key={m.deviceId} value={m.deviceId}>{m.label}</option>)}
+            </select>
+          )}
+        </div>
+      )}
     </div>
   );
 }

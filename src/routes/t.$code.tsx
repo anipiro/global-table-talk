@@ -2,8 +2,9 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { getMemberId, getRoomByCode, joinRoom, type Room } from "@/lib/room";
-import { JoinForm, Screen } from "@/components/JoinForm";
+import { getMemberId, getRoomByCode, joinRoom, type Member, type Room } from "@/lib/room";
+import { deviceLabel } from "@/lib/agent";
+import { JoinForm, Screen, VoiceCalibration } from "@/components/JoinForm";
 
 export const Route = createFileRoute("/t/$code")({
   ssr: false,
@@ -24,6 +25,7 @@ function JoinTable() {
   const { code } = Route.useParams();
   const nav = useNavigate();
   const [room, setRoom] = useState<Room | null | undefined>(undefined);
+  const [joined, setJoined] = useState<Member | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -48,6 +50,19 @@ function JoinTable() {
   if (room.status === "ended")
     return <Screen><h1 className="text-3xl font-bold">This dinner has ended.</h1></Screen>;
   const isHost = !room.host_member_id;
+  if (joined)
+    return (
+      <Screen>
+        <VoiceCalibration
+          name={joined.name}
+          onDone={async (level) => {
+            if (level)
+              await supabase.from("members").update({ voice_level: level, voice_calibrated_at: new Date().toISOString(), voice_device: deviceLabel() }).eq("id", joined.id);
+            nav({ to: isHost ? "/lobby/$code" : "/room/$code", params: { code: room.code } });
+          }}
+        />
+      </Screen>
+    );
   return (
     <Screen>
       <Link to="/" className="text-muted-foreground">← Home</Link>
@@ -57,8 +72,8 @@ function JoinTable() {
         submitLabel={isHost ? "Open the table" : "Join"}
         onSubmit={async (v) => {
           try {
-            await joinRoom(room, v);
-            nav({ to: isHost ? "/lobby/$code" : "/room/$code", params: { code: room.code } });
+            const m = await joinRoom(room, v);
+            setJoined(m);
           } catch (e) {
             toast.error(e instanceof Error ? e.message : "Couldn't join");
           }
