@@ -38,8 +38,8 @@
 - [x] Overlap view: discoverable keyboard-shortcut guide (scrub, switch lane, reassign)
 - [x] Fix: one person could not talk (voice setup too loud → everything dropped); mix-ups still happening; delay too long
 - [x] Export reviewed transcript (speaker labels, timestamps, unsure flags) as CSV/text from the overlap view
-- [ ] Crowded room: background voices must not be credited to a silent member (own-voice gate learned from their speech, bounded by voice setup; borderline → unsure)
-- [ ] Speed up captions: shorter pause/max chunk, instant "is talking…" indicator
-- [ ] Diagnostics: capture-to-caption delay and speaker-attribution confidence per line, plus this phone’s keep/drop decisions
-- [ ] "Unknown speaker" label for low-confidence lines (never credited to a silent member); fixable via reassign
-- [ ] Correct the speaker on any caption (incl. "someone not at the table"); phones learn from corrections to improve future attribution
+- [x] Crowded room: background voices must not be credited to a silent member (own-voice gate learned from their speech, bounded by voice setup; borderline → unsure)
+- [x] Speed up captions: shorter pause/max chunk, instant "is talking…" indicator
+- [x] Diagnostics: capture-to-caption delay and speaker-attribution confidence per line, plus this phone’s keep/drop decisions
+- [x] "Unknown speaker" label for low-confidence lines (never credited to a silent member); fixable via reassign
+- [x] Correct the speaker on any caption (incl. "someone not at the table"); phones learn from corrections to improve future attribution

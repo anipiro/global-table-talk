@@ -278,7 +278,7 @@ function RoomPage() {
       )}
 
       {/* debug overlay */}
-      {debugOn && (
+      {debugOn && !(sheetOpen && tab === "diagnostics") && (
         <div className="pointer-events-none fixed bottom-40 left-3 z-40 rounded-2xl bg-background/90 p-3 font-mono text-xs shadow-lg backdrop-blur">
           <p>RMS {debug.rms.toFixed(4)}</p>
           <p>threshold {debug.threshold ? debug.threshold.toFixed(4) : "off"}</p>
