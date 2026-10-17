@@ -485,6 +485,7 @@ export type Database = {
           created_at: string
           host_member_id: string | null
           id: string
+          roast_mode: boolean
           status: string
         }
         Insert: {
@@ -492,6 +493,7 @@ export type Database = {
           created_at?: string
           host_member_id?: string | null
           id?: string
+          roast_mode?: boolean
           status?: string
         }
         Update: {
@@ -499,6 +501,7 @@ export type Database = {
           created_at?: string
           host_member_id?: string | null
           id?: string
+          roast_mode?: boolean
           status?: string
         }
         Relationships: []

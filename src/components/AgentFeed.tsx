@@ -1,6 +1,21 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowDown, WifiOff } from "lucide-react";
-import type { AgentMessage, Member } from "@/lib/room";
+import { ArrowDown, Image as ImageIcon, WifiOff } from "lucide-react";
+import type { AgentMessage, Media, Member } from "@/lib/room";
+
+/** Banter lines from the agents always start with this (see src/server/banter.ts). */
+export const BANTER_PREFIX = "😄";
+
+/** Notes like "added a photo of X" / "turned Nika's joke into a meme" point at a media row — find it. */
+export function mediaForNote(m: AgentMessage, media: Media[]): Media | undefined {
+  if (m.type !== "note") return undefined;
+  const photo = /added a photo of (.+?)\.?\s*$/i.exec(m.content)?.[1]?.toLowerCase();
+  if (photo)
+    return media.find((x) => x.kind === "reference_image" && x.query.toLowerCase() === photo)
+      ?? media.find((x) => x.kind === "reference_image" && (x.query.toLowerCase().includes(photo) || photo.includes(x.query.toLowerCase())));
+  if (/turned .+ joke into a meme/i.test(m.content))
+    return [...media].reverse().find((x) => x.kind === "meme" && x.created_by_member_id === m.from_member_id);
+  return undefined;
+}
 
 const TYPE_CLASS: Record<string, string> = {
   ask: "text-type-ask border-type-ask/40 bg-type-ask/10",
@@ -55,9 +70,11 @@ const describe = (m: AgentMessage, byId: Map<string, Member>, meId?: string | nu
 /** Chat between the agents at the table: newest at the bottom; follows new messages while you're at the
  *  bottom, and shows an unread marker + "new messages" pill when you've scrolled up.
  *  Keyboard: focus the feed, ↑/↓ moves between messages, Home/End jump to oldest/newest. */
-export function AgentFeed({ msgs, byId, meId, large = false, status = "live", retryIn, onRetry }: {
+export function AgentFeed({ msgs, byId, meId, large = false, status = "live", retryIn, onRetry, media, onOpenMedia }: {
   msgs: AgentMessage[]; byId: Map<string, Member>; meId?: string | null; large?: boolean;
   status?: FeedStatus; retryIn?: number | null; onRetry?: () => void;
+  /** Lets notes like "added a photo of…" open that picture/meme on tap. */
+  media?: Media[]; onOpenMedia?: (id: string) => void;
 }) {
   const ready = status !== "loading" && status !== "error";
   const { isShown, typing, isNew } = useTypingReveal(msgs, ready);
@@ -181,6 +198,8 @@ export function AgentFeed({ msgs, byId, meId, large = false, status = "live", re
             {shown.map((m) => {
               const from = byId.get(m.from_member_id ?? "");
               const to = m.to_member_id ? byId.get(m.to_member_id) : null;
+              const banter = m.content.startsWith(BANTER_PREFIX);
+              const linked = media && onOpenMedia ? mediaForNote(m, media) : undefined;
               return (
                 <li key={m.id}>
                   {m.id === unreadFrom?.id && (
@@ -191,14 +210,23 @@ export function AgentFeed({ msgs, byId, meId, large = false, status = "live", re
                   <div data-msg tabIndex={-1} aria-label={describe(m, byId, meId)}
                     className={`flex items-start gap-3 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring ${isNew(m.id) ? "animate-msg-in" : ""}`}>
                     <Avatar member={from} size={av} />
-                    <div className={`min-w-0 flex-1 rounded-2xl rounded-tl-sm bg-secondary ${large ? "p-5" : "p-3"}`}>
+                    <div className={`min-w-0 flex-1 rounded-2xl rounded-tl-sm ${banter ? "border border-speaking/40 bg-speaking/10" : "bg-secondary"} ${large ? "p-5" : "p-3"}`}>
                       <p className={`flex flex-wrap items-center gap-x-1.5 gap-y-1 text-muted-foreground ${large ? "text-xl" : "text-[0.8em]"}`}>
                         <span className="font-semibold" style={{ color: from?.color }}>{agentName(from, meId)}</span>
                         <span aria-hidden>→</span>
                         {to ? <span className="font-semibold" style={{ color: to.color }}>{agentName(to, meId)}</span> : <span>table</span>}
-                        <span className={`ml-1 rounded-full border px-2 ${large ? "text-base" : "text-[0.85em]"} ${TYPE_CLASS[m.type] ?? "border-border"}`}>{m.type}</span>
+                        <span className={`ml-1 rounded-full border px-2 ${large ? "text-base" : "text-[0.85em]"} ${banter ? "border-speaking/40 bg-speaking/15 text-speaking" : (TYPE_CLASS[m.type] ?? "border-border")}`}>{banter ? "banter" : m.type}</span>
                       </p>
-                      <p className={`mt-1 leading-snug ${large ? "text-[30px]" : ""}`}>{m.content}</p>
+                      {linked ? (
+                        <button onClick={() => onOpenMedia!(linked.id)}
+                          className={`mt-1 flex items-center gap-2 rounded-xl text-left leading-snug underline decoration-primary/50 underline-offset-4 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring ${large ? "text-[30px]" : ""}`}
+                          aria-label={`${m.content} — open the ${linked.kind === "meme" ? "meme" : "picture"}`}>
+                          <ImageIcon className={`shrink-0 text-primary ${large ? "h-7 w-7" : "h-4 w-4"}`} aria-hidden />
+                          <span>{m.content}</span>
+                        </button>
+                      ) : (
+                        <p className={`mt-1 leading-snug ${large ? "text-[30px]" : ""}`}>{m.content}</p>
+                      )}
                     </div>
                   </div>
                 </li>

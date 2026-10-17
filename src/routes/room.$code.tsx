@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Mic, MicOff, Headphones, Sparkles, Type, Camera, ImagePlus, History, Share2, Rows3, HelpCircle, Moon, X, ChevronUp, ChevronDown, Hand, Activity, AudioLines, BookOpen, MessagesSquare, Image as ImageIcon, Users } from "lucide-react";
+import { Mic, MicOff, Headphones, Sparkles, Type, Camera, ImagePlus, History, Share2, Rows3, HelpCircle, Moon, X, ChevronUp, ChevronDown, Hand, Activity, AudioLines, BookOpen, MessagesSquare, Image as ImageIcon, Users, Flame } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getMemberId, inviteUrl, type Lang, type Line, type Media, type Member } from "@/lib/room";
 import { fmtTime, useRoom, useSignedUrls, useWakeLock } from "@/lib/useRoom";
@@ -9,7 +9,7 @@ import { learnCorrection, loadLearning, unlockAudio, watchTalking, describePhoto
 import { classifyMicError, needsRecalibration } from "@/lib/crosstalk";
 import { VoiceCalibration } from "@/components/JoinForm";
 import { shareLink } from "@/lib/invites";
-import { GuestList, InvitePanel } from "@/components/HostControls";
+import { GuestList, InvitePanel, RoastToggle } from "@/components/HostControls";
 import { Screen } from "@/components/JoinForm";
 import { ReassignSheet } from "@/components/Reassign";
 import { Diagnostics } from "@/components/Diagnostics";
@@ -18,7 +18,7 @@ import { NotebookSections, useIsNew } from "@/components/Notebook";
 import { CardStack } from "@/components/CardStack";
 import { renderBold } from "@/lib/richText";
 import { PhotoGrid, PhotoViewer } from "@/components/Photos";
-import { MediaCard, MediaViewer, mediaByLine } from "@/components/Media";
+import { AgentMediaSection, MediaCard, MediaViewer, mediaByLine } from "@/components/Media";
 import { isGroupPhoto, sharePhoto } from "@/lib/photos";
 import { LANGS } from "@/lib/room";
 
@@ -303,11 +303,18 @@ function RoomPage() {
         </IconBtn>
         </div>
       </header>
-      {me.whisper_on && (
-        <div className="flex justify-center border-b bg-background/95 py-1.5 text-sm">
-          <span className="flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-0.5 text-primary">
-            <Headphones className="h-3.5 w-3.5" /> Whispering in {LANGS.find((l) => l.id === me.language)?.label ?? me.language}
-          </span>
+      {(me.whisper_on || room.roast_mode) && (
+        <div className="flex flex-wrap justify-center gap-2 border-b bg-background/95 py-1.5 text-sm">
+          {me.whisper_on && (
+            <span className="flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-0.5 text-primary">
+              <Headphones className="h-3.5 w-3.5" /> Whispering in {LANGS.find((l) => l.id === me.language)?.label ?? me.language}
+            </span>
+          )}
+          {room.roast_mode && (
+            <span className="flex items-center gap-1.5 rounded-full bg-speaking/15 px-3 py-0.5 text-speaking">
+              <Flame className="h-3.5 w-3.5" /> Roast mode on
+            </span>
+          )}
         </div>
       )}
 
@@ -441,11 +448,17 @@ function RoomPage() {
         {sheetOpen && (
           <div className={`h-[calc(55dvh-3.5rem)] px-4 ${tab === "agents" ? "overflow-hidden pb-2" : "overflow-y-auto pb-6"}`}>
             {tab === "notebook" && <NotebookSections entries={notebook} byId={byId} media={media} lang={me.language} />}
-            {tab === "agents" && <AgentFeed msgs={agentMessages} byId={byId} meId={me.id} status={data.status} retryIn={data.retryIn} onRetry={data.retry} />}
-            {tab === "photos" && <PhotoGrid photos={photos} captions={captions} lang={me.language} onOpen={setViewPhoto} />}
+            {tab === "agents" && <AgentFeed msgs={agentMessages} byId={byId} meId={me.id} status={data.status} retryIn={data.retryIn} onRetry={data.retry} media={media} onOpenMedia={setViewMedia} />}
+            {tab === "photos" && (
+              <>
+                <PhotoGrid photos={photos} captions={captions} lang={me.language} onOpen={setViewPhoto} />
+                <AgentMediaSection media={media} lang={me.language} onOpen={setViewMedia} />
+              </>
+            )}
             {tab === "diagnostics" && debugOn && <Diagnostics lines={lines} members={members} />}
             {tab === "guests" && isHost && (
               <div className="flex flex-col gap-6 pt-2">
+                <RoastToggle room={room} />
                 <GuestList room={room} members={members} />
                 <InvitePanel room={room} me={me} />
               </div>

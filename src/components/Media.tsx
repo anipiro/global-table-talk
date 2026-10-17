@@ -57,6 +57,25 @@ export function MediaCard({ media, lang, large = false, onOpen }: {
   );
 }
 
+/** "From the agents" grid for the Photos tab: every picture and meme the agents made, newest first. */
+export function AgentMediaSection({ media, lang, onOpen }: {
+  media: Media[]; lang: string; onOpen: (id: string) => void;
+}) {
+  if (!media.length) return null;
+  return (
+    <section className="mt-6">
+      <h3 className="mb-2 text-lg font-semibold">From the agents</h3>
+      <ul className="flex flex-col gap-3">
+        {[...media].reverse().map((m) => (
+          <li key={m.id}>
+            <MediaCard media={m} lang={lang} onOpen={() => onOpen(m.id)} />
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /** Fullscreen picture an agent found: big image, caption in my language, credit, and whose agent found it. */
 export function MediaViewer({ media, lang, by, onClose }: {
   media: Media; lang: string; by?: Member | undefined; onClose: () => void;

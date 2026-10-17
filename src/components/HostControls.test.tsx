@@ -13,7 +13,7 @@ vi.mock("sonner", () => ({ toast: { success: mocks.success, error: mocks.error }
 
 import { GuestList } from "./HostControls";
 
-const room: Room = { id: "room-1", code: "TEST", host_member_id: "host-1", status: "live", created_at: "2026-10-17T00:00:00Z" };
+const room: Room = { id: "room-1", code: "TEST", host_member_id: "host-1", status: "live", roast_mode: false, created_at: "2026-10-17T00:00:00Z" };
 const guest: Member = {
   id: "guest-1", room_id: room.id, name: "Guest", language: "en", role: "both", facts: "",
   whisper_on: false, color: "", approved: false, created_at: room.created_at, can_speak: true, invite_id: null,
