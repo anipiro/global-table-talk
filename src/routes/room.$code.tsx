@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Mic, MicOff, Headphones, Sparkles, Type, Camera, ImagePlus, History, Share2, Rows3, HelpCircle, Moon, X, ChevronUp, ChevronDown, Hand, Activity, AudioLines } from "lucide-react";
+import { Mic, MicOff, Headphones, Sparkles, Type, Camera, ImagePlus, History, Share2, Rows3, HelpCircle, Moon, X, ChevronUp, ChevronDown, Hand, Activity, AudioLines, BookOpen, MessagesSquare, Image as ImageIcon, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getMemberId, inviteUrl, type Lang, type Line, type Member } from "@/lib/room";
 import { fmtTime, useRoom, useSignedUrls, useWakeLock } from "@/lib/useRoom";
@@ -421,9 +421,11 @@ function RoomPage() {
         <div className="flex h-14 items-center gap-1 px-2">
           {(["notebook", "agents", "photos", ...(isHost ? ["guests"] : []), ...(debugOn ? ["diagnostics"] : [])] as Tab[]).map((t) => {
             const pending = t === "guests" ? members.filter((m) => !m.approved).length : 0;
+            const Icon = TAB_ICONS[t];
             return (
               <button key={t} onClick={() => { setTab(t); setSheetOpen(true); }}
-                className={`flex-1 rounded-full py-2 font-semibold capitalize ${sheetOpen && tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-full py-2 text-sm font-semibold capitalize ${sheetOpen && tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>
+                <Icon className="h-4 w-4" aria-hidden />
                 {t === "diagnostics" ? "Diag." : t}{pending > 0 && <span className="ml-1 rounded-full bg-destructive px-1.5 text-xs text-destructive-foreground">{pending}</span>}
               </button>
             );
