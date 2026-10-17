@@ -17,6 +17,35 @@ async function call(body: Record<string, string>) {
 
 const SPEECH_LANG: Record<Lang, string> = { ka: "ka-GE", en: "en-US", ru: "ru-RU" };
 
+/** Speech engine per member: Georgian uses the Gemini chunk recorder; en/ru use the browser's Web Speech API.
+ *  Hidden setting: localStorage "gamige-force-gemini" = "1" forces Gemini for everyone (for comparison testing). */
+export function speechEngine(lang: Lang): "gemini" | "webspeech" {
+  if (typeof localStorage !== "undefined" && localStorage.getItem("gamige-force-gemini") === "1") return "gemini";
+  return lang === "ka" ? "gemini" : "webspeech";
+}
+
+/** Picks the best audio mimeType this browser's MediaRecorder supports (Safari records audio/mp4). */
+export function pickAudioMime(): string {
+  if (typeof MediaRecorder === "undefined") return "";
+  for (const t of ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"])
+    if (MediaRecorder.isTypeSupported(t)) return t;
+  return "";
+}
+
+/** Sends one audio chunk to the server transcriber; returns text + detected language. */
+export async function transcribeChunk(blob: Blob, languageHint: Lang): Promise<{ text: string; language: string | null }> {
+  const ext = blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : "webm";
+  const form = new FormData();
+  form.append("file", new File([blob], `chunk.${ext}`, { type: blob.type || "audio/webm" }));
+  form.append("language", languageHint);
+  const res = await fetch("/api/agent", { method: "POST", body: form });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Transcription failed" }));
+    throw new Error(err.error ?? "Transcription failed");
+  }
+  return res.json();
+}
+
 type Rec = {
   lang: string; continuous: boolean; interimResults: boolean;
   onresult: (e: { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => void;
@@ -26,9 +55,15 @@ let rec: Rec | null = null;
 let micStream: MediaStream | null = null;
 let audioCtx: AudioContext | null = null;
 let wanted = false;
+let chunkTimer: ReturnType<typeof setInterval> | null = null;
+let recorder: MediaRecorder | null = null;
+let lastPeak = 0;
 
-export const micSupported = () =>
-  typeof window !== "undefined" && !!((window as never)["SpeechRecognition"] || (window as never)["webkitSpeechRecognition"]);
+export const micSupported = (lang?: Lang) =>
+  typeof window !== "undefined" &&
+  (lang && speechEngine(lang) === "gemini"
+    ? typeof MediaRecorder !== "undefined" && !!pickAudioMime()
+    : !!((window as never)["SpeechRecognition"] || (window as never)["webkitSpeechRecognition"]));
 
 /** Listens on this phone's mic, writes each finished sentence as a line, and asks the agents to translate it. */
 export async function startMic(
@@ -36,8 +71,13 @@ export async function startMic(
   onInterim: (text: string) => void,
   onError: (msg: string) => void,
 ) {
-  const SR = (window as never)["SpeechRecognition"] || (window as never)["webkitSpeechRecognition"];
-  if (!SR) throw new Error("Live captions need Chrome, Edge or Safari on this phone.");
+  const engine = speechEngine(member.language as Lang);
+  if (engine === "webspeech") {
+    const SR = (window as never)["SpeechRecognition"] || (window as never)["webkitSpeechRecognition"];
+    if (!SR) throw new Error("Live captions need Chrome, Edge or Safari on this phone.");
+  } else if (typeof MediaRecorder === "undefined" || !pickAudioMime()) {
+    throw new Error("This browser can't record audio for transcription.");
+  }
   micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   audioCtx = new AudioContext();
   const analyser = audioCtx.createAnalyser();
@@ -49,11 +89,18 @@ export async function startMic(
     analyser.getFloatTimeDomainData(buf);
     const rms = Math.sqrt(buf.reduce((s, v) => s + v * v, 0) / buf.length);
     peak = Math.max(peak * 0.98, rms);
+    lastPeak = peak;
     requestAnimationFrame(sample);
   };
   sample();
 
+  if (engine === "gemini") {
+    startGeminiMic(member, micStream, () => peak, onError);
+    return;
+  }
+
   wanted = true;
+  const SR = (window as never)["SpeechRecognition"] || (window as never)["webkitSpeechRecognition"];
   rec = new (SR as new () => Rec)();
   rec.lang = SPEECH_LANG[member.language as Lang] ?? "en-US";
   rec.continuous = true;
@@ -83,8 +130,57 @@ export async function startMic(
   rec.start();
 }
 
+/** Records 3-second chunks (fresh recorder each time, so every chunk is a complete file),
+ *  skips silent ones via the RMS analyser, transcribes with Gemini and posts each line. */
+function startGeminiMic(member: Member, stream: MediaStream, getPeak: () => number, onError: (msg: string) => void) {
+  wanted = true;
+  const mime = pickAudioMime();
+  const SILENCE = 0.012;
+
+  const recordChunk = () => {
+    if (!wanted) return;
+    const chunks: Blob[] = [];
+    const r = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    recorder = r;
+    r.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+    r.onstop = async () => {
+      recorder = null;
+      const loudness = Math.min(1, getPeak() * 4);
+      if (!wanted || !chunks.length) return;
+      if (loudness < SILENCE * 4) return; // silent chunk — skip the upload
+      const blob = new Blob(chunks, { type: mime || "audio/webm" });
+      try {
+        const { text, language } = await transcribeChunk(blob, member.language as Lang);
+        const clean = text.trim();
+        if (!clean) return;
+        const { data, error } = await supabase
+          .from("lines")
+          .insert({ room_id: member.room_id, speaker_id: member.id, text: clean, language: language ?? member.language, loudness })
+          .select("id").single();
+        if (error) onError("Couldn't save what you said.");
+        else call({ task: "translate", lineId: data.id }).catch((err) => onError(err.message));
+      } catch (e) {
+        onError(e instanceof Error ? e.message : "Transcription failed");
+      }
+    };
+    r.start();
+    setTimeout(() => { if (r.state !== "inactive") r.stop(); }, 3000);
+  };
+
+  recordChunk();
+  const loop = () => {
+    if (!wanted) return;
+    chunkTimer = setTimeout(loop, 3000);
+    recordChunk();
+  };
+  chunkTimer = setTimeout(loop, 3000);
+}
+
 export async function stopMic() {
   wanted = false;
+  if (chunkTimer) { clearTimeout(chunkTimer); chunkTimer = null; }
+  if (recorder && recorder.state !== "inactive") recorder.stop();
+  recorder = null;
   rec?.stop();
   rec = null;
   micStream?.getTracks().forEach((t) => t.stop());
