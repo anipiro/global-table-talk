@@ -12,8 +12,11 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as JoinRouteImport } from './routes/join'
 import { Route as ApiAgentRouteImport } from './routes/api/agent'
+import { Route as HistoryCodeRouteImport } from './routes/history.$code'
 import { Route as ITokenRouteImport } from './routes/i.$token'
 import { Route as LobbyCodeRouteImport } from './routes/lobby.$code'
+import { Route as RecapCodeRouteImport } from './routes/recap.$code'
+import { Route as RoomCodeRouteImport } from './routes/room.$code'
 import { Route as TCodeRouteImport } from './routes/t.$code'
 
 const IndexRoute = IndexRouteImport.update({
@@ -31,6 +34,11 @@ const ApiAgentRoute = ApiAgentRouteImport.update({
   path: '/api/agent',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HistoryCodeRoute = HistoryCodeRouteImport.update({
+  id: '/history/$code',
+  path: '/history/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ITokenRoute = ITokenRouteImport.update({
   id: '/i/$token',
   path: '/i/$token',
@@ -39,6 +47,16 @@ const ITokenRoute = ITokenRouteImport.update({
 const LobbyCodeRoute = LobbyCodeRouteImport.update({
   id: '/lobby/$code',
   path: '/lobby/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RecapCodeRoute = RecapCodeRouteImport.update({
+  id: '/recap/$code',
+  path: '/recap/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoomCodeRoute = RoomCodeRouteImport.update({
+  id: '/room/$code',
+  path: '/room/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TCodeRoute = TCodeRouteImport.update({
@@ -51,16 +69,22 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/join': typeof JoinRoute
   '/api/agent': typeof ApiAgentRoute
+  '/history/$code': typeof HistoryCodeRoute
   '/i/$token': typeof ITokenRoute
   '/lobby/$code': typeof LobbyCodeRoute
+  '/recap/$code': typeof RecapCodeRoute
+  '/room/$code': typeof RoomCodeRoute
   '/t/$code': typeof TCodeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/join': typeof JoinRoute
   '/api/agent': typeof ApiAgentRoute
+  '/history/$code': typeof HistoryCodeRoute
   '/i/$token': typeof ITokenRoute
   '/lobby/$code': typeof LobbyCodeRoute
+  '/recap/$code': typeof RecapCodeRoute
+  '/room/$code': typeof RoomCodeRoute
   '/t/$code': typeof TCodeRoute
 }
 export interface FileRoutesById {
@@ -68,23 +92,46 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/join': typeof JoinRoute
   '/api/agent': typeof ApiAgentRoute
+  '/history/$code': typeof HistoryCodeRoute
   '/i/$token': typeof ITokenRoute
   '/lobby/$code': typeof LobbyCodeRoute
+  '/recap/$code': typeof RecapCodeRoute
+  '/room/$code': typeof RoomCodeRoute
   '/t/$code': typeof TCodeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/join' | '/api/agent' | '/i/$token' | '/lobby/$code' | '/t/$code'
+    | '/'
+    | '/join'
+    | '/api/agent'
+    | '/history/$code'
+    | '/i/$token'
+    | '/lobby/$code'
+    | '/recap/$code'
+    | '/room/$code'
+    | '/t/$code'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/join' | '/api/agent' | '/i/$token' | '/lobby/$code' | '/t/$code'
+  to:
+    | '/'
+    | '/join'
+    | '/api/agent'
+    | '/history/$code'
+    | '/i/$token'
+    | '/lobby/$code'
+    | '/recap/$code'
+    | '/room/$code'
+    | '/t/$code'
   id:
     | '__root__'
     | '/'
     | '/join'
     | '/api/agent'
+    | '/history/$code'
     | '/i/$token'
     | '/lobby/$code'
+    | '/recap/$code'
+    | '/room/$code'
     | '/t/$code'
   fileRoutesById: FileRoutesById
 }
@@ -92,8 +139,11 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   JoinRoute: typeof JoinRoute
   ApiAgentRoute: typeof ApiAgentRoute
+  HistoryCodeRoute: typeof HistoryCodeRoute
   ITokenRoute: typeof ITokenRoute
   LobbyCodeRoute: typeof LobbyCodeRoute
+  RecapCodeRoute: typeof RecapCodeRoute
+  RoomCodeRoute: typeof RoomCodeRoute
   TCodeRoute: typeof TCodeRoute
 }
 
@@ -120,6 +170,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/history/$code': {
+      id: '/history/$code'
+      path: '/history/$code'
+      fullPath: '/history/$code'
+      preLoaderRoute: typeof HistoryCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/i/$token': {
       id: '/i/$token'
       path: '/i/$token'
@@ -132,6 +189,20 @@ declare module '@tanstack/react-router' {
       path: '/lobby/$code'
       fullPath: '/lobby/$code'
       preLoaderRoute: typeof LobbyCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/recap/$code': {
+      id: '/recap/$code'
+      path: '/recap/$code'
+      fullPath: '/recap/$code'
+      preLoaderRoute: typeof RecapCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/room/$code': {
+      id: '/room/$code'
+      path: '/room/$code'
+      fullPath: '/room/$code'
+      preLoaderRoute: typeof RoomCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/t/$code': {
@@ -148,8 +219,11 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   JoinRoute: JoinRoute,
   ApiAgentRoute: ApiAgentRoute,
+  HistoryCodeRoute: HistoryCodeRoute,
   ITokenRoute: ITokenRoute,
   LobbyCodeRoute: LobbyCodeRoute,
+  RecapCodeRoute: RecapCodeRoute,
+  RoomCodeRoute: RoomCodeRoute,
   TCodeRoute: TCodeRoute,
 }
 export const routeTree = rootRouteImport
