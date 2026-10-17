@@ -19,7 +19,7 @@
  */
 
 @theme inline {
-  --font-display: "Fraunces", Georgia, serif;
+  --font-display: "Figtree", system-ui, sans-serif;
   --font-sans: "Figtree", system-ui, sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -58,6 +58,8 @@
   --color-type-note: var(--type-note);
   --color-type-missed: var(--type-missed);
   --color-type-bridge: var(--type-bridge);
+  --color-online: var(--online);
+  --color-speaking: var(--speaking);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
