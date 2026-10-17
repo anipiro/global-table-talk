@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { arbitrate, keepByConfidence, keepByLanguage, passesVoiceGate, VOICE_GATE } from "./crosstalk";
+import { arbitrate, classifyMicError, keepByConfidence, keepByLanguage, needsRecalibration, passesVoiceGate, VOICE_GATE } from "./crosstalk";
 
 describe("keepByLanguage (Gemini detected language)", () => {
   it("keeps a chunk whose detected language matches the member", () => {

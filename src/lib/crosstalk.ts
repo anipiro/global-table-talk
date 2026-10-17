@@ -36,3 +36,21 @@ export function arbitrate(
     x.loudness / (x.voiceLevel || 1);
   return rel(mine) >= rel(other) ? "keep-mine" : "keep-other";
 }
+
+/** Maps a getUserMedia / recorder failure to a recovery state the UI can explain. */
+export function classifyMicError(e: unknown): "denied" | "disconnected" | "unsupported" | "unknown" {
+  const name = (e as { name?: string })?.name ?? "";
+  if (name === "NotAllowedError" || name === "SecurityError") return "denied";
+  if (name === "NotFoundError" || name === "OverconstrainedError" || name === "NotReadableError" || name === "AbortError") return "disconnected";
+  if (name === "TypeError" && e instanceof TypeError) return "unsupported";
+  return "unknown";
+}
+
+/** True when the member calibrated on a different device (or never calibrated) and should recalibrate. */
+export function needsRecalibration(
+  member: { voice_level: number | null; voice_device: string | null },
+  currentDevice: string,
+): boolean {
+  if (!member.voice_level) return true;
+  return !!member.voice_device && member.voice_device !== currentDevice;
+}
