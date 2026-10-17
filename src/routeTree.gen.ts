@@ -15,6 +15,7 @@ import { Route as ApiAgentRouteImport } from './routes/api/agent'
 import { Route as HistoryCodeRouteImport } from './routes/history.$code'
 import { Route as ITokenRouteImport } from './routes/i.$token'
 import { Route as LobbyCodeRouteImport } from './routes/lobby.$code'
+import { Route as OverlapCodeRouteImport } from './routes/overlap.$code'
 import { Route as RecapCodeRouteImport } from './routes/recap.$code'
 import { Route as RoomCodeRouteImport } from './routes/room.$code'
 import { Route as TCodeRouteImport } from './routes/t.$code'
@@ -50,6 +51,11 @@ const LobbyCodeRoute = LobbyCodeRouteImport.update({
   path: '/lobby/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OverlapCodeRoute = OverlapCodeRouteImport.update({
+  id: '/overlap/$code',
+  path: '/overlap/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RecapCodeRoute = RecapCodeRouteImport.update({
   id: '/recap/$code',
   path: '/recap/$code',
@@ -78,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/history/$code': typeof HistoryCodeRoute
   '/i/$token': typeof ITokenRoute
   '/lobby/$code': typeof LobbyCodeRoute
+  '/overlap/$code': typeof OverlapCodeRoute
   '/recap/$code': typeof RecapCodeRoute
   '/room/$code': typeof RoomCodeRoute
   '/t/$code': typeof TCodeRoute
@@ -90,6 +97,7 @@ export interface FileRoutesByTo {
   '/history/$code': typeof HistoryCodeRoute
   '/i/$token': typeof ITokenRoute
   '/lobby/$code': typeof LobbyCodeRoute
+  '/overlap/$code': typeof OverlapCodeRoute
   '/recap/$code': typeof RecapCodeRoute
   '/room/$code': typeof RoomCodeRoute
   '/t/$code': typeof TCodeRoute
@@ -103,6 +111,7 @@ export interface FileRoutesById {
   '/history/$code': typeof HistoryCodeRoute
   '/i/$token': typeof ITokenRoute
   '/lobby/$code': typeof LobbyCodeRoute
+  '/overlap/$code': typeof OverlapCodeRoute
   '/recap/$code': typeof RecapCodeRoute
   '/room/$code': typeof RoomCodeRoute
   '/t/$code': typeof TCodeRoute
@@ -117,6 +126,7 @@ export interface FileRouteTypes {
     | '/history/$code'
     | '/i/$token'
     | '/lobby/$code'
+    | '/overlap/$code'
     | '/recap/$code'
     | '/room/$code'
     | '/t/$code'
@@ -129,6 +139,7 @@ export interface FileRouteTypes {
     | '/history/$code'
     | '/i/$token'
     | '/lobby/$code'
+    | '/overlap/$code'
     | '/recap/$code'
     | '/room/$code'
     | '/t/$code'
@@ -141,6 +152,7 @@ export interface FileRouteTypes {
     | '/history/$code'
     | '/i/$token'
     | '/lobby/$code'
+    | '/overlap/$code'
     | '/recap/$code'
     | '/room/$code'
     | '/t/$code'
@@ -154,6 +166,7 @@ export interface RootRouteChildren {
   HistoryCodeRoute: typeof HistoryCodeRoute
   ITokenRoute: typeof ITokenRoute
   LobbyCodeRoute: typeof LobbyCodeRoute
+  OverlapCodeRoute: typeof OverlapCodeRoute
   RecapCodeRoute: typeof RecapCodeRoute
   RoomCodeRoute: typeof RoomCodeRoute
   TCodeRoute: typeof TCodeRoute
@@ -204,6 +217,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LobbyCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/overlap/$code': {
+      id: '/overlap/$code'
+      path: '/overlap/$code'
+      fullPath: '/overlap/$code'
+      preLoaderRoute: typeof OverlapCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/recap/$code': {
       id: '/recap/$code'
       path: '/recap/$code'
@@ -242,6 +262,7 @@ const rootRouteChildren: RootRouteChildren = {
   HistoryCodeRoute: HistoryCodeRoute,
   ITokenRoute: ITokenRoute,
   LobbyCodeRoute: LobbyCodeRoute,
+  OverlapCodeRoute: OverlapCodeRoute,
   RecapCodeRoute: RecapCodeRoute,
   RoomCodeRoute: RoomCodeRoute,
   TCodeRoute: TCodeRoute,

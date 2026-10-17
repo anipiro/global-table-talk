@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Keyboard, Pause, Play, SkipBack, SkipForward, Undo2, Volume2, VolumeX, Headphones, HelpCircle, X } from "lucide-react";
-import { getMemberId, type Lang, type Line, type Member } from "@/lib/room";
+import { getMemberId, type Lang, type Line } from "@/lib/room";
 import { useRoom } from "@/lib/useRoom";
 import { findOverlaps } from "@/lib/crosstalk";
 import { activeAt, audibleLanes, schedule, scrubTarget } from "@/lib/overlap";
@@ -61,7 +61,7 @@ function OverlapPage() {
   const [onlyMixed, setOnlyMixed] = useState(false);
 
   const audible = useMemo(() => audibleLanes(lanes.map((l) => l.id), muted, solo), [lanes, muted, solo]);
-  const active = useMemo(() => activeAt(plan, pos, 1 / speed), [plan, pos, speed]);
+  const active = useMemo(() => activeAt(plan, pos), [plan, pos]);
   const playingLanes = useMemo(() => new Set(plan.filter((p) => active.has(p.seg.id)).map((p) => p.seg.speaker_id ?? "")), [plan, active]);
   const focusLane = lanes[Math.min(laneIdx, Math.max(0, lanes.length - 1))];
 
@@ -307,4 +307,3 @@ function OverlapPage() {
   );
 }
 
-export type { Member };
