@@ -197,3 +197,28 @@ describe("delayStats", () => {
     expect(delayStats([1000, 1200, 1400, 1600, 5000])).toEqual({ median: 1400, p90: 5000 });
   });
 });
+
+import { learnFromCorrection } from "./crosstalk";
+
+describe("learning from speaker corrections", () => {
+  const empty = { own: [], notMine: [], seen: [] };
+  it("a correction away from the owner teaches the phone that level was someone else", () => {
+    const l = learnFromCorrection(empty, "c1", 0.09, false);
+    expect(l.notMine).toEqual([0.09]);
+    expect(l.own).toEqual([]);
+  });
+  it("a correction to the owner teaches the owner's level", () => {
+    expect(learnFromCorrection(empty, "c1", 0.15, true).own).toEqual([0.15]);
+  });
+  it("each correction is learned once", () => {
+    const l = learnFromCorrection(learnFromCorrection(empty, "c1", 0.09, false), "c1", 0.09, false);
+    expect(l.notMine).toEqual([0.09]);
+  });
+  it("after learning, similar chatter becomes Unknown speaker instead of the owner", () => {
+    expect(attribute(0.17, 0.2, 1).decision).toBe("keep");
+    expect(attribute(0.17, 0.2, 1, [0.15, 0.16]).decision).toBe("unknown");
+  });
+  it("clearly louder own speech is still credited", () => {
+    expect(attribute(0.25, 0.2, 1, [0.15, 0.16]).decision).toBe("keep");
+  });
+});

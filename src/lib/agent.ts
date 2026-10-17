@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Lang, Member } from "./room";
-import { attribute, cleanTranscript, isLoudestFrame, keepByConfidence, keepByLanguage, ownVoiceRef, speakingLevel } from "./crosstalk";
+import { attribute, cleanTranscript, isLoudestFrame, keepByConfidence, keepByLanguage, learnFromCorrection, ownVoiceRef, speakingLevel, type VoiceLearning } from "./crosstalk";
 
 /** Calls the agent server endpoint; throws with a readable message on failure. */
 async function call(body: Record<string, string>) {
@@ -255,8 +255,27 @@ function joinVoiceLevels(member: Member) {
   };
 }
 
+/** What this phone learned about its owner's voice (from confident lines and from speaker corrections).
+ *  Kept per member in this browser — levels are specific to the phone that measured them. */
+const learnKey = (memberId: string) => `gamige-voice-learn:${memberId}`;
+export function loadLearning(memberId: string): VoiceLearning {
+  try {
+    const v = JSON.parse(localStorage.getItem(learnKey(memberId)) ?? "null");
+    if (v && Array.isArray(v.own)) return v;
+  } catch { /* ignore */ }
+  return { own: [], notMine: [], seen: [] };
+}
+function saveLearning(memberId: string, l: VoiceLearning) {
+  localStorage.setItem(learnKey(memberId), JSON.stringify(l));
+}
+/** Feed a speaker correction on a line this phone captured back into its attribution. */
+export function learnCorrection(memberId: string, correctionId: string, level: number, wasOwner: boolean) {
+  const next = learnFromCorrection(loadLearning(memberId), correctionId, level, wasOwner);
+  saveLearning(memberId, next);
+  return next;
+}
+
 /** Decides and saves one captured utterance. Shared by both speech engines. */
-const ownLevels: number[] = [];
 async function handleUtterance(
   member: Member, frames: Frame[], speechEnd: number, transcribe: () => Promise<{ text: string; language: string | null } | null>,
   onError: (msg: string) => void,
@@ -264,8 +283,9 @@ async function handleUtterance(
   const speech = frames.filter((x) => x.speech);
   const level = speakingLevel(speech.map((x) => x.rms));
   const share = speech.length ? speech.filter((x) => x.loudest).length / speech.length : 0;
-  const ref = ownVoiceRef(member.voice_level, ownLevels);
-  const verdict = attribute(level, ref, share);
+  const learned = loadLearning(member.id);
+  const ref = ownVoiceRef(member.voice_level, learned.own);
+  const verdict = attribute(level, ref, share, learned.notMine);
   const base = { level, ref, share, confidence: verdict.confidence };
   if (verdict.decision === "drop") {
     logDecision({ ...base, text: "", outcome: "dropped", reason: share < 0.4 ? "another phone was closer" : "too faint — room noise", delayMs: null });
@@ -284,7 +304,10 @@ async function handleUtterance(
     const lineId = await insertLine(member, clean, level, verdict.confidence, performance.now() - speechEnd);
     const delayMs = performance.now() - speechEnd;
     if (!lineId) { logDecision({ ...base, text: clean, outcome: "dropped", reason: "another phone had it louder", delayMs }); return; }
-    if (verdict.decision === "keep") { ownLevels.push(level); if (ownLevels.length > 30) ownLevels.shift(); }
+    if (verdict.decision === "keep") {
+      const l = loadLearning(member.id);
+      saveLearning(member.id, { ...l, own: [...l.own, level].slice(-30) });
+    }
     logDecision({ ...base, text: clean, outcome: verdict.decision === "keep" ? "kept" : "unknown", reason: verdict.decision === "keep" ? "sounds like you" : "not sure it was you", delayMs });
     call({ task: "translate", lineId }).catch((err) => onError(err.message));
   } catch (e) {

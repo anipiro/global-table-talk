@@ -141,12 +141,20 @@ export function ownVoiceRef(calibration: number | null | undefined, recentOwn: n
  *  - level vs the owner's own voice: someone across a crowded room is much quieter than the owner at 30cm;
  *  - ownShare: how much of the speech this phone heard louder than the other phones at the table.
  *  Very quiet chunks are dropped as room noise; uncertain ones become "Unknown speaker". */
-export function attribute(level: number, ref: number | null, ownShare: number): { confidence: number; decision: "keep" | "unknown" | "drop" } {
+export function attribute(
+  level: number, ref: number | null, ownShare: number, notMine: number[] = [],
+): { confidence: number; decision: "keep" | "unknown" | "drop" } {
   if (ref && level < 0.3 * ref) return { confidence: 0, decision: "drop" };
   if (ownShare < OWN_SPEECH_SHARE) return { confidence: 0, decision: "drop" };
   const levelScore = ref ? Math.min(1, level / (0.75 * ref)) : 1;
   const shareScore = Math.min(1, ownShare / 0.8);
-  const confidence = Math.round(levelScore * shareScore * 100) / 100;
+  let confidence = Math.round(levelScore * shareScore * 100) / 100;
+  // Learned from corrections: levels this phone captured that people said weren't its owner.
+  if (notMine.length) {
+    const s = [...notMine].sort((a, b) => a - b);
+    const typical = s[Math.min(s.length - 1, Math.floor(s.length * 0.75))]!;
+    if (level <= typical * 1.15) confidence = Math.min(confidence, 0.5);
+  }
   return { confidence, decision: confidence >= KNOWN_SPEAKER_CONFIDENCE ? "keep" : "unknown" };
 }
 
@@ -156,4 +164,18 @@ export function delayStats(xs: number[]): { median: number; p90: number } | null
   const s = [...xs].sort((a, b) => a - b);
   const at = (q: number) => s[Math.min(s.length - 1, Math.floor(q * s.length))]!;
   return { median: at(0.5), p90: at(0.9) };
+}
+
+/** What a phone has learned from speaker corrections on lines it captured. */
+export type VoiceLearning = { own: number[]; notMine: number[]; seen: string[] };
+
+/** Applies one correction: a line this phone captured at `level` was (or wasn't) really its owner. */
+export function learnFromCorrection(l: VoiceLearning, correctionId: string, level: number, wasOwner: boolean): VoiceLearning {
+  if (l.seen.includes(correctionId)) return l;
+  const cap = (xs: number[]) => xs.slice(-30);
+  return {
+    own: wasOwner ? cap([...l.own, level]) : l.own,
+    notMine: wasOwner ? l.notMine : cap([...l.notMine, level]),
+    seen: [...l.seen, correctionId].slice(-200),
+  };
 }
