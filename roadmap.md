@@ -21,3 +21,5 @@
 - [ ] Store voice_level calibration time + device; flag recalibration after phone change
 - [ ] Automated tests for recovery states: denial, disconnect, unsupported speech, phone-change recalibration flag
 - [ ] Retry + mic device selection in denied/disconnected states
+- [ ] /test/mic cases: retry reacquires mic, device selection switches input
+- [ ] Mid-session mic loss recovery with device-choice prompt; remember selected mic, graceful fallback if gone
