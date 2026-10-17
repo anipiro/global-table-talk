@@ -19,6 +19,7 @@ import { CardStack } from "@/components/CardStack";
 import { renderBold } from "@/lib/richText";
 import { PhotoGrid, PhotoViewer } from "@/components/Photos";
 import { AgentMediaSection, MediaCard, MediaViewer, mediaByLine } from "@/components/Media";
+import { PollCard, settlePoll } from "@/components/Polls";
 import { isGroupPhoto, sharePhoto } from "@/lib/photos";
 import { LANGS } from "@/lib/room";
 
@@ -44,7 +45,7 @@ function RoomPage() {
   const { code } = Route.useParams();
   const nav = useNavigate();
   const data = useRoom(code);
-  const { room, members, lines, translations, agentMessages, notebook, photos, captions, cards, corrections, media } = data;
+  const { room, members, lines, translations, agentMessages, notebook, photos, captions, cards, corrections, media, polls, pollVotes } = data;
   const meId = getMemberId(code);
   const me = members.find((m) => m.id === meId);
   const isHost = !!room && room.host_member_id === meId;
@@ -105,6 +106,22 @@ function RoomPage() {
       toast(`${who} shared a photo`, { action: { label: "Open", onClick: () => { setTab("photos"); setSheetOpen(true); setViewPhoto(p.id); } } });
     }
   }, [photos, data.status, meId, members]);
+
+  // Settle an open poll once everyone approved has voted or the countdown ended (once per poll per client).
+  const settling = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const approved = members.filter((m) => m.approved);
+    for (const p of polls) {
+      if (p.status !== "open" || settling.current.has(p.id)) continue;
+      const voted = new Set(pollVotes.filter((v) => v.poll_id === p.id).map((v) => v.member_id));
+      const allVoted = approved.length > 0 && approved.every((m) => voted.has(m.id));
+      const expired = new Date(p.closes_at).getTime() <= Date.now();
+      if (allVoted || expired) {
+        settling.current.add(p.id);
+        void settlePoll(p.id);
+      }
+    }
+  }, [polls, pollVotes, members]);
 
   useEffect(() => {
     setMicDebug(debugOn ? setDebug : null);
