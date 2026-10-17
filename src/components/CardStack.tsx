@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Lightbulb, Rewind, Star, X } from "lucide-react";
 import type { Card } from "@/lib/room";
+import { renderBold } from "@/lib/richText";
 
 const ICON = { context: Lightbulb, catchup: Rewind, recap: Star } as const;
 
@@ -26,7 +27,7 @@ function SwipeCard({ card, depth, big, onDismiss }: { card: Card; depth: number;
       <p className="mb-1 flex items-center gap-2 text-sm font-semibold text-primary">
         <Icon className="h-4 w-4" aria-hidden /> {card.title}
       </p>
-      <p className="whitespace-pre-wrap">{card.body}</p>
+      <p className="whitespace-pre-wrap">{renderBold(card.body)}</p>
       <button aria-label="Dismiss" onPointerDown={(e) => e.stopPropagation()} onClick={onDismiss} className="absolute right-3 top-3 rounded-full p-1 text-muted-foreground">
         <X className="h-5 w-5" />
       </button>

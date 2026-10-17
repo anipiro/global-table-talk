@@ -16,6 +16,7 @@ import { Diagnostics } from "@/components/Diagnostics";
 import { AgentFeed } from "@/components/AgentFeed";
 import { NotebookSections } from "@/components/Notebook";
 import { CardStack } from "@/components/CardStack";
+import { renderBold } from "@/lib/richText";
 import { PhotoGrid, PhotoViewer } from "@/components/Photos";
 import { isGroupPhoto, sharePhoto } from "@/lib/photos";
 import { LANGS } from "@/lib/room";
@@ -479,13 +480,6 @@ function MicIssueBanner({ kind, onRetry, onClose }: { kind: "denied" | "disconne
         </div>
       )}
     </div>
-  );
-}
-
-/** Shows **bold** from the agent's reply as bold text instead of asterisks. */
-function renderBold(text: string) {
-  return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
-    part.startsWith("**") && part.endsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : part.replace(/\*\*/g, ""),
   );
 }
 

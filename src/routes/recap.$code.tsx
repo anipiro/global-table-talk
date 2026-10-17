@@ -8,6 +8,7 @@ import { useRoom, useSignedUrls } from "@/lib/useRoom";
 import { Screen } from "@/components/JoinForm";
 import { Shimmer } from "@/components/Photos";
 import { isGroupPhoto } from "@/lib/photos";
+import { renderBold } from "@/lib/richText";
 
 export const Route = createFileRoute("/recap/$code")({
   ssr: false,
@@ -36,7 +37,8 @@ function Recap() {
   const guests = members.filter((m) => m.approved);
   const card = useRef<HTMLDivElement>(null);
   const [saving, setSaving] = useState(false);
-  const writing = status !== "loading" && story.length === 0;
+  const writing = story.length === 0;
+  void status;
 
   async function share() {
     if (!card.current) return;
@@ -86,7 +88,7 @@ function Recap() {
             <Shimmer className="mt-4 h-4 w-full" /><Shimmer className="mt-2 h-4 w-11/12" /><Shimmer className="mt-2 h-4 w-3/4" />
           </div>
         ) : (
-          story.map((c) => <p key={c.id} className="whitespace-pre-wrap text-[20px] leading-relaxed">{c.body}</p>)
+          story.map((c) => <p key={c.id} className="whitespace-pre-wrap text-[20px] leading-relaxed">{renderBold(c.body)}</p>)
         )}
 
         <section>
