@@ -5,7 +5,7 @@ import { Mic, MicOff, Headphones, Sparkles, Type, Camera, ImagePlus, History, Sh
 import { supabase } from "@/integrations/supabase/client";
 import { getMemberId, inviteUrl, type Lang, type Line, type Member } from "@/lib/room";
 import { fmtTime, useRoom, useSignedUrls, useWakeLock } from "@/lib/useRoom";
-import { describePhoto, deviceLabel, generateRecap, micSupported, playWhisper, requestCatchUp, setMicDebug, startMic, stopMic } from "@/lib/agent";
+import { describePhoto, deviceLabel, generateRecap, listMics, micDeviceId, micSupported, playWhisper, requestCatchUp, setMicDebug, setMicDeviceId, startMic, stopMic } from "@/lib/agent";
 import { classifyMicError, needsRecalibration } from "@/lib/crosstalk";
 import { VoiceCalibration } from "@/components/JoinForm";
 import { shareLink } from "@/lib/invites";
@@ -289,6 +289,24 @@ function RoomPage() {
         <button onClick={() => shareLink(inviteUrl(room.code)).then((r) => r === "copied" && toast.success("Table link copied"))} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-2" aria-label="Invite">
           <Share2 className="h-4 w-4" />
         </button>
+        <button
+          onClick={() => { const v = !holdMode; setHoldMode(v); localStorage.setItem("gamige-hold-to-talk", v ? "1" : "0"); if (!v && micOn) void micStop(); }}
+          aria-pressed={holdMode}
+          className={`flex items-center gap-1 rounded-full px-3 py-2 ${holdMode ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
+        >
+          <Hand className="h-4 w-4" /> Hold to talk
+        </button>
+        <button
+          onClick={() => { const v = !debugOn; setDebugOn(v); localStorage.setItem("gamige-debug-mic", v ? "1" : "0"); }}
+          aria-pressed={debugOn}
+          className={`flex items-center gap-1 rounded-full px-3 py-2 ${debugOn ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
+          aria-label="Mic debug overlay"
+        >
+          <Activity className="h-4 w-4" />
+        </button>
+        <button onClick={recalibrate} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-2" aria-label="Recalibrate my voice">
+          <AudioLines className="h-4 w-4" />
+        </button>
         {isHost && (
           <>
             <button disabled={ending} onClick={() => groupInput.current?.click()} className="ml-auto flex items-center gap-1 rounded-full border border-primary/50 px-3 py-2 text-primary">
@@ -334,6 +352,43 @@ function RoomPage() {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function MicIssueBanner({ kind, onRetry, onClose }: { kind: "denied" | "disconnected" | "unsupported"; onRetry: () => void; onClose: () => void }) {
+  const [mics, setMics] = useState<{ deviceId: string; label: string }[]>([]);
+  useEffect(() => {
+    if (kind === "disconnected") listMics().then(setMics).catch(() => {});
+  }, [kind]);
+  const text =
+    kind === "denied"
+      ? "Microphone permission was denied. Allow it in your browser settings, then retry."
+      : kind === "disconnected"
+        ? "The microphone disappeared or is busy (another app, or it was unplugged)."
+        : "This browser doesn't support live captions. Use Chrome, Edge or Safari.";
+  return (
+    <div className="flex flex-col gap-2 border-b bg-destructive/15 px-4 py-3 text-sm">
+      <div className="flex items-start justify-between gap-2">
+        <p>{text}</p>
+        <button onClick={onClose} aria-label="Dismiss"><X className="h-4 w-4" /></button>
+      </div>
+      {kind !== "unsupported" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={onRetry} className="rounded-full bg-primary px-4 py-2 font-semibold text-primary-foreground">Retry</button>
+          {mics.length > 1 && (
+            <select
+              value={micDeviceId() ?? ""}
+              onChange={(e) => { setMicDeviceId(e.target.value || null); onRetry(); }}
+              className="rounded-full bg-secondary px-3 py-2"
+              aria-label="Choose microphone"
+            >
+              <option value="">Default microphone</option>
+              {mics.map((m) => <option key={m.deviceId} value={m.deviceId}>{m.label}</option>)}
+            </select>
+          )}
+        </div>
+      )}
     </div>
   );
 }
