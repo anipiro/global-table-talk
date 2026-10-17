@@ -76,7 +76,7 @@ function noteDrop(threshold: number) {
 
 /** Records ~2.5s of speech and returns the member's average speaking RMS (voice calibration). */
 export async function calibrateVoice(): Promise<number> {
-  const stream = await navigator.mediaDevices.getUserMedia(audioConstraints());
+  const stream = await openMic();
   try {
     const ctx = new AudioContext();
     const analyser = ctx.createAnalyser();
@@ -127,6 +127,20 @@ const audioConstraints = () => {
   const id = micDeviceId();
   return { audio: id ? { deviceId: { exact: id } } : true };
 };
+
+/** Opens the mic, falling back to the default device when the remembered one is gone. */
+async function openMic(): Promise<MediaStream> {
+  try {
+    return await navigator.mediaDevices.getUserMedia(audioConstraints());
+  } catch (e) {
+    const name = (e as { name?: string })?.name;
+    if (micDeviceId() && (name === "OverconstrainedError" || name === "NotFoundError")) {
+      setMicDeviceId(null); // remembered mic no longer exists — forget it and use the default
+      return navigator.mediaDevices.getUserMedia({ audio: true });
+    }
+    throw e;
+  }
+}
 
 /** Inserts a line through the atomic server-side arbitration (loudest phone wins).
  *  Returns the new line id, or null when another phone's line won and ours was dropped. */
