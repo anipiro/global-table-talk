@@ -12,6 +12,7 @@ export type Photo = T["photos"]["Row"];
 export type PhotoCaption = T["photo_captions"]["Row"];
 export type Card = T["cards"]["Row"];
 export type SpeakerCorrection = T["speaker_corrections"]["Row"];
+export type Media = T["media"]["Row"];
 
 export type Lang = "ka" | "en" | "ru";
 export type Role = "talk" | "follow" | "both";
