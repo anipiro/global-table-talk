@@ -223,6 +223,30 @@ function PhotoTakeover({ photo, captions, by, group }: { photo: Photo; captions:
   );
 }
 
+/** "🤝" note: the two members' avatars connect with a glowing line for 3 seconds. */
+function HandshakeOverlay({ msg, members }: { msg: AgentMessage; members: Member[] }) {
+  const byId = new Map(members.map((m) => [m.id, m]));
+  let a = msg.from_member_id ? byId.get(msg.from_member_id) : undefined;
+  let b = msg.to_member_id ? byId.get(msg.to_member_id) : undefined;
+  if (!a || !b) {
+    const hay = msg.content.toLowerCase();
+    const named = members.filter((m) => hay.includes(m.name.toLowerCase()));
+    a ??= named[0];
+    b ??= named.find((m) => m.id !== a?.id);
+  }
+  if (!a || !b) return null;
+  return (
+    <div className="animate-msg-in flex items-center gap-0 rounded-full bg-card/90 px-4 py-2 shadow-xl" role="status" aria-label={msg.content}>
+      <Avatar member={a} size={44} />
+      <span className="relative mx-1 h-1 w-16 overflow-visible rounded-full bg-primary shadow-[0_0_12px_3px] shadow-primary/70">
+        <span className="absolute inset-0 animate-ping rounded-full bg-primary/60" />
+      </span>
+      <Avatar member={b} size={44} />
+      <span className="ml-3 max-w-md truncate text-lg text-muted-foreground">{msg.content.replace(/^🤝\s*/, "")}</span>
+    </div>
+  );
+}
+
 function MediaTakeover({ media, by }: { media: Media; by?: string | undefined }) {
   return (
     <section className="animate-takeover flex min-h-0 flex-col gap-4 rounded-3xl bg-card p-6" aria-live="polite">
