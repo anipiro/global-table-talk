@@ -116,7 +116,7 @@ function RoomPage() {
       return;
     }
     if (!me!.can_speak) { toast("The host has muted your mic"); return; }
-    if (!micSupported(me!.language)) { toast.error("Live captions need Chrome, Edge or Safari."); return; }
+    if (!micSupported(me!.language as Lang)) { toast.error("Live captions need Chrome, Edge or Safari."); return; }
     try {
       await startMic(me!, setInterim, (m) => toast.error(m));
       setMicOn(true);

@@ -100,6 +100,7 @@ export async function startMic(
   }
 
   wanted = true;
+  const SR = (window as never)["SpeechRecognition"] || (window as never)["webkitSpeechRecognition"];
   rec = new (SR as new () => Rec)();
   rec.lang = SPEECH_LANG[member.language as Lang] ?? "en-US";
   rec.continuous = true;
