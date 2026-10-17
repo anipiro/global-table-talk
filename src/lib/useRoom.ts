@@ -15,6 +15,7 @@ function apply<R extends Row>(list: R[], p: { eventType: string; new: unknown; o
 }
 
 export function useRoom(code: string) {
+  // All hooks below are unconditional — keep it that way (no early returns above them).
   const [room, setRoom] = useState<Room | null | undefined>(undefined);
   const [members, setMembers] = useState<Member[]>([]);
   const [lines, setLines] = useState<Line[]>([]);
