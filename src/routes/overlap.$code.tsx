@@ -1,11 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Keyboard, Pause, Play, SkipBack, SkipForward, Undo2, Volume2, VolumeX, Headphones, HelpCircle, X } from "lucide-react";
+import { Download, Keyboard, Pause, Play, SkipBack, SkipForward, Undo2, Volume2, VolumeX, Headphones, HelpCircle, X } from "lucide-react";
 import { getMemberId, type Lang, type Line } from "@/lib/room";
 import { useRoom } from "@/lib/useRoom";
 import { findOverlaps } from "@/lib/crosstalk";
-import { activeAt, audibleLanes, schedule, scrubTarget } from "@/lib/overlap";
+import { activeAt, audibleLanes, schedule, scrubTarget, transcriptCsv, transcriptText, type ExportRow } from "@/lib/overlap";
 import { applyReassign, ReassignSheet } from "@/components/Reassign";
 import { undoCorrection } from "@/lib/speakers";
 
@@ -42,7 +42,7 @@ const SHORTCUTS: [string, string][] = [
 
 function OverlapPage() {
   const { code } = Route.useParams();
-  const { members, lines, corrections } = useRoom(code);
+  const { room, members, lines, corrections, translations } = useRoom(code);
   const me = members.find((m) => m.id === getMemberId(code));
   const lanes = useMemo(() => members.filter((m) => m.approved || lines.some((l) => l.speaker_id === m.id)), [members, lines]);
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
@@ -147,6 +147,23 @@ function OverlapPage() {
     const el = scroller.current;
     if (y < el.scrollTop + 40 || y > el.scrollTop + el.clientHeight - 120) el.scrollTo({ top: Math.max(0, y - 80), behavior: "smooth" });
   }, [pos, playing]);
+
+  function exportAs(kind: "csv" | "txt") {
+    const corrected = new Set(corrections.filter((c) => !c.undone_at).flatMap((c) => ((c.changes as { line_id: string }[]) ?? []).map((x) => x.line_id)));
+    const rows: ExportRow[] = plan.map(({ seg }) => {
+      const l = seg as Line;
+      const tr = me && l.language !== me.language ? translations.find((t) => t.line_id === l.id && t.language === me.language)?.text : undefined;
+      return { at: l.created_at, speaker: byId.get(l.speaker_id ?? "")?.name ?? "Someone", language: l.language, text: l.text, translation: tr,
+        unsure: l.ambiguous, overlap: overlaps.has(l.id), corrected: corrected.has(l.id) };
+    });
+    const body = kind === "csv" ? transcriptCsv(rows) : transcriptText(rows, fmtSec);
+    const blob = new Blob([kind === "csv" ? "\uFEFF" + body : body], { type: kind === "csv" ? "text/csv;charset=utf-8" : "text/plain;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `gamige-${room?.code ?? code}-transcript.${kind}`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
 
   const shown = plan.filter((p) => !onlyMixed || overlaps.has(p.seg.id) || p.seg.ambiguous);
   const height = (plan.length ? plan[plan.length - 1]!.at : 0) * PX_PER_MS + 160;
@@ -255,6 +272,11 @@ function OverlapPage() {
             </button>
           </div>
         )}
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+          <span className="font-semibold text-muted-foreground">Export transcript</span>
+          <button onClick={() => exportAs("csv")} disabled={!lines.length} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-1.5 disabled:opacity-40"><Download className="h-4 w-4" /> Spreadsheet (CSV)</button>
+          <button onClick={() => exportAs("txt")} disabled={!lines.length} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-1.5 disabled:opacity-40"><Download className="h-4 w-4" /> Text</button>
+        </div>
         <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Speaker corrections</h2>
         {!corrections.length && <p className="text-sm text-muted-foreground">None yet. Fixes you make show up here and can be undone.</p>}
         <ul className="flex flex-col gap-2">
