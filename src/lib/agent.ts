@@ -500,6 +500,21 @@ export async function describePhoto(photoId: string) {
   await call({ task: "describe", photoId });
 }
 
+/** Asks the agents to look for common ground between guests' facts. Call when a member is approved/joins
+ *  (pass their id) and once ~2 minutes after the room goes live (no id: checks every pair). Quiet on failure. */
+export async function findSharedGround(roomId: string, memberId?: string) {
+  try {
+    await call(memberId ? { task: "shared_ground", roomId, memberId } : { task: "shared_ground", roomId });
+  } catch (e) {
+    console.warn("shared ground", e);
+  }
+}
+
+/** Closes a poll once everyone voted or time ran out. Safe to call from every phone: only the first one settles. */
+export async function settlePoll(pollId: string) {
+  await call({ task: "settle_poll", pollId });
+}
+
 /** Writes everyone's recap, then asks for the "Tonight, painted" hero image without waiting for it:
  *  the illustration takes a while and arrives on the recap screen through realtime. */
 export async function generateRecap(roomId: string) {

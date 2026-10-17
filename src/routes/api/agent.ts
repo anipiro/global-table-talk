@@ -2,6 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { aiStream, db, LANG_NAME, MODELS, transcribeAudio } from "@/lib/ai.server";
 import { askJson, runAgentLoop } from "@/server/agentLoop";
 import { paintTonight } from "@/server/images";
+import { settlePoll } from "@/server/polls";
+import { findSharedGround } from "@/server/sharedGround";
 import { runHealth } from "@/server/health";
 
 const json = (body: unknown, status = 200) =>
@@ -49,7 +51,7 @@ async function handleTranscribe(request: Request) {
 
 async function handle(request: Request) {
   if ((request.headers.get("content-type") ?? "").includes("multipart/form-data")) return handleTranscribe(request);
-  const body = (await request.json()) as { task: string; lineId: string; memberId: string; photoId: string; roomId: string; images?: boolean };
+  const body = (await request.json()) as { task: string; lineId: string; memberId: string; photoId: string; roomId: string; pollId: string; images?: boolean };
   const supa = db();
   try {
     if (body.task === "translate") {
@@ -73,6 +75,14 @@ async function handle(request: Request) {
         });
       }
       return json({ ok: true, languages: targets, model: MODELS.translate });
+    }
+
+    if (body.task === "shared_ground") {
+      return json({ ok: true, ...(await findSharedGround(request, supa, askJson, body.roomId, body.memberId || undefined)) });
+    }
+
+    if (body.task === "settle_poll") {
+      return json({ ok: true, result: await settlePoll(supa, body.pollId) });
     }
 
     if (body.task === "paint") {

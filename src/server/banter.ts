@@ -29,7 +29,7 @@ export const persona = (m: Member) => `${VOICE[m.language] ?? VOICE["en"]}; ${RO
 
 // Hard bans, checked on the English version after the model's own check. Over-blocking is fine: if unsure, don't send.
 // Whole words; a trailing * means "any word starting with".
-const BANNED = new RegExp(
+export const BANNED = new RegExp(
   `\\b(${[
     "fat", "skinny", "weight", "diet*", "ugly", "bald", "wrinkl*", "old", "older", "age", "aging", "young",
     "money", "rich", "poor", "broke", "salar*", "debt*", "sick", "ill", "health*", "doctor*", "disease*", "drunk*",

@@ -2,6 +2,8 @@ import { aiStream, LANG_NAME, MODELS, type db } from "@/lib/ai.server";
 import { addPicture, type PictureResult } from "./media";
 import { addMeme, type MemeResult } from "./memes";
 import { BANTER_PREFIX, maybeBanter, type BanterResult } from "./banter";
+import { openPoll, type PollResult } from "./polls";
+import { SHARED_PREFIX } from "./sharedGround";
 
 /** Feature 1 — the agent loop. Runs once per new line (called after its translations are saved):
  *  1. free checks (is there a listener? cooldown? is the line worth a look?)
@@ -20,14 +22,14 @@ const NOTEBOOK_KIND: Partial<Record<Trigger, string>> = {
 };
 
 export type LoopResult = {
-  ok: true; trigger?: Trigger; skipped?: string; reused?: boolean; models?: string[]; picture?: PictureResult | "error" | undefined; meme?: MemeResult | "error"; banter?: BanterResult | "error";
+  ok: true; trigger?: Trigger; skipped?: string; reused?: boolean; models?: string[]; picture?: PictureResult | "error" | undefined; meme?: MemeResult | "error"; banter?: BanterResult | "error"; poll?: PollResult | "error";
 };
 
 async function inCooldown(supa: Supa, roomId: string) {
   const since = new Date(Date.now() - COOLDOWN_MS).toISOString();
   const { count } = await supa.from("agent_messages").select("id", { count: "exact", head: true })
     .eq("room_id", roomId).in("type", LOOP_TYPES).gte("created_at", since)
-    .not("content", "like", `${BANTER_PREFIX}%`); // banter never blocks a real exchange
+    .not("content", "like", `${BANTER_PREFIX}%`).not("content", "like", `${SHARED_PREFIX}%`); // banter/common ground never block a real exchange
   return (count ?? 0) > 0;
 }
 
@@ -95,17 +97,17 @@ async function loop(request: Request, supa: Supa, lineId: string): Promise<LoopR
 
   // 2. Cheap trigger check.
   const context = await recentLines(supa, roomId, members, 6);
-  const trig = await askJson<{ trigger?: Trigger; subject?: string; ask?: string }>(request, MODELS.trigger,
+  const trig = await askJson<{ trigger?: Trigger; subject?: string; ask?: string; proposal?: boolean }>(request, MODELS.trigger,
     `You watch a dinner-table conversation for the personal agents of guests who don't speak ${LANG_NAME[speaker.language]}.
 Decide if the LATEST line needs the agents' help. Be strict: most lines are "none".
 - unknown_name: a person (not at the table) the listeners can't know.
 - reference: culture, song, film, meme, place, event or custom a foreigner may not know.
 - visual: a place, dish or object that would be clearer as a picture.
 - joke: humour or wordplay that won't survive translation.
-- decision: the table just agreed on a plan.
+- decision: the table just agreed on a plan, or someone proposes or asks about one ("let's go to Kakheti on Sunday?").
 - missed: the speaker sounds lost ("what?", "I don't follow").
 People at the table (never unknown): ${members.map((m) => m.name).join(", ")}.
-JSON: {"trigger": "none|unknown_name|reference|visual|joke|decision|missed", "subject": "the name/thing, original spelling plus English in brackets if different", "ask": "max 12-word question, in English, from a listener's agent to ${speaker.name}'s agent"}`,
+JSON: {"trigger": "none|unknown_name|reference|visual|joke|decision|missed", "subject": "the name/thing, original spelling plus English in brackets if different", "ask": "max 12-word question, in English, from a listener's agent to ${speaker.name}'s agent", "proposal": true if decision is still a suggestion or question rather than settled, else false}`,
     `Last lines:\n${context}\n\nLATEST line (by ${speaker.name}): ${line.text}`);
   const trigger = trig?.trigger ?? "none";
   if (trigger === "none" || !(trigger in NOTEBOOK_KIND || ["decision", "missed", "joke"].includes(trigger))) {
@@ -124,6 +126,19 @@ JSON: {"trigger": "none|unknown_name|reference|visual|joke|decision|missed", "su
   if (trigger === "joke") return joke(request, supa, roomId, line.id, line.text, speaker, listeners, context);
   const subject = clip(trig?.subject, 8);
   if (!subject) return { ok: true, trigger: "none" };
+  if (trigger === "decision" && trig?.proposal) {
+    // Still a suggestion: the speaker's agent lets the table vote instead of writing it down.
+    try {
+      const poll = await openPoll(request, supa, askJson, {
+        roomId, lineId: line.id, line: line.text, creator: speaker, context,
+        langs: [...new Set(members.map((m) => m.language))],
+      });
+      return { ok: true, trigger, poll };
+    } catch (e) {
+      console.error("poll error", e);
+      return { ok: true, trigger, poll: "error" };
+    }
+  }
   if (trigger === "decision") return decision(request, supa, roomId, speaker, listeners, subject, context);
   return exchange(request, supa, roomId, line.id, trigger, speaker, listeners, subject, clip(trig?.ask, 15), context);
 }

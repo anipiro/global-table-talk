@@ -66,7 +66,10 @@ Microsoft Group Transcribe. Our difference is the agents and the belonging layer
 `rooms`, `members` (name, language ka|en|ru, role talk|follow|both, `facts`, `whisper_on`, color, approved,
 `voice_level`), `lines`, `translations`, `agent_messages` (from_member_id, to_member_id nullable,
 type ask|answer|note|missed|bridge, content), `notebook` (kind person|glossary|decision|moment, title, body,
-owner_member_id), `photos`, `photo_captions`, `cards` (member_id, kind context|catchup|recap), `invites`.
+owner_member_id), `photos`, `photo_captions`, `cards` (member_id, kind context|catchup|recap|shared), `invites`,
+`media`, `polls` (question_by_language, options `[{id, label_by_language}]` — back end adds `result_by_language` per
+option, status open|closed, closes_at, result_option_id, result_text_by_language, created_by_member_id, line_id),
+`poll_votes` (poll_id, member_id, option_id; one per member, upserted by the front).
 
 ## Credits budget (important)
 
@@ -150,6 +153,18 @@ looks lost: e.g., they asked "what?" or haven't spoken for a while).
      quality painterly illustration from the night's notebook topics, pictures and memes — no people, faces or text.
      Stored as `media` kind `reference_image`, query `tonight`, credit "AI illustration", no line/notebook link;
      the recap screen shows it as the hero image. Max one per room.
+8. **Shared Ground** (built, `src/server/sharedGround.ts`, task `shared_ground`, client `findSharedGround(roomId, memberId?)`)
+   — on join (pair the new member with everyone) and once ~2 min after the room goes live (all pairs), the agents compare
+   facts in ONE cheap-model call and report only genuine, specific overlaps (country/city lived in, sport/team, hobby,
+   profession, place visited). Bridges first (different languages, or a `follow` member). Share ONLY the overlap; never
+   health, money, relationships, religion, politics. Per overlap: a `shared` card to BOTH people in their language
+   (title "A & B" so the UI links both avatars) + a note starting with `🤝`. Max 1 per pair, max 2 per room.
+9. **Agent polls** (built, `src/server/polls.ts`) — a `decision` trigger that is still a proposal/question (trigger JSON
+   `proposal: true`) makes the speaker's agent open a 60 s poll (2–4 options, every room language; cheap model) + a
+   note. Max one open poll per room (a stale unsettled one is settled first). Front calls `settlePoll(pollId)` (task
+   `settle_poll`) when everyone voted or time's up; settling is idempotent (conditional close), needs no AI, writes the
+   result, a `decision` notebook entry owned by the poll creator, and "The agents settled it: … 🎉". Tie/no votes →
+   "No decision yet", note only, no notebook entry.
 7. **Stretch: AI Tamada toast** — at the end, the agents co-write a short Georgian-style toast about the people at
    the table, each agent contributing one line from its human's facts, merged into one toast per language.
 
