@@ -160,7 +160,7 @@ function startGeminiMic(member: Member, stream: MediaStream, getPeak: () => numb
       }
     };
     r.start();
-    chunkTimer = setTimeout(() => { if (r.state !== "inactive") r.stop(); }, 3000);
+    setTimeout(() => { if (r.state !== "inactive") r.stop(); }, 3000);
   };
 
   recordChunk();
