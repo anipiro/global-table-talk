@@ -153,7 +153,7 @@ function OverlapPage() {
     const rows: ExportRow[] = plan.map(({ seg }) => {
       const l = seg as Line;
       const tr = me && l.language !== me.language ? translations.find((t) => t.line_id === l.id && t.language === me.language)?.text : undefined;
-      return { at: l.created_at, speaker: byId.get(l.speaker_id ?? "")?.name ?? "Someone", language: l.language, text: l.text, translation: tr,
+      return { at: l.created_at, speaker: byId.get(l.speaker_id ?? "")?.name ?? "Unknown speaker", language: l.language, text: l.text, translation: tr,
         unsure: l.ambiguous, overlap: overlaps.has(l.id), corrected: corrected.has(l.id) };
     });
     const body = kind === "csv" ? transcriptCsv(rows) : transcriptText(rows, fmtSec);
@@ -282,7 +282,7 @@ function OverlapPage() {
         <ul className="flex flex-col gap-2">
           {[...corrections].reverse().map((c) => {
             const changes = (c.changes as { line_id: string; from_speaker_id: string | null }[]) ?? [];
-            const from = [...new Set(changes.map((x) => byId.get(x.from_speaker_id ?? "")?.name ?? "Someone"))].join(", ");
+            const from = [...new Set(changes.map((x) => byId.get(x.from_speaker_id ?? "")?.name ?? "Unknown speaker"))].join(", ");
             const first = lines.find((l) => l.id === c.line_id);
             return (
               <li key={c.id} className={`flex items-center gap-2 rounded-2xl bg-secondary p-2 text-sm ${c.undone_at ? "opacity-50" : ""}`}>
