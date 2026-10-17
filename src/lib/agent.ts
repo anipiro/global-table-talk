@@ -76,7 +76,7 @@ function noteDrop(threshold: number) {
 
 /** Records ~2.5s of speech and returns the member's average speaking RMS (voice calibration). */
 export async function calibrateVoice(): Promise<number> {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const stream = await navigator.mediaDevices.getUserMedia(audioConstraints());
   try {
     const ctx = new AudioContext();
     const analyser = ctx.createAnalyser();
@@ -161,7 +161,7 @@ export async function startMic(
   } else if (typeof MediaRecorder === "undefined" || !pickAudioMime()) {
     throw new Error("This browser can't record audio for transcription.");
   }
-  micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  micStream = await navigator.mediaDevices.getUserMedia(audioConstraints());
   audioCtx = new AudioContext();
   const analyser = audioCtx.createAnalyser();
   audioCtx.createMediaStreamSource(micStream).connect(analyser);
