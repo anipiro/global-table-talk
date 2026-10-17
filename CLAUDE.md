@@ -142,3 +142,8 @@ A **Replay demo** button re-inserts a scripted scene as a fallback if live audio
 - Respects rate limits and doesn't burn credits on silence.
 - No edits outside the back-end files listed above.
 - Tell the user in one short paragraph: what changed, how to test it, and anything the front needs from Lovable.
+- **Health check first.** After every back-end push, tell the user to open the preview and run the health check
+  before testing anything else: open `<preview-url>/api/agent?task=health` (or POST `{ "task": "health" }`). It makes
+  one tiny real call per model (trigger, translate, agent, recap) and returns `ok` plus model name, time and error for
+  each. Everything should say `"ok": true`; if not, fix that before any feature testing. Costs 4 tiny calls — once
+  per push, not in a loop.

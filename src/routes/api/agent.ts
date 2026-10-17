@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { aiStream, db, LANG_NAME, MODELS, transcribeAudio } from "@/lib/ai.server";
 import { runAgentLoop } from "@/server/agentLoop";
+import { runHealth } from "@/server/health";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -73,6 +74,10 @@ async function handle(request: Request) {
       return json({ ok: true, languages: targets, model: MODELS.translate });
     }
 
+    if (body.task === "health") {
+      return json(await runHealth(request));
+    }
+
     if (body.task === "agent") {
       return json(await runAgentLoop(request, supa, body.lineId));
     }
@@ -132,5 +137,12 @@ async function handle(request: Request) {
 }
 
 export const Route = createFileRoute("/api/agent")({
-  server: { handlers: { POST: ({ request }) => handle(request) } },
+  server: {
+    handlers: {
+      POST: ({ request }) => handle(request),
+      // Open /api/agent?task=health in a browser to check every AI model after a push.
+      GET: async ({ request }) =>
+        new URL(request.url).searchParams.get("task") === "health" ? json(await runHealth(request)) : json({ error: "Use POST" }, 405),
+    },
+  },
 });
