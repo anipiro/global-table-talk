@@ -20,6 +20,7 @@ import { Route as RecapCodeRouteImport } from './routes/recap.$code'
 import { Route as RoomCodeRouteImport } from './routes/room.$code'
 import { Route as TCodeRouteImport } from './routes/t.$code'
 import { Route as TestMicRouteImport } from './routes/test.mic'
+import { Route as TestSpeakersRouteImport } from './routes/test.speakers'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -76,6 +77,11 @@ const TestMicRoute = TestMicRouteImport.update({
   path: '/test/mic',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TestSpeakersRoute = TestSpeakersRouteImport.update({
+  id: '/test/speakers',
+  path: '/test/speakers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -89,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/room/$code': typeof RoomCodeRoute
   '/t/$code': typeof TCodeRoute
   '/test/mic': typeof TestMicRoute
+  '/test/speakers': typeof TestSpeakersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -102,6 +109,7 @@ export interface FileRoutesByTo {
   '/room/$code': typeof RoomCodeRoute
   '/t/$code': typeof TCodeRoute
   '/test/mic': typeof TestMicRoute
+  '/test/speakers': typeof TestSpeakersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   '/room/$code': typeof RoomCodeRoute
   '/t/$code': typeof TCodeRoute
   '/test/mic': typeof TestMicRoute
+  '/test/speakers': typeof TestSpeakersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -131,6 +140,7 @@ export interface FileRouteTypes {
     | '/room/$code'
     | '/t/$code'
     | '/test/mic'
+    | '/test/speakers'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -144,6 +154,7 @@ export interface FileRouteTypes {
     | '/room/$code'
     | '/t/$code'
     | '/test/mic'
+    | '/test/speakers'
   id:
     | '__root__'
     | '/'
@@ -157,6 +168,7 @@ export interface FileRouteTypes {
     | '/room/$code'
     | '/t/$code'
     | '/test/mic'
+    | '/test/speakers'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -171,6 +183,7 @@ export interface RootRouteChildren {
   RoomCodeRoute: typeof RoomCodeRoute
   TCodeRoute: typeof TCodeRoute
   TestMicRoute: typeof TestMicRoute
+  TestSpeakersRoute: typeof TestSpeakersRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -252,6 +265,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TestMicRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/test/speakers': {
+      id: '/test/speakers'
+      path: '/test/speakers'
+      fullPath: '/test/speakers'
+      preLoaderRoute: typeof TestSpeakersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -267,6 +287,7 @@ const rootRouteChildren: RootRouteChildren = {
   RoomCodeRoute: RoomCodeRoute,
   TCodeRoute: TCodeRoute,
   TestMicRoute: TestMicRoute,
+  TestSpeakersRoute: TestSpeakersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
