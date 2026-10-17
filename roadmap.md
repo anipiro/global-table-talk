@@ -50,3 +50,10 @@
 - [x] Realtime: automatic retry with backoff; catch up on agent messages missed while disconnected
 - [x] Presenter: pause/resume and speed for Replay demo
 - [x] Agents feed: keyboard navigation + screen-reader announcements (new messages, unread count, connection status)
+
+## Room UI restyle (Ani, 2026-10-17)
+- [x] Bubble feed: left/right lanes, original + divider + translation, active-speaker glow
+- [x] Discord-inspired polish: badges, header, icon tabs (kept warm obsidian + amber per project memory)
+- [x] Header: room code, live dot, member avatars + count
+- [x] Channel-style tab bar with icons
+- [ ] Keep mic/Gemini pipelines intact
