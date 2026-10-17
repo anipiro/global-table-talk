@@ -67,7 +67,7 @@ function SpeakerEvalPage() {
             {chart.map((r) => {
               const a = pct(r.correct, r.total);
               return (
-                <div key={r.id} title={`${new Date(r.created_at).toLocaleString()} · ${a}%`} className="flex flex-1 flex-col items-center justify-end gap-1">
+                <div key={r.id} title={`${new Date(r.created_at).toLocaleString()} · ${a}%`} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
                   <span className="text-[10px] text-muted-foreground">{a}</span>
                   <div className={`w-full rounded-t ${a === 100 ? "bg-primary" : "bg-destructive"}`} style={{ height: `${Math.max(4, a)}%` }} />
                 </div>

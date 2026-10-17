@@ -5,3 +5,5 @@
 - Room data loads and subscribes via `useRoom` in `src/lib/useRoom.ts`; screens never open their own realtime channels for room tables — why: one channel per room avoids leaks.
 - The photos bucket is private; display via signed URLs — why: workspace blocks public buckets.
 - Browser end-to-end regressions live in tests/e2e as Python Playwright unittest cases against the running app — why: the sandbox supplies Python Playwright and Chromium without extra project dependencies.
+- Speaker attribution is decided in the database: `insert_line` arbitrates only between lines whose words match (same utterance heard by two phones) and flags near-ties/blends as `ambiguous`; manual fixes go through `reassign_line` / `undo_speaker_correction`, which log to `speaker_corrections` — why: atomic, and real overlapping dialogue must never be deleted.
+- Labeled overlapping-speech samples live in `src/lib/speakerSamples.json`, shared by the /test/speakers report and tests/e2e/test_side_by_side.py — why: one source of truth for speaker accuracy.
