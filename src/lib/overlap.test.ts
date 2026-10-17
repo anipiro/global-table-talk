@@ -24,6 +24,9 @@ describe("schedule keeps relative timing", () => {
   it("speed 2 halves every offset", () => {
     expect(schedule(segs, 2).map((p) => p.at)).toEqual([0, 750, 3000]);
   });
+  it("shortens long silences but keeps overlap timing", () => {
+    expect(schedule(segs, 1, 3000).map((p) => p.at)).toEqual([0, 1500, 4500]);
+  });
   it("overlapping segments from two lanes are active at the same time", () => {
     expect([...activeAt(schedule(segs), 1600)].sort()).toEqual(["a", "b"]);
   });

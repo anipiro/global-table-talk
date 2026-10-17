@@ -8,13 +8,19 @@ export function audibleLanes(laneIds: string[], muted: Set<string>, solo: string
   return new Set(laneIds.filter((id) => !muted.has(id)));
 }
 
-/** Playback schedule: each segment starts at its real offset from the first segment (ms),
- *  so overlapping lanes keep their relative timing. Speed > 1 compresses time. */
-export function schedule(segs: Seg[], speed = 1): { seg: Seg; at: number }[] {
+/** Playback schedule: each segment starts at its real offset from the previous one (ms),
+ *  so overlapping lanes keep their relative timing. Silences longer than maxGapMs are shortened
+ *  to maxGapMs (nobody wants to wait through a quiet minute). Speed > 1 compresses time. */
+export function schedule(segs: Seg[], speed = 1, maxGapMs = Infinity): { seg: Seg; at: number }[] {
   const sorted = [...segs].sort((a, b) => (a.created_at < b.created_at ? -1 : 1));
-  if (!sorted.length) return [];
-  const t0 = Date.parse(sorted[0]!.created_at);
-  return sorted.map((seg) => ({ seg, at: (Date.parse(seg.created_at) - t0) / speed }));
+  let at = 0;
+  let prev: number | null = null;
+  return sorted.map((seg) => {
+    const t = Date.parse(seg.created_at);
+    if (prev !== null) at += Math.min(t - prev, maxGapMs) / speed;
+    prev = t;
+    return { seg, at };
+  });
 }
 
 /** Estimated spoken duration of a segment (for highlighting while it plays), in ms at speed 1. */
