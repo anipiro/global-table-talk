@@ -41,7 +41,7 @@ export function scrubTarget(plan: { at: number }[], pos: number, dir: 1 | -1): n
   return prev?.at ?? 0;
 }
 
-export type ExportRow = { at: string; speaker: string; language: string; text: string; translation?: string; unsure: boolean; overlap: boolean; corrected: boolean };
+export type ExportRow = { at: string; speaker: string; language: string; text: string; translation?: string | undefined; unsure: boolean; overlap: boolean; corrected: boolean };
 
 const csvCell = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
 
