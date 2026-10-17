@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Member, Room } from "@/lib/room";
 import { checkInvite, createInvite, inviteLink, revokeInvite, shareLink, type Invite } from "@/lib/invites";
 import { fmtTime } from "@/lib/useRoom";
+import { Button } from "@/components/ui/button";
 
 export function useInvites(roomId: string | undefined) {
   const [invites, setInvites] = useState<Invite[]>([]);
@@ -65,10 +66,28 @@ export function InvitePanel({ room, me }: { room: Room; me: Member }) {
 }
 
 export function GuestList({ room, members }: { room: Room; members: Member[] }) {
+  const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const pending = members.filter((m) => !m.approved);
   const seated = members.filter((m) => m.approved);
-  const update = (id: string, patch: Partial<Member>) => supabase.from("members").update(patch).eq("id", id);
-  const remove = (id: string) => supabase.from("members").delete().eq("id", id);
+  const change = async (id: string, patch?: Partial<Member>) => {
+    setBusyIds((ids) => new Set(ids).add(id));
+    try {
+      const query = patch ? supabase.from("members").update(patch) : supabase.from("members").delete();
+      // Query builders are lazy: awaiting is what actually sends the write.
+      const { data, error } = await query.eq("room_id", room.id).eq("id", id).select("id");
+      if (error) throw error;
+      if (!data?.length) throw new Error("Guest no longer found. Refresh and try again.");
+      toast.success(patch?.approved ? "Guest approved" : patch ? "Mic permission updated" : "Guest removed");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't update this guest. Try again.");
+    } finally {
+      setBusyIds((ids) => {
+        const next = new Set(ids);
+        next.delete(id);
+        return next;
+      });
+    }
+  };
   return (
     <section className="flex flex-col gap-3">
       <h3 className="text-lg font-semibold">Waiting to join {pending.length > 0 && <span className="text-primary">({pending.length})</span>}</h3>
@@ -80,8 +99,8 @@ export function GuestList({ room, members }: { room: Room; members: Member[] }) 
             <p className="text-lg font-medium">{m.name}</p>
             <p className="text-xs uppercase text-muted-foreground">{m.language} · {m.role}</p>
           </div>
-          <button className="rounded-full bg-primary px-4 py-2 font-semibold text-primary-foreground" onClick={() => update(m.id, { approved: true })}>Approve</button>
-          <button className="rounded-full border px-3 py-2" onClick={() => remove(m.id)}>Remove</button>
+          <Button disabled={busyIds.has(m.id)} className="h-auto rounded-full px-4 py-2 font-semibold" onClick={() => void change(m.id, { approved: true })}>{busyIds.has(m.id) ? "Saving…" : "Approve"}</Button>
+          <Button variant="outline" disabled={busyIds.has(m.id)} className="h-auto rounded-full px-3 py-2" onClick={() => void change(m.id)}>Remove</Button>
         </div>
       ))}
       <h3 className="mt-2 text-lg font-semibold">At the table</h3>
@@ -94,10 +113,10 @@ export function GuestList({ room, members }: { room: Room; members: Member[] }) 
           </div>
           {m.id !== room.host_member_id && (
             <>
-              <button className="rounded-full border px-3 py-2 text-sm" onClick={() => update(m.id, { can_speak: !m.can_speak })}>
+              <Button variant="outline" disabled={busyIds.has(m.id)} className="h-auto rounded-full px-3 py-2 text-sm" onClick={() => void change(m.id, { can_speak: !m.can_speak })}>
                 {m.can_speak ? "Mute" : "Allow mic"}
-              </button>
-              <button className="rounded-full border px-3 py-2 text-sm" onClick={() => remove(m.id)}>Remove</button>
+              </Button>
+              <Button variant="outline" disabled={busyIds.has(m.id)} className="h-auto rounded-full px-3 py-2 text-sm" onClick={() => void change(m.id)}>Remove</Button>
             </>
           )}
         </div>
