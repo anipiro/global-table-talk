@@ -43,6 +43,6 @@
 - [x] Diagnostics: capture-to-caption delay and speaker-attribution confidence per line, plus this phone’s keep/drop decisions
 - [x] "Unknown speaker" label for low-confidence lines (never credited to a silent member); fixable via reassign
 - [x] Correct the speaker on any caption (incl. "someone not at the table"); phones learn from corrections to improve future attribution
-- [ ] Agent collaboration showcase: Agents feed, Notebook sections, private card stack, catch-up sheet, whisper pill + iOS audio unlock, presenter view /t/:code/screen, scripted demo seed + Replay demo
-- [ ] Agents feed: loading, empty and connection-error states
-- [ ] Agents feed: unread marker + "new messages" pill when scrolled up; auto-scroll only when at the bottom
+- [x] Agent collaboration showcase: Agents feed, Notebook sections, private card stack, catch-up sheet, whisper pill + iOS audio unlock, presenter view /t/:code/screen, scripted demo seed + Replay demo
+- [x] Agents feed: loading, empty and connection-error states
+- [x] Agents feed: unread marker + "new messages" pill when scrolled up; auto-scroll only when at the bottom
