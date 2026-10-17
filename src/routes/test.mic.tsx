@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState } from "react";
-import { Mic, Square } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Mic, Square, PhoneOff, Ban, RotateCcw, Copy, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { pickAudioMime, transcribeChunk } from "@/lib/agent";
 import { Screen } from "@/components/JoinForm";
 import type { Lang } from "@/lib/room";
@@ -21,26 +22,82 @@ export const Route = createFileRoute("/test/mic")({
 });
 
 type ChunkResult = { n: number; text: string; language: string | null; ms: number; skipped?: boolean };
+type LogEntry = {
+  at: string; // ISO timestamp
+  event: "session" | "chunk" | "error" | "denied" | "interrupted" | "recovered" | "stopped";
+  detail: string;
+  pass?: boolean;
+};
+type Status = "idle" | "recording" | "interrupted" | "denied" | "error";
+
+const LOG_KEY = "gamige-mic-test-log";
+
+function deviceInfo() {
+  const ua = navigator.userAgent;
+  const safari = /^((?!chrome|android).)*safari/i.test(ua);
+  const iphone = /iPhone|iPad/.test(ua);
+  return `${iphone ? "iPhone/iPad" : "Desktop/other"} · ${safari ? "Safari" : "Chromium/other"} · ${ua.match(/OS [\d_]+|Chrome\/[\d.]+/)?.[0] ?? ""}`;
+}
 
 function MicTestPage() {
   const [lang, setLang] = useState<Lang>("ka");
-  const [recording, setRecording] = useState(false);
+  const [status, setStatus] = useState<Status>("idle");
   const [results, setResults] = useState<ChunkResult[]>([]);
   const [live, setLive] = useState("");
   const [error, setError] = useState("");
+  const [log, setLog] = useState<LogEntry[]>(() => {
+    try { return JSON.parse(localStorage.getItem(LOG_KEY) ?? "[]"); } catch { return []; }
+  });
   const stopRef = useRef<(() => void) | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const nRef = useRef(0);
+  const interruptedRef = useRef(false);
+
+  useEffect(() => {
+    localStorage.setItem(LOG_KEY, JSON.stringify(log.slice(-500)));
+  }, [log]);
+
+  function addLog(entry: Omit<LogEntry, "at">) {
+    setLog((l) => [...l, { ...entry, at: new Date().toISOString() }]);
+  }
 
   async function start() {
     setError("");
     setResults([]);
     setLive("");
     nRef.current = 0;
+    interruptedRef.current = false;
     const mime = pickAudioMime();
-    if (!mime) { setError("This browser can't record audio for transcription."); return; }
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    if (!mime) { setError("This browser can't record audio for transcription."); setStatus("error"); return; }
 
-    // RMS analyser for silence skipping
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      const name = (e as DOMException).name;
+      const msg = name === "NotAllowedError"
+        ? "Microphone permission denied. On iPhone: Settings → Safari → Microphone, then reload."
+        : `Mic unavailable: ${(e as Error).message}`;
+      setError(msg);
+      setStatus("denied");
+      addLog({ event: "denied", detail: msg, pass: false });
+      return;
+    }
+    streamRef.current = stream;
+    addLog({ event: "session", detail: `Started · ${deviceInfo()} · lang=${lang} · mime=${mime}` });
+
+    // Real interruption detection (phone call, Siri, another app grabbing the mic)
+    stream.getAudioTracks().forEach((t) => {
+      t.onended = () => {
+        if (stopRef.current && !interruptedRef.current) {
+          interruptedRef.current = true;
+          setStatus("interrupted");
+          setError("The microphone was taken away (phone call, Siri, or another app). Tap Resume to recover.");
+          addLog({ event: "interrupted", detail: "Audio track ended unexpectedly", pass: false });
+        }
+      };
+    });
+
     const ctx = new AudioContext();
     const analyser = ctx.createAnalyser();
     ctx.createMediaStreamSource(stream).connect(analyser);
@@ -68,6 +125,7 @@ function MicTestPage() {
         const loudness = Math.min(1, peak * 4);
         if (loudness < 0.05) {
           setResults((rs) => [...rs, { n, text: "", language: null, ms: 0, skipped: true }]);
+          addLog({ event: "chunk", detail: `Chunk ${n}: silent — skipped` });
           return;
         }
         const blob = new Blob(chunks, { type: mime });
@@ -78,9 +136,14 @@ function MicTestPage() {
           if (text.trim()) {
             setResults((rs) => [...rs, { n, text: text.trim(), language, ms }]);
             setLive((l) => (l + " " + text.trim()).trim());
+            addLog({ event: "chunk", detail: `Chunk ${n}: "${text.trim()}" · ${language ?? "?"} · ${(ms / 1000).toFixed(1)}s`, pass: true });
+          } else {
+            addLog({ event: "chunk", detail: `Chunk ${n}: empty transcript`, pass: false });
           }
         } catch (e) {
-          setError(e instanceof Error ? e.message : "Transcription failed");
+          const msg = e instanceof Error ? e.message : "Transcription failed";
+          setError(msg);
+          addLog({ event: "error", detail: `Chunk ${n}: ${msg}`, pass: false });
         }
       };
       r.start();
@@ -93,17 +156,64 @@ function MicTestPage() {
       stopped = true;
       sampling = false;
       clearInterval(interval);
-      stream.getTracks().forEach((t) => t.stop());
+      stream.getTracks().forEach((t) => { t.onended = null; t.stop(); });
+      streamRef.current = null;
       void ctx.close().catch(() => {});
     };
-    setRecording(true);
+    setStatus("recording");
   }
 
   function stop() {
     stopRef.current?.();
     stopRef.current = null;
-    setRecording(false);
+    setStatus("idle");
+    addLog({ event: "stopped", detail: "Stopped by user" });
   }
+
+  /** Simulates a phone-call interruption: kills the mic tracks mid-recording. */
+  function simulateInterruption() {
+    if (status !== "recording" || !streamRef.current) return;
+    interruptedRef.current = true;
+    streamRef.current.getAudioTracks().forEach((t) => { t.onended = null; t.stop(); });
+    streamRef.current = null;
+    setStatus("interrupted");
+    setError("Simulated interruption: the mic was taken away. Tap Resume to check recovery.");
+    addLog({ event: "interrupted", detail: "Simulated interruption (test control)", pass: false });
+  }
+
+  /** Simulates a fresh permission denial state (does not change real browser permission). */
+  function simulateDenial() {
+    stop();
+    setStatus("denied");
+    setError("Simulated denial: microphone permission was refused. On a real iPhone this needs Settings → Safari → Microphone.");
+    addLog({ event: "denied", detail: "Simulated denial (test control)", pass: false });
+  }
+
+  /** Recovery check: restart recording after an interruption; passes if a new chunk lands. */
+  async function resume() {
+    const before = nRef.current;
+    addLog({ event: "session", detail: "Recovery attempt after interruption" });
+    await start();
+    // recovery is confirmed by the next chunk log entries; mark after 12s
+    setTimeout(() => {
+      setNRefCheck(before);
+    }, 12000);
+  }
+  function setNRefCheck(before: number) {
+    const ok = nRef.current > before;
+    addLog({ event: "recovered", detail: ok ? "Chunks flowing again after interruption" : "No new chunks within 12s of resume", pass: ok });
+    if (!ok) setError("Recovery failed: no new chunks within 12 seconds. Reload the page and try again.");
+  }
+
+  async function copyLog() {
+    const text = log.map((e) => `${e.at}  ${e.event.toUpperCase()}${e.pass === undefined ? "" : e.pass ? " PASS" : " FAIL"}  ${e.detail}`).join("\n");
+    await navigator.clipboard.writeText(text);
+    toast.success("Test log copied");
+  }
+
+  const STATUS_LABEL: Record<Status, string> = {
+    idle: "Ready", recording: "Recording…", interrupted: "Interrupted", denied: "Mic denied", error: "Error",
+  };
 
   return (
     <Screen>
@@ -112,9 +222,17 @@ function MicTestPage() {
         Records 3-second chunks, sends them to Gemini Transcribe, and times each one. Silent chunks are skipped.
       </p>
 
-      <div className="mt-6 flex gap-2">
+      {/* status banner */}
+      <div className={`mt-4 rounded-2xl p-3 text-center font-semibold ${
+        status === "recording" ? "bg-primary/20 text-primary"
+        : status === "idle" ? "bg-secondary text-muted-foreground"
+        : "bg-destructive/20 text-destructive-foreground"}`}>
+        {STATUS_LABEL[status]}
+      </div>
+
+      <div className="mt-4 flex gap-2">
         {(["ka", "en", "ru"] as Lang[]).map((l) => (
-          <button key={l} onClick={() => setLang(l)} disabled={recording}
+          <button key={l} onClick={() => setLang(l)} disabled={status === "recording"}
             className={`flex-1 rounded-full py-3 font-semibold ${lang === l ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
             {l === "ka" ? "Georgian" : l === "en" ? "English" : "Russian"}
           </button>
@@ -122,11 +240,24 @@ function MicTestPage() {
       </div>
 
       <button
-        onClick={recording ? stop : start}
-        className={`mt-4 flex h-16 w-full items-center justify-center gap-2 rounded-full text-lg font-bold ${recording ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"}`}
+        onClick={status === "recording" ? stop : status === "interrupted" ? resume : start}
+        className={`mt-4 flex h-16 w-full items-center justify-center gap-2 rounded-full text-lg font-bold ${
+          status === "recording" ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"}`}
       >
-        {recording ? <><Square /> Stop</> : <><Mic /> Record</>}
+        {status === "recording" ? <><Square /> Stop</> : status === "interrupted" ? <><RotateCcw /> Resume</> : <><Mic /> Record</>}
       </button>
+
+      {/* failure-simulation controls */}
+      <div className="mt-4 flex gap-2">
+        <button onClick={simulateInterruption} disabled={status !== "recording"}
+          className="flex flex-1 items-center justify-center gap-2 rounded-full border border-destructive/50 py-3 text-sm font-semibold text-destructive-foreground disabled:opacity-40">
+          <PhoneOff className="h-4 w-4" /> Simulate call
+        </button>
+        <button onClick={simulateDenial}
+          className="flex flex-1 items-center justify-center gap-2 rounded-full border border-destructive/50 py-3 text-sm font-semibold text-destructive-foreground">
+          <Ban className="h-4 w-4" /> Simulate denial
+        </button>
+      </div>
 
       {error && <p className="mt-4 rounded-2xl bg-destructive/20 p-3 text-destructive-foreground">{error}</p>}
 
@@ -153,6 +284,32 @@ function MicTestPage() {
           ))}
         </ul>
       )}
+
+      {/* test run log */}
+      <section className="mt-8">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold">Run log</h2>
+          <div className="flex gap-2">
+            <button onClick={copyLog} aria-label="Copy log" className="rounded-full bg-secondary p-2"><Copy className="h-4 w-4" /></button>
+            <button onClick={() => { setLog([]); localStorage.removeItem(LOG_KEY); }} aria-label="Clear log" className="rounded-full bg-secondary p-2"><Trash2 className="h-4 w-4" /></button>
+          </div>
+        </div>
+        {log.length === 0 ? (
+          <p className="mt-2 text-muted-foreground">Sessions, chunks and recovery checks are logged here with device and browser.</p>
+        ) : (
+          <ul className="mt-2 flex max-h-72 flex-col gap-1 overflow-y-auto text-sm">
+            {[...log].reverse().map((e, i) => (
+              <li key={i} className="flex gap-2 rounded-xl bg-secondary/60 px-3 py-2">
+                <span className="shrink-0 text-muted-foreground">{new Date(e.at).toLocaleTimeString()}</span>
+                <span className={`shrink-0 font-semibold ${e.pass === false ? "text-destructive-foreground" : e.pass ? "text-primary" : "text-muted-foreground"}`}>
+                  {e.event}{e.pass === undefined ? "" : e.pass ? " ✓" : " ✗"}
+                </span>
+                <span className="break-all">{e.detail}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </Screen>
   );
 }
