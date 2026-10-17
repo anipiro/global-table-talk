@@ -18,7 +18,7 @@ import { NotebookSections, useIsNew } from "@/components/Notebook";
 import { CardStack } from "@/components/CardStack";
 import { renderBold } from "@/lib/richText";
 import { PhotoGrid, PhotoViewer } from "@/components/Photos";
-import { MediaCard, MediaViewer } from "@/components/Media";
+import { MediaCard, MediaViewer, mediaByLine } from "@/components/Media";
 import { isGroupPhoto, sharePhoto } from "@/lib/photos";
 import { LANGS } from "@/lib/room";
 
