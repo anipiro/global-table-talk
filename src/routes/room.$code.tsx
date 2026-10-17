@@ -337,17 +337,7 @@ function RoomPage() {
         </div>
       )}
 
-      <Feed lines={lines} byId={byId} textFor={textFor} interim={micOn ? interim : ""} me={me} onFix={setFixLine} />
-      {talking.length > 0 && (
-        <div className="flex flex-wrap gap-2 px-4 pb-2 text-sm" aria-live="polite">
-          {talking.map((id) => byId.get(id)).filter(Boolean).map((m) => (
-            <span key={m!.id} className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1">
-              <span className="h-2 w-2 animate-pulse rounded-full" style={{ background: m!.color }} />
-              {m!.id === me.id ? "You're" : `${m!.name} is`} talking…
-            </span>
-          ))}
-        </div>
-      )}
+      <Feed lines={lines} byId={byId} textFor={textFor} interim={micOn ? interim : ""} me={me} talking={talking} onFix={setFixLine} />
       {fixLine && <ReassignSheet line={fixLine} members={members} me={me} onClose={() => setFixLine(null)} />}
 
       {/* action row */}
