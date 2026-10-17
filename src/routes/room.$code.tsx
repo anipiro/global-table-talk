@@ -187,17 +187,35 @@ function RoomPage() {
     }
   }
 
+  if (recalibrating)
+    return (
+      <Screen>
+        <VoiceCalibration
+          name={me.name}
+          onDone={async (level) => {
+            setRecalibrating(false);
+            if (level) {
+              await supabase.from("members").update({ voice_level: level, voice_calibrated_at: new Date().toISOString(), voice_device: deviceLabel() }).eq("id", me.id);
+              toast.success("Voice calibrated — your phone will ignore quieter voices now");
+            }
+          }}
+        />
+      </Screen>
+    );
+
   return (
     <div className={`flex h-dvh flex-col ${big ? "text-[28px]" : "text-[20px]"}`}>
       {/* top bar */}
       <header className="z-20 flex items-center gap-2 border-b bg-background/95 px-3 py-3 text-base backdrop-blur">
         <button
-          onClick={toggleMic}
-          aria-label={micOn ? "Stop mic" : "Start mic"}
+          {...(holdMode
+            ? { onPointerDown: () => void micStart(), onPointerUp: () => void micStop(), onPointerLeave: () => micOn && void micStop() }
+            : { onClick: toggleMic })}
+          aria-label={micOn ? "Stop mic" : holdMode ? "Hold to talk" : "Start mic"}
           disabled={!me.can_speak}
           className={`flex h-14 w-14 items-center justify-center rounded-full transition ${micOn ? "bg-primary text-primary-foreground shadow-[0_0_0_6px] shadow-primary/25" : "bg-secondary"} disabled:opacity-40`}
         >
-          {micOn ? <Mic /> : <MicOff />}
+          {micOn ? <Mic /> : holdMode ? <Hand /> : <MicOff />}
         </button>
         <IconBtn
           label="Whisper in my headphones"
@@ -213,6 +231,33 @@ function RoomPage() {
           <Type />
         </IconBtn>
       </header>
+
+      {/* mic recovery states */}
+      {micIssue && (
+        <MicIssueBanner
+          kind={micIssue}
+          onRetry={() => void micStart()}
+          onClose={() => setMicIssue(null)}
+        />
+      )}
+      {!micIssue && needsRecalibration(me, deviceLabel()) && !recalibrating && (
+        <button onClick={recalibrate} className="flex items-center gap-2 border-b bg-secondary px-4 py-2 text-left text-sm">
+          <AudioLines className="h-4 w-4 shrink-0 text-primary" />
+          {me.voice_level ? "You seem to be on a different phone — recalibrate your voice" : "Calibrate your voice so your phone ignores the neighbours"}
+        </button>
+      )}
+
+      {/* debug overlay */}
+      {debugOn && (
+        <div className="pointer-events-none fixed bottom-40 left-3 z-40 rounded-2xl bg-background/90 p-3 font-mono text-xs shadow-lg backdrop-blur">
+          <p>RMS {debug.rms.toFixed(4)}</p>
+          <p>threshold {debug.threshold ? debug.threshold.toFixed(4) : "off"}</p>
+          <p>dropped {debug.dropped}</p>
+          <div className="mt-1 h-2 w-32 overflow-hidden rounded-full bg-secondary">
+            <div className={`h-full ${debug.threshold && debug.rms < debug.threshold ? "bg-destructive" : "bg-primary"}`} style={{ width: `${Math.min(100, debug.rms * 400)}%` }} />
+          </div>
+        </div>
+      )}
 
       {/* private cards */}
       <div className="pointer-events-none absolute inset-x-0 top-20 z-30 flex flex-col gap-2 px-3">
