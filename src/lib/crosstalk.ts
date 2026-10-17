@@ -123,3 +123,37 @@ export function cleanTranscript(text: string, lang: string): string {
   if (ownCount === 0 || foreign > ownCount) return "";
   return kept.replace(/\s+/g, " ").trim();
 }
+
+/** Lines below this attribution confidence are shown as "Unknown speaker" instead of a person's name. */
+export const KNOWN_SPEAKER_CONFIDENCE = 0.7;
+
+/** This member's own speaking level, learned from their recent confidently-attributed lines and kept within
+ *  0.5×–1.5× of their voice setup (so one bad setup can neither silence them nor let the room through). */
+export function ownVoiceRef(calibration: number | null | undefined, recentOwn: number[]): number | null {
+  if (recentOwn.length < 3) return calibration || null;
+  const s = [...recentOwn].sort((a, b) => a - b);
+  const p75 = s[Math.min(s.length - 1, Math.floor(s.length * 0.75))]!;
+  if (!calibration) return p75;
+  return Math.min(1.5 * calibration, Math.max(0.5 * calibration, p75));
+}
+
+/** Who said a chunk, from this phone's point of view.
+ *  - level vs the owner's own voice: someone across a crowded room is much quieter than the owner at 30cm;
+ *  - ownShare: how much of the speech this phone heard louder than the other phones at the table.
+ *  Very quiet chunks are dropped as room noise; uncertain ones become "Unknown speaker". */
+export function attribute(level: number, ref: number | null, ownShare: number): { confidence: number; decision: "keep" | "unknown" | "drop" } {
+  if (ref && level < 0.3 * ref) return { confidence: 0, decision: "drop" };
+  if (ownShare < OWN_SPEECH_SHARE) return { confidence: 0, decision: "drop" };
+  const levelScore = ref ? Math.min(1, level / (0.75 * ref)) : 1;
+  const shareScore = Math.min(1, ownShare / 0.8);
+  const confidence = Math.round(levelScore * shareScore * 100) / 100;
+  return { confidence, decision: confidence >= KNOWN_SPEAKER_CONFIDENCE ? "keep" : "unknown" };
+}
+
+/** Median and 90th percentile of a list (ms). */
+export function delayStats(xs: number[]): { median: number; p90: number } | null {
+  if (!xs.length) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  const at = (q: number) => s[Math.min(s.length - 1, Math.floor(q * s.length))]!;
+  return { median: at(0.5), p90: at(0.9) };
+}

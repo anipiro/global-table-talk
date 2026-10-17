@@ -154,3 +154,46 @@ describe("cleanTranscript", () => {
     expect(cleanTranscript("აბა რას შვებით?", "ka")).toBe("აბა რას შვებით?");
   });
 });
+
+import { attribute, delayStats, KNOWN_SPEAKER_CONFIDENCE, ownVoiceRef } from "./crosstalk";
+
+describe("ownVoiceRef", () => {
+  it("uses the voice setup until 3 own lines exist", () => {
+    expect(ownVoiceRef(0.15, [0.2, 0.2])).toBe(0.15);
+  });
+  it("learns from own lines, but never below half the setup (bad loud setup can't silence)", () => {
+    expect(ownVoiceRef(0.171, [0.06, 0.06, 0.06])).toBeCloseTo(0.0855);
+  });
+  it("never above 1.5x the setup", () => {
+    expect(ownVoiceRef(0.1, [0.4, 0.4, 0.4])).toBeCloseTo(0.15);
+  });
+});
+
+describe("attribute (crowded room)", () => {
+  it("credits the owner talking close to their phone", () => {
+    expect(attribute(0.19, 0.2, 1).decision).toBe("keep");
+  });
+  it("chatter from across the room (half the owner's level) becomes Unknown speaker, not the silent owner", () => {
+    const r = attribute(0.074, 0.2, 1);
+    expect(r.decision).toBe("unknown");
+    expect(r.confidence).toBeLessThan(KNOWN_SPEAKER_CONFIDENCE);
+  });
+  it("faint room noise is dropped", () => {
+    expect(attribute(0.04, 0.2, 1).decision).toBe("drop");
+  });
+  it("speech another table phone heard louder is dropped here", () => {
+    expect(attribute(0.2, 0.2, 0.2).decision).toBe("drop");
+  });
+  it("a chunk this phone only partly owned is unknown", () => {
+    expect(attribute(0.2, 0.2, 0.45).decision).toBe("unknown");
+  });
+  it("Unknown threshold is 0.7", () => {
+    expect(KNOWN_SPEAKER_CONFIDENCE).toBe(0.7);
+  });
+});
+
+describe("delayStats", () => {
+  it("median and p90", () => {
+    expect(delayStats([1000, 1200, 1400, 1600, 5000])).toEqual({ median: 1400, p90: 5000 });
+  });
+});
