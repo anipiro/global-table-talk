@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getMemberId, inviteUrl, type Lang, type Line, type Member } from "@/lib/room";
 import { fmtTime, useRoom, useSignedUrls, useWakeLock } from "@/lib/useRoom";
 import { describePhoto, deviceLabel, generateRecap, micSupported, playWhisper, requestCatchUp, setMicDebug, startMic, stopMic } from "@/lib/agent";
+import { classifyMicError, needsRecalibration } from "@/lib/crosstalk";
 import { VoiceCalibration } from "@/components/JoinForm";
 import { shareLink } from "@/lib/invites";
 import { GuestList, InvitePanel } from "@/components/HostControls";
@@ -119,21 +120,32 @@ function RoomPage() {
 
   const myCards = cards.filter((c) => c.member_id === me.id && c.kind !== "recap" && !dismissed.has(c.id));
 
-  async function toggleMic() {
-    if (micOn) {
-      await stopMic();
-      setMicOn(false);
-      setInterim("");
-      return;
-    }
+  async function micStart() {
     if (!me!.can_speak) { toast("The host has muted your mic"); return; }
-    if (!micSupported(me!.language as Lang)) { toast.error("Live captions need Chrome, Edge or Safari."); return; }
+    if (!micSupported(me!.language as Lang)) { setMicIssue("unsupported"); return; }
     try {
       await startMic(me!, setInterim, (m) => toast.error(m));
       setMicOn(true);
+      setMicIssue(null);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Mic unavailable");
+      const kind = classifyMicError(e);
+      setMicIssue(kind === "unknown" ? "disconnected" : kind);
     }
+  }
+
+  async function micStop() {
+    await stopMic();
+    setMicOn(false);
+    setInterim("");
+  }
+
+  async function toggleMic() {
+    if (micOn) return micStop();
+    return micStart();
+  }
+
+  async function recalibrate() {
+    setRecalibrating(true);
   }
 
   async function catchUp() {
