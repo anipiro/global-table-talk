@@ -479,6 +479,109 @@ export type Database = {
           },
         ]
       }
+      poll_votes: {
+        Row: {
+          created_at: string
+          id: string
+          member_id: string
+          option_id: string
+          poll_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          member_id: string
+          option_id: string
+          poll_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          member_id?: string
+          option_id?: string
+          poll_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poll_votes_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "poll_votes_poll_id_fkey"
+            columns: ["poll_id"]
+            isOneToOne: false
+            referencedRelation: "polls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      polls: {
+        Row: {
+          closes_at: string
+          created_at: string
+          created_by_member_id: string | null
+          id: string
+          line_id: string | null
+          options: Json
+          question_by_language: Json
+          result_option_id: string | null
+          result_text_by_language: Json | null
+          room_id: string
+          status: string
+        }
+        Insert: {
+          closes_at?: string
+          created_at?: string
+          created_by_member_id?: string | null
+          id?: string
+          line_id?: string | null
+          options?: Json
+          question_by_language?: Json
+          result_option_id?: string | null
+          result_text_by_language?: Json | null
+          room_id: string
+          status?: string
+        }
+        Update: {
+          closes_at?: string
+          created_at?: string
+          created_by_member_id?: string | null
+          id?: string
+          line_id?: string | null
+          options?: Json
+          question_by_language?: Json
+          result_option_id?: string | null
+          result_text_by_language?: Json | null
+          room_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "polls_created_by_member_id_fkey"
+            columns: ["created_by_member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polls_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polls_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rooms: {
         Row: {
           code: string
