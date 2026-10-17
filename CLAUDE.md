@@ -153,6 +153,8 @@ looks lost: e.g., they asked "what?" or haven't spoken for a while).
      quality painterly illustration from the night's notebook topics, pictures and memes — no people, faces or text.
      Stored as `media` kind `reference_image`, query `tonight`, credit "AI illustration", no line/notebook link;
      the recap screen shows it as the hero image. Max one per room.
+7. **Stretch: AI Tamada toast** — at the end, the agents co-write a short Georgian-style toast about the people at
+   the table, each agent contributing one line from its human's facts, merged into one toast per language.
 8. **Shared Ground** (built, `src/server/sharedGround.ts`, task `shared_ground`, client `findSharedGround(roomId, memberId?)`)
    — on join (pair the new member with everyone) and once ~2 min after the room goes live (all pairs), the agents compare
    facts in ONE cheap-model call and report only genuine, specific overlaps (country/city lived in, sport/team, hobby,
@@ -165,8 +167,6 @@ looks lost: e.g., they asked "what?" or haven't spoken for a while).
    `settle_poll`) when everyone voted or time's up; settling is idempotent (conditional close), needs no AI, writes the
    result, a `decision` notebook entry owned by the poll creator, and "The agents settled it: … 🎉". Tie/no votes →
    "No decision yet", note only, no notebook entry.
-7. **Stretch: AI Tamada toast** — at the end, the agents co-write a short Georgian-style toast about the people at
-   the table, each agent contributing one line from its human's facts, merged into one toast per language.
 
 ## Demo the build must support
 
