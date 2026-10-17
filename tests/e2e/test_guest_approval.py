@@ -67,7 +67,7 @@ class GuestApprovalTest(unittest.IsolatedAsyncioTestCase):
                 await guest.screenshot(path=str(screenshots / "4_live_after_refresh.png"))
 
                 # Remove only the guest this test created.
-                await host.get_by_role("button", name="Guests", exact=True).click()
+                await host.get_by_role("button", name="guests", exact=True).click()
                 await host.get_by_role("button", name="Remove", exact=True).click()
                 await guest.get_by_role("heading", name="You're not at this table", exact=True).wait_for()
             finally:
