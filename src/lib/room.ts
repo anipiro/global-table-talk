@@ -95,8 +95,10 @@ export async function seedDemo(): Promise<Room> {
   setMemberId(room.code, you.id);
   // Scripted scene, spaced 20s apart in the recent past, in script order.
   const t0 = Date.now() - DEMO_SCRIPT.length * 20_000;
+  let lastLine: string | null = null;
   for (let i = 0; i < DEMO_SCRIPT.length; i++) {
-    await insertStep(room.id, DEMO_SCRIPT[i]!, { ka: nika, en: you }, new Date(t0 + i * 20_000).toISOString());
+    const id = await insertStep(room.id, DEMO_SCRIPT[i]!, { ka: nika, en: you }, new Date(t0 + i * 20_000).toISOString(), lastLine);
+    if (id) lastLine = id;
   }
   return room;
 }

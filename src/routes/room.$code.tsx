@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Mic, MicOff, Headphones, Sparkles, Type, Camera, ImagePlus, History, Share2, Rows3, HelpCircle, Moon, X, ChevronUp, ChevronDown, Hand, Activity, AudioLines, BookOpen, MessagesSquare, Image as ImageIcon, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { getMemberId, inviteUrl, type Lang, type Line, type Member } from "@/lib/room";
+import { getMemberId, inviteUrl, type Lang, type Line, type Media, type Member } from "@/lib/room";
 import { fmtTime, useRoom, useSignedUrls, useWakeLock } from "@/lib/useRoom";
 import { learnCorrection, loadLearning, unlockAudio, watchTalking, describePhoto, deviceLabel, generateRecap, listMics, micDeviceId, micSupported, playWhisper, requestCatchUp, setMicDebug, setMicDeviceId, startMic, stopMic } from "@/lib/agent";
 import { classifyMicError, needsRecalibration } from "@/lib/crosstalk";
@@ -14,10 +14,11 @@ import { Screen } from "@/components/JoinForm";
 import { ReassignSheet } from "@/components/Reassign";
 import { Diagnostics } from "@/components/Diagnostics";
 import { AgentFeed } from "@/components/AgentFeed";
-import { NotebookSections } from "@/components/Notebook";
+import { NotebookSections, useIsNew } from "@/components/Notebook";
 import { CardStack } from "@/components/CardStack";
 import { renderBold } from "@/lib/richText";
 import { PhotoGrid, PhotoViewer } from "@/components/Photos";
+import { MediaCard, MediaViewer, mediaByLine } from "@/components/Media";
 import { isGroupPhoto, sharePhoto } from "@/lib/photos";
 import { LANGS } from "@/lib/room";
 
@@ -53,6 +54,7 @@ function RoomPage() {
   const [big, setBigState] = useState(() => localStorage.getItem("gamige-big-text") === "1");
   const setBig = (v: boolean) => { setBigState(v); localStorage.setItem("gamige-big-text", v ? "1" : "0"); };
   const [viewPhoto, setViewPhoto] = useState<string | null>(null);
+  const [viewMedia, setViewMedia] = useState<string | null>(null);
   const [micOn, setMicOn] = useState(false);
   const [micIssue, setMicIssue] = useState<"denied" | "disconnected" | "unsupported" | null>(null);
   const [holdMode, setHoldMode] = useState(() => localStorage.getItem("gamige-hold-to-talk") === "1");
@@ -356,7 +358,8 @@ function RoomPage() {
         </div>
       )}
 
-      <Feed lines={lines} byId={byId} textFor={textFor} interim={micOn ? interim : ""} me={me} talking={talking} onFix={setFixLine} />
+      <Feed lines={lines} byId={byId} textFor={textFor} interim={micOn ? interim : ""} me={me} talking={talking} onFix={setFixLine}
+        media={media} lang={me.language} onOpenMedia={setViewMedia} />
       {fixLine && <ReassignSheet line={fixLine} members={members} me={me} onClose={() => setFixLine(null)} />}
 
       {/* action row */}
@@ -453,6 +456,9 @@ function RoomPage() {
       {viewPhoto && photos.find((p) => p.id === viewPhoto) && (
         <PhotoViewer photo={photos.find((p) => p.id === viewPhoto)!} captions={captions} lang={me.language} byId={byId} onClose={() => setViewPhoto(null)} />
       )}
+      {viewMedia && media.find((m) => m.id === viewMedia) && (
+        <MediaViewer media={media.find((m) => m.id === viewMedia)!} lang={me.language} by={byId.get(media.find((m) => m.id === viewMedia)!.created_by_member_id ?? "")} onClose={() => setViewMedia(null)} />
+      )}
     </div>
   );
 }
@@ -505,15 +511,20 @@ function IconBtn({ children, label, active, onClick }: { children: React.ReactNo
 
 /** Chat-bubble caption feed: other people's lines sit on the left, mine on the right. Each bubble shows
  *  the original spoken text on top, a subtle divider, and the translation in my language underneath. */
-function Feed({ lines, byId, textFor, interim, me, talking, onFix }: {
+function Feed({ lines, byId, textFor, interim, me, talking, onFix, media, lang, onOpenMedia }: {
   lines: Line[]; byId: Map<string, Member>; textFor: (l: Line) => string | null; interim: string; me: Member; talking: string[]; onFix: (l: Line) => void;
+  media: Media[]; lang: string; onOpenMedia: (id: string) => void;
 }) {
+  const isNewMedia = useIsNew(media);
+  // Pictures an agent fetched for something someone said, keyed by the line that triggered them.
+  const byLine = useMemo(() => mediaByLine(media), [media]);
+
   const ref = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
   const [showOrig, setShowOrig] = useState<Set<string>>(new Set());
   useEffect(() => {
     if (atBottom) ref.current?.scrollTo({ top: ref.current.scrollHeight, behavior: "smooth" });
-  }, [lines.length, interim, atBottom]);
+  }, [lines.length, media.length, interim, atBottom]);
   return (
     <div className="relative flex-1 overflow-hidden">
       <div ref={ref} onScroll={(e) => { const el = e.currentTarget; setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 60); }}
@@ -573,6 +584,11 @@ function Feed({ lines, byId, textFor, interim, me, talking, onFix }: {
                     {pending && <p className="mt-1 text-[0.55em] text-muted-foreground">translating…</p>}
                     {tr && showOrig.has(l.id) && <p className="mt-1 text-[0.55em] text-muted-foreground">original · tap for translation</p>}
                   </button>
+                  {(byLine.get(l.id) ?? []).map((m) => (
+                    <div key={m.id} className={`mt-2 w-full ${isNewMedia(m.id) ? "animate-glow rounded-2xl" : ""}`}>
+                      <MediaCard media={m} lang={lang} onOpen={() => onOpenMedia(m.id)} />
+                    </div>
+                  ))}
                 </div>
               </li>
             );
