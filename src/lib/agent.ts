@@ -104,23 +104,26 @@ export async function calibrateVoice(): Promise<number> {
   }
 }
 
-/** Loudest phone wins: if another member's phone captured a line in the last 2s, keep only the relatively louder one. */
-async function arbitrateLine(member: Member, lineId: string, loudness: number) {
-  const since = new Date(Date.now() - ARBITRATION_WINDOW_MS).toISOString();
-  const { data: others } = await supabase
-    .from("lines").select("id, speaker_id, loudness").eq("room_id", member.room_id)
-    .neq("speaker_id", member.id).gte("created_at", since);
-  if (!others?.length) return;
-  const { data: members } = await supabase.from("members").select("id, voice_level").eq("room_id", member.room_id);
-  for (const o of others) {
-    const otherLevel = members?.find((m) => m.id === o.speaker_id)?.voice_level;
-    const verdict = arbitrate(
-      { loudness, voiceLevel: member.voice_level },
-      { loudness: o.loudness, voiceLevel: otherLevel },
-    );
-    if (verdict === "keep-mine") await supabase.from("lines").delete().eq("id", o.id);
-    else { await supabase.from("lines").delete().eq("id", lineId); return; }
-  }
+/** Short device label stored with voice calibration; a change flags recalibration. */
+export function deviceLabel(): string {
+  const ua = navigator.userAgent;
+  const iphone = /iPhone|iPad/.test(ua);
+  const safari = /^((?!chrome|android).)*safari/i.test(ua);
+  return `${iphone ? "iPhone/iPad" : /Android/.test(ua) ? "Android" : "Desktop"} · ${safari ? "Safari" : "Chromium"}`;
+}
+
+/** Inserts a line through the atomic server-side arbitration (loudest phone wins).
+ *  Returns the new line id, or null when another phone's line won and ours was dropped. */
+async function insertLine(member: Member, text: string, loudness: number): Promise<string | null> {
+  const { data, error } = await supabase.rpc("insert_line", {
+    p_room_id: member.room_id,
+    p_speaker_id: member.id,
+    p_text: text,
+    p_language: member.language,
+    p_loudness: loudness,
+  });
+  if (error) throw error;
+  return data;
 }
 
 export const micSupported = (lang?: Lang) =>
@@ -185,14 +188,12 @@ export async function startMic(
         continue;
       }
       peak = 0;
-      const { data, error } = await supabase
-        .from("lines")
-        .insert({ room_id: member.room_id, speaker_id: member.id, text, language: member.language, loudness })
-        .select("id").single();
-      if (error) onError("Couldn't save what you said.");
-      else {
-        void arbitrateLine(member, data.id, loudness);
-        call({ task: "translate", lineId: data.id }).catch((err) => onError(err.message));
+      try {
+        const lineId = await insertLine(member, text, loudness);
+        if (!lineId) { noteDrop(threshold); continue; } // another phone's line won the arbitration
+        call({ task: "translate", lineId }).catch((err) => onError(err.message));
+      } catch {
+        onError("Couldn't save what you said.");
       }
     }
     onInterim(interim.trim());
@@ -230,14 +231,12 @@ function startGeminiMic(member: Member, stream: MediaStream, getPeak: () => numb
         const clean = text.trim();
         if (!clean) return;
         if (!keepByLanguage(language, member.language)) { noteDrop(chunkThreshold); return; } // detected a different language — the neighbour's voice
-        const { data, error } = await supabase
-          .from("lines")
-          .insert({ room_id: member.room_id, speaker_id: member.id, text: clean, language: member.language, loudness })
-          .select("id").single();
-        if (error) onError("Couldn't save what you said.");
-        else {
-          void arbitrateLine(member, data.id, loudness);
-          call({ task: "translate", lineId: data.id }).catch((err) => onError(err.message));
+        try {
+          const lineId = await insertLine(member, clean, loudness);
+          if (!lineId) { noteDrop(chunkThreshold); return; } // another phone's line won the arbitration
+          call({ task: "translate", lineId }).catch((err) => onError(err.message));
+        } catch {
+          onError("Couldn't save what you said.");
         }
       } catch (e) {
         onError(e instanceof Error ? e.message : "Transcription failed");
