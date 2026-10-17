@@ -267,8 +267,8 @@ function RoomPage() {
       {/* top bar */}
       <header className="z-20 border-b bg-background/95 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.75rem)] text-base backdrop-blur">
         {/* room identity row: code, who's here, live status */}
-        <div className="flex items-center gap-2 pb-2 text-sm">
-          <span className="font-display text-lg font-bold tracking-wide">Table {room.code}</span>
+        <div className="flex min-w-0 items-center gap-2 pb-2 text-sm">
+          <span className="shrink-0 font-display text-lg font-bold tracking-wide">Table {room.code}</span>
           <span className="flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-online" /> live
           </span>
@@ -361,7 +361,7 @@ function RoomPage() {
 
       {/* action row */}
       <div className="flex items-center gap-3 border-t px-3 py-2">
-      <div className="flex min-w-0 flex-1 flex-wrap gap-2 text-sm">
+      <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-2 overflow-x-auto text-sm [&>*]:shrink-0">
         <PhotoButtons onFile={(f) => void shareOne(f)} />
         <Link to="/history/$code" params={{ code }} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-2">
           <History className="h-4 w-4" /> History
@@ -531,20 +531,20 @@ function Feed({ lines, byId, textFor, interim, me, talking, onFix }: {
               <li key={l.id} className={`flex items-end gap-2 ${mine ? "flex-row-reverse" : ""}`}>
                 {/* avatar chip in the speaker's color; glows while they're talking */}
                 <span
-                  className={`relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-primary-foreground transition-shadow ${isTalking ? "animate-pulse" : ""}`}
+                  className={`relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-primary-foreground transition-shadow sm:h-9 sm:w-9 sm:text-sm ${isTalking ? "animate-pulse" : ""}`}
                   style={{ background: sp?.color ?? "var(--muted)", boxShadow: isTalking ? `0 0 0 3px ${sp!.color}55, 0 0 14px ${sp!.color}88` : undefined }}
                   aria-hidden
                 >
                   {(sp?.name ?? "?").slice(0, 1).toUpperCase()}
                 </span>
-                <div className={`flex min-w-0 max-w-[82%] flex-col ${mine ? "items-end" : "items-start"}`}>
+                <div className={`flex min-w-0 max-w-[85%] flex-col ${mine ? "items-end" : "items-start"}`}>
                   {l.ambiguous && (
                     <button onClick={() => onFix(l)} className="mb-1 flex items-center gap-1 rounded-full border border-primary/50 px-2 py-0.5 text-[0.55em] text-primary">
                       <HelpCircle className="h-3.5 w-3.5" /> Not sure who said this · tap to fix
                     </button>
                   )}
                   <button onClick={() => onFix(l)} aria-label={`Change speaker: ${sp?.name ?? "Unknown speaker"}`}
-                    className={`mb-0.5 flex items-center gap-1.5 px-1 text-left text-[0.6em] font-semibold ${sp ? "" : "italic text-muted-foreground"}`} style={{ color: sp?.color }}>
+                    className={`mb-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 px-1 text-left text-[0.6em] font-semibold ${sp ? "" : "italic text-muted-foreground"}`} style={{ color: sp?.color }}>
                     {sp?.name ?? "Unknown speaker"}{l.ambiguous ? "?" : ""}
                     {sp && (
                       <span className="rounded-full border border-border bg-secondary px-1.5 py-px text-[0.85em] font-medium text-muted-foreground">
