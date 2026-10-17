@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Mic, MicOff, Headphones, Sparkles, Type, Camera, ImagePlus, History, Share2, Rows3, HelpCircle, Moon, X, ChevronUp, ChevronDown, Hand, Activity, AudioLines, BookOpen, MessagesSquare, Image as ImageIcon, Users } from "lucide-react";
+import { Mic, MicOff, Headphones, Sparkles, Type, Camera, ImagePlus, History, Share2, Rows3, HelpCircle, Moon, X, ChevronUp, ChevronDown, Hand, Activity, AudioLines, BookOpen, MessagesSquare, Image as ImageIcon, Users, Flame } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getMemberId, inviteUrl, type Lang, type Line, type Media, type Member } from "@/lib/room";
 import { fmtTime, useRoom, useSignedUrls, useWakeLock } from "@/lib/useRoom";
@@ -9,7 +9,7 @@ import { learnCorrection, loadLearning, unlockAudio, watchTalking, describePhoto
 import { classifyMicError, needsRecalibration } from "@/lib/crosstalk";
 import { VoiceCalibration } from "@/components/JoinForm";
 import { shareLink } from "@/lib/invites";
-import { GuestList, InvitePanel } from "@/components/HostControls";
+import { GuestList, InvitePanel, RoastToggle } from "@/components/HostControls";
 import { Screen } from "@/components/JoinForm";
 import { ReassignSheet } from "@/components/Reassign";
 import { Diagnostics } from "@/components/Diagnostics";
@@ -18,7 +18,7 @@ import { NotebookSections, useIsNew } from "@/components/Notebook";
 import { CardStack } from "@/components/CardStack";
 import { renderBold } from "@/lib/richText";
 import { PhotoGrid, PhotoViewer } from "@/components/Photos";
-import { MediaCard, MediaViewer, mediaByLine } from "@/components/Media";
+import { AgentMediaSection, MediaCard, MediaViewer, mediaByLine } from "@/components/Media";
 import { isGroupPhoto, sharePhoto } from "@/lib/photos";
 import { LANGS } from "@/lib/room";
 
