@@ -78,6 +78,8 @@ export function GuestList({ room, members }: { room: Room; members: Member[] }) 
       if (error) throw error;
       if (!data?.length) throw new Error("Guest no longer found. Refresh and try again.");
       toast.success(patch?.approved ? "Guest approved" : patch ? "Mic permission updated" : "Guest removed");
+      // Newly seated guest: let the agents look for common ground with everyone (once per approval).
+      if (patch?.approved) void findSharedGround(room.id, id);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Couldn't update this guest. Try again.");
     } finally {

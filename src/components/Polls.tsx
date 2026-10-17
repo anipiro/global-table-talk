@@ -27,16 +27,7 @@ export async function votePoll(pollId: string, memberId: string, optionId: strin
   if (error) throw error;
 }
 
-/** Settle a poll through the backend. settlePoll lives in src/lib/agent.ts (teammate adds it);
- *  until it exists we log a TODO so the UI is complete and safe to ship. */
-export async function settlePoll(pollId: string) {
-  const mod = (await import("@/lib/agent")) as Record<string, unknown>;
-  if (typeof mod["settlePoll"] === "function") {
-    await (mod["settlePoll"] as (id: string) => Promise<void>)(pollId);
-  } else {
-    console.log("TODO: settlePoll not implemented yet in src/lib/agent.ts — would settle poll", pollId);
-  }
-}
+export { settlePoll } from "@/lib/agent";
 
 function useNow(intervalMs = 1000) {
   const [now, setNow] = useState(() => Date.now());
