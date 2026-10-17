@@ -11,3 +11,10 @@ describe("photo compression size", () => {
     expect(fitWithin(800, 600)).toEqual({ w: 800, h: 600 });
   });
 });
+
+import { nextBackoff } from "./useRoom";
+describe("reconnect backoff", () => {
+  it("doubles from 1s and caps at 30s", () => {
+    expect([0, 1, 2, 3, 4, 5, 9].map(nextBackoff)).toEqual([1000, 2000, 4000, 8000, 16000, 30000, 30000]);
+  });
+});
