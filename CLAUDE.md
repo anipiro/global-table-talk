@@ -41,10 +41,18 @@ Microsoft Group Transcribe. Our difference is the agents and the belonging layer
 ## Stack (what exists today)
 
 - TanStack Start app built by Lovable, Supabase (Lovable Cloud) with realtime on all tables, storage bucket `photos`.
-- AI: Lovable AI Gateway via the `aiStream()` helper in `src/lib/ai.server.ts` (Gemini models). We are NOT
-  switching to the Anthropic API (cost). Keep using the gateway.
-- Speech-to-text: English/Russian speakers use the browser Web Speech API; Georgian speakers record 3-second
-  chunks with MediaRecorder and send them to Gemini Transcribe (task `transcribe`).
+- AI: Lovable AI Gateway via the `aiStream()` helper in `src/lib/ai.server.ts`, on several gateway models picked
+  per call (`opts.model`). All model names live in the `MODELS` object at the top of `ai.server.ts` — swap there.
+  Reasoning is off on every call (OpenAI `reasoning_effort: "none"`, Google `thinking_budget: 0`, Anthropic no
+  `thinking`). Current models:
+  - trigger check (agent loop): `openai/gpt-6-luna`
+  - translate: `google/gemini-3.1-flash-lite`
+  - agent answers, catch-up, photo describe: `google/gemini-3.8-flash`
+  - recap and the tamada toast: `anthropic/claude-sonnet-5`
+  - fallback default: `openai/gpt-6-astra`
+  Anthropic models go through the gateway too — we are NOT calling the Anthropic API directly (cost).
+- Speech-to-text: English/Russian speakers use the browser Web Speech API; Georgian speakers record short
+  voice-activity chunks with MediaRecorder and send them to `google/gemini-3.5-transcribe` (task `transcribe`).
 - Crosstalk handling: language filter, per-member `voice_level` calibration, loudest-phone-wins, hold-to-talk mode.
 - Whisper: `playWhisper()` uses `window.speechSynthesis` (listener hears English/Russian, which iPhone voices support).
 

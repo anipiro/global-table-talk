@@ -1,4 +1,4 @@
-import { aiStream, LANG_NAME, type db } from "@/lib/ai.server";
+import { aiStream, LANG_NAME, MODELS, type db } from "@/lib/ai.server";
 
 /** Feature 1 — the agent loop. Runs once per new line (called after its translations are saved):
  *  1. free checks (is there a listener? cooldown? is the line worth a look?)
@@ -16,7 +16,7 @@ const NOTEBOOK_KIND: Partial<Record<Trigger, string>> = {
   unknown_name: "person", reference: "glossary", visual: "glossary", joke: "moment",
 };
 
-export type LoopResult = { ok: true; trigger?: Trigger; skipped?: string; reused?: boolean };
+export type LoopResult = { ok: true; trigger?: Trigger; skipped?: string; reused?: boolean; models?: string[] };
 
 async function inCooldown(supa: Supa, roomId: string) {
   const since = new Date(Date.now() - COOLDOWN_MS).toISOString();
@@ -40,8 +40,13 @@ function parseJson<T>(raw: string): T | null {
   try { return JSON.parse(m[0]) as T; } catch { return null; }
 }
 
-async function askJson<T>(request: Request, system: string, user: string) {
-  const r = aiStream(request, `${system}\nReply with one JSON object only, no other text.`, user);
+/** Models each request actually called, reported back in the response (keyed by request: safe under concurrency). */
+const used = new WeakMap<Request, string[]>();
+const noteModel = (request: Request, model: string) => used.set(request, [...(used.get(request) ?? []), model]);
+
+async function askJson<T>(request: Request, model: string, system: string, user: string) {
+  noteModel(request, model);
+  const r = aiStream(request, `${system}\nReply with one JSON object only, no other text.`, user, { model });
   return parseJson<T>(await r.text);
 }
 
@@ -64,6 +69,11 @@ async function recentLines(supa: Supa, roomId: string, members: Member[], limit:
 }
 
 export async function runAgentLoop(request: Request, supa: Supa, lineId: string): Promise<LoopResult> {
+  const res = await loop(request, supa, lineId);
+  return { ...res, models: used.get(request) ?? [] };
+}
+
+async function loop(request: Request, supa: Supa, lineId: string): Promise<LoopResult> {
   const { data: line } = await supa.from("lines").select("id, room_id, speaker_id, text, language").eq("id", lineId).single();
   if (!line?.speaker_id) return { ok: true, skipped: "no line" };
   const roomId = line.room_id;
@@ -79,7 +89,7 @@ export async function runAgentLoop(request: Request, supa: Supa, lineId: string)
 
   // 2. Cheap trigger check.
   const context = await recentLines(supa, roomId, members, 6);
-  const trig = await askJson<{ trigger?: Trigger; subject?: string; ask?: string }>(request,
+  const trig = await askJson<{ trigger?: Trigger; subject?: string; ask?: string }>(request, MODELS.trigger,
     `You watch a dinner-table conversation for the personal agents of guests who don't speak ${LANG_NAME[speaker.language]}.
 Decide if the LATEST line needs the agents' help. Be strict: most lines are "none".
 - unknown_name: a person (not at the table) the listeners can't know.
@@ -138,7 +148,7 @@ async function cardsFor(request: Request, supa: Supa, roomId: string, title: str
   if (langs.includes("en") && !out["en"]) out["en"] = englishBody;
   const todo = langs.filter((l) => !out[l]);
   if (todo.length) {
-    const tr = await askJson<Record<string, string>>(request,
+    const tr = await askJson<Record<string, string>>(request, MODELS.translate,
       "Translate a short dinner-table context note. Keep names; keep it warm and at most 2 sentences.",
       `Languages: ${todo.map((l) => `${l} (${LANG_NAME[l]})`).join(", ")}\nNote: ${englishBody}\nJSON: {"<code>": "<translation>"}`);
     for (const l of todo) if (tr?.[l]) out[l] = String(tr[l]);
@@ -180,7 +190,7 @@ async function exchange(
   });
 
   // 2. Speaker's agent answers from its human's facts + what was said.
-  const res = await askJson<{ known?: boolean; answer?: string; title?: string; body?: string; cards?: Record<string, string> }>(request,
+  const res = await askJson<{ known?: boolean; answer?: string; title?: string; body?: string; cards?: Record<string, string> }>(request, MODELS.agent,
     `You are ${speaker.name}'s personal agent at a dinner table: warm, brief, a bit witty, never condescending.
 ${asker.name}'s agent asked you about "${subject}".
 What ${speaker.name} told you about themselves: ${speaker.facts || "(nothing)"}
@@ -226,7 +236,7 @@ async function decision(
 ): Promise<LoopResult> {
   if (await findEntry(supa, roomId, subject)) return { ok: true, trigger: "decision", skipped: "already known", reused: true };
   const langs = [...new Set(listeners.map((m) => m.language))];
-  const res = await askJson<{ title?: string; body?: string; cards?: Record<string, string> }>(request,
+  const res = await askJson<{ title?: string; body?: string; cards?: Record<string, string> }>(request, MODELS.agent,
     `You are ${speaker.name}'s personal agent. The table just agreed on something. Record it plainly; don't invent details.
 JSON: {"title": "max 6 words, English", "body": "one sentence, English: who agreed to what, when", "cards": {${langs.map((l) => `"${l}": "one sentence in ${LANG_NAME[l]}"`).join(", ")}}}`,
     `Conversation:\n${context}\n\nDecision about: ${subject}`);
@@ -247,9 +257,10 @@ async function missed(request: Request, supa: Supa, roomId: string, lost: Member
   await supa.from("agent_messages").insert({
     room_id: roomId, from_member_id: lost.id, type: "missed", content: `${lost.name} looks lost — catching them up.`,
   });
+  noteModel(request, MODELS.agent);
   const r = aiStream(request,
     `You are ${lost.name}'s personal agent, whispering like a friend. In ${LANG_NAME[lost.language]}, max 2 short sentences: what is being talked about right now. No preamble.`,
-    `Conversation:\n${context}`);
+    `Conversation:\n${context}`, { model: MODELS.agent });
   const body = (await r.text).trim();
   if (body) await supa.from("cards").insert({ room_id: roomId, member_id: lost.id, kind: "context", title: "Right now", body });
   return { ok: true, trigger: "missed" };

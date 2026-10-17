@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { aiStream, db, LANG_NAME, transcribeAudio } from "@/lib/ai.server";
+import { aiStream, db, LANG_NAME, MODELS, transcribeAudio } from "@/lib/ai.server";
 import { runAgentLoop } from "@/server/agentLoop";
 
 const json = (body: unknown, status = 200) =>
@@ -38,7 +38,7 @@ async function handleTranscribe(request: Request) {
     if (!(file instanceof File)) return json({ error: "Missing audio file" }, 400);
     const hint = String(form.get("language") ?? "") || undefined;
     const { text, language } = await transcribeAudio(request, file, hint);
-    return json({ text, language: language ?? hint ?? null });
+    return json({ text, language: language ?? hint ?? null, model: MODELS.transcribe });
   } catch (e) {
     console.error("transcribe error", e);
     return aiError(e);
@@ -59,7 +59,8 @@ async function handle(request: Request) {
       await Promise.all(targets.map(async (lang) => {
         const r = aiStream(request,
           `You translate dinner-table speech from ${LANG_NAME[line.language]} to ${LANG_NAME[lang]}. Keep tone, names and toasts natural. Reply with the translation only.`,
-          `Recent conversation for context:\n${context}\n\nTranslate this line:\n${line.text}`);
+          `Recent conversation for context:\n${context}\n\nTranslate this line:\n${line.text}`,
+          { model: MODELS.translate });
         const text = (await r.text).trim();
         if (text) await supa.from("translations").insert({ line_id: line.id, language: lang, text });
       }));
@@ -69,7 +70,7 @@ async function handle(request: Request) {
           content: `Passed “${line.text.slice(0, 60)}” along in ${targets.map((l) => LANG_NAME[l]).join(", ")}.`,
         });
       }
-      return json({ ok: true, languages: targets });
+      return json({ ok: true, languages: targets, model: MODELS.translate });
     }
 
     if (body.task === "agent") {
@@ -84,10 +85,10 @@ async function handle(request: Request) {
       const r = aiStream(request,
         `You are ${me.name}'s personal agent at a dinner table. Write in ${LANG_NAME[me.language]}. In 3-5 short sentences, tell them what's being discussed right now and anything they may have missed. Be warm and concise. About them: ${me.facts}`,
         text || "Nobody has spoken yet.",
-        { onFinish: async (out) => {
+        { model: MODELS.catchup, onFinish: async (out) => {
           if (out.trim()) await supa.from("cards").insert({ room_id: me.room_id, member_id: me.id, kind: "catchup", title: "Catch-up", body: out.trim() });
         } });
-      return r.toTextStreamResponse();
+      return r.toTextStreamResponse({ headers: { "X-Gamige-Model": MODELS.catchup } });
     }
 
     if (body.task === "describe") {
@@ -100,13 +101,13 @@ async function handle(request: Request) {
       const r = aiStream(request,
         "You describe photos shared at a dinner table. For each requested language output exactly one line: CODE|short caption (max 8 words)|one-sentence description. No other text.",
         `Languages: ${langs.map((l) => `${l} (${LANG_NAME[l]})`).join(", ")}`,
-        { imageUrl: signed.signedUrl });
+        { model: MODELS.describe, imageUrl: signed.signedUrl });
       const out = await r.text;
       const rows = out.split("\n").map((l) => l.split("|").map((s) => s.trim()))
         .filter((p) => p.length >= 3 && langs.includes(p[0]!))
         .map((p) => ({ photo_id: photo.id, language: p[0]!, caption: p[1]!, description: p[2]! }));
       if (rows.length) await supa.from("photo_captions").insert(rows);
-      return json({ ok: true });
+      return json({ ok: true, model: MODELS.describe });
     }
 
     if (body.task === "recap") {
@@ -116,11 +117,12 @@ async function handle(request: Request) {
       await Promise.all(members.map(async (m) => {
         const r = aiStream(request,
           `You are ${m.name}'s personal agent. Write a warm recap of tonight's dinner in ${LANG_NAME[m.language]}: who was there, the best moments, words learned, and any plans made. 5-8 sentences. About them: ${m.facts}`,
-          `Guests: ${members.map((x) => x.name).join(", ")}\n\nNotebook:\n${notesText}\n\nConversation:\n${text}`);
+          `Guests: ${members.map((x) => x.name).join(", ")}\n\nNotebook:\n${notesText}\n\nConversation:\n${text}`,
+          { model: MODELS.recap });
         const out = (await r.text).trim();
         if (out) await supa.from("cards").insert({ room_id: body.roomId, member_id: m.id, kind: "recap", title: "Your night", body: out });
       }));
-      return json({ ok: true });
+      return json({ ok: true, model: MODELS.recap });
     }
     return json({ error: "Unknown task" }, 400);
   } catch (e) {
