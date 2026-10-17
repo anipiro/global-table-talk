@@ -147,6 +147,7 @@ export async function startMic(
   const analyser = audioCtx.createAnalyser();
   audioCtx.createMediaStreamSource(micStream).connect(analyser);
   const buf = new Float32Array(analyser.fftSize);
+  const threshold = member.voice_level ? VOICE_GATE * member.voice_level : 0;
   let peak = 0;
   const sample = () => {
     if (!audioCtx) return;
@@ -154,6 +155,7 @@ export async function startMic(
     const rms = Math.sqrt(buf.reduce((s, v) => s + v * v, 0) / buf.length);
     peak = Math.max(peak * 0.98, rms);
     lastPeak = peak;
+    debugCb?.({ rms: peak, threshold, dropped: droppedCount });
     requestAnimationFrame(sample);
   };
   sample();
@@ -177,13 +179,21 @@ export async function startMic(
       if (!r.isFinal) { interim += text + " "; continue; }
       if (!text) continue;
       const loudness = Math.min(1, peak * 4);
+      if (!keepByConfidence(r[0].confidence ?? 0) || !passesVoiceGate(peak, member.voice_level)) {
+        peak = 0;
+        noteDrop(threshold);
+        continue;
+      }
       peak = 0;
       const { data, error } = await supabase
         .from("lines")
         .insert({ room_id: member.room_id, speaker_id: member.id, text, language: member.language, loudness })
         .select("id").single();
       if (error) onError("Couldn't save what you said.");
-      else call({ task: "translate", lineId: data.id }).catch((err) => onError(err.message));
+      else {
+        void arbitrateLine(member, data.id, loudness);
+        call({ task: "translate", lineId: data.id }).catch((err) => onError(err.message));
+      }
     }
     onInterim(interim.trim());
   };
@@ -212,17 +222,23 @@ function startGeminiMic(member: Member, stream: MediaStream, getPeak: () => numb
       const loudness = Math.min(1, getPeak() * 4);
       if (!wanted || !chunks.length) return;
       if (loudness < SILENCE * 4) return; // silent chunk — skip the upload
+      const chunkThreshold = member.voice_level ? VOICE_GATE * member.voice_level : 0;
+      if (!passesVoiceGate(getPeak(), member.voice_level)) { noteDrop(chunkThreshold); return; } // too quiet vs my calibrated voice — crosstalk
       const blob = new Blob(chunks, { type: mime || "audio/webm" });
       try {
         const { text, language } = await transcribeChunk(blob, member.language as Lang);
         const clean = text.trim();
         if (!clean) return;
+        if (!keepByLanguage(language, member.language)) { noteDrop(chunkThreshold); return; } // detected a different language — the neighbour's voice
         const { data, error } = await supabase
           .from("lines")
-          .insert({ room_id: member.room_id, speaker_id: member.id, text: clean, language: language ?? member.language, loudness })
+          .insert({ room_id: member.room_id, speaker_id: member.id, text: clean, language: member.language, loudness })
           .select("id").single();
         if (error) onError("Couldn't save what you said.");
-        else call({ task: "translate", lineId: data.id }).catch((err) => onError(err.message));
+        else {
+          void arbitrateLine(member, data.id, loudness);
+          call({ task: "translate", lineId: data.id }).catch((err) => onError(err.message));
+        }
       } catch (e) {
         onError(e instanceof Error ? e.message : "Transcription failed");
       }
