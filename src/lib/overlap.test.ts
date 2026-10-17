@@ -3,7 +3,7 @@ import { activeAt, audibleLanes, schedule, scrubTarget } from "./overlap";
 
 const t = (ms: number) => new Date(Date.UTC(2026, 0, 1, 12, 0, 0) + ms).toISOString();
 const segs = [
-  { id: "a", speaker_id: "ani", created_at: t(0), text: "აბა რას შვებით" },
+  { id: "a", speaker_id: "ani", created_at: t(0), text: "აბა რას შვებით, რა ხდება" },
   { id: "b", speaker_id: "kato", created_at: t(1500), text: "კარგად ვარ" },
   { id: "c", speaker_id: "ani", created_at: t(6000), text: "ოკეი" },
 ];

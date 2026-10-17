@@ -92,19 +92,20 @@ class SideBySideTest(unittest.TestCase):
         with Table() as t:
             t.say("A", "ხელფასი გადმოვიდა", 0.06)
             t.say("B", "ხელფასი გადმოვიდა", 0.058)  # near-tie → A kept, flagged
-            t.say("A", "ღვინო ძალიან", 0.05)
-            t.say("B", "ღვინო ძალიან კარგი", 0.03)  # partial overlap? no — full match, A wins
+            t.say("A", "ღვინო ძალიან კარგია", 0.05)
+            t.say("B", "ღვინო ძალიან კარგი", 0.049)  # second near-tie a moment later → also A, flagged
             flagged = [l for l in t.lines() if l["ambiguous"]]
-            self.assertEqual(len(flagged), 1)
+            self.assertEqual(len(flagged), 2)
             cid = rpc("reassign_line", p_line_id=flagged[0]["id"], p_speaker_id=t.phone["B"])
             moved = {l["id"]: l for l in t.lines()}
-            self.assertEqual(moved[flagged[0]["id"]]["speaker_id"], t.phone["B"])
-            self.assertFalse(moved[flagged[0]["id"]]["ambiguous"])
-            self.assertEqual(rpc("undo_speaker_correction", p_correction_id=cid), 1)
+            for f in flagged:  # the correction carries over to the nearby unsure line too
+                self.assertEqual(moved[f["id"]]["speaker_id"], t.phone["B"])
+                self.assertFalse(moved[f["id"]]["ambiguous"])
+            self.assertEqual(rpc("undo_speaker_correction", p_correction_id=cid), 2)
             back = {l["id"]: l for l in t.lines()}
-            self.assertEqual(back[flagged[0]["id"]]["speaker_id"], t.phone["A"])
-            self.assertTrue(back[flagged[0]["id"]]["ambiguous"])
-
+            for f in flagged:
+                self.assertEqual(back[f["id"]]["speaker_id"], t.phone["A"])
+                self.assertTrue(back[f["id"]]["ambiguous"])
 
 if __name__ == "__main__":
     unittest.main()
