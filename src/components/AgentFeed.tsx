@@ -1,6 +1,21 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowDown, WifiOff } from "lucide-react";
-import type { AgentMessage, Member } from "@/lib/room";
+import { ArrowDown, Image as ImageIcon, WifiOff } from "lucide-react";
+import type { AgentMessage, Media, Member } from "@/lib/room";
+
+/** Banter lines from the agents always start with this (see src/server/banter.ts). */
+export const BANTER_PREFIX = "😄";
+
+/** Notes like "added a photo of X" / "turned Nika's joke into a meme" point at a media row — find it. */
+export function mediaForNote(m: AgentMessage, media: Media[]): Media | undefined {
+  if (m.type !== "note") return undefined;
+  const photo = /added a photo of (.+?)\.?\s*$/i.exec(m.content)?.[1]?.toLowerCase();
+  if (photo)
+    return media.find((x) => x.kind === "reference_image" && x.query.toLowerCase() === photo)
+      ?? media.find((x) => x.kind === "reference_image" && (x.query.toLowerCase().includes(photo) || photo.includes(x.query.toLowerCase())));
+  if (/turned .+ joke into a meme/i.test(m.content))
+    return [...media].reverse().find((x) => x.kind === "meme" && x.created_by_member_id === m.from_member_id);
+  return undefined;
+}
 
 const TYPE_CLASS: Record<string, string> = {
   ask: "text-type-ask border-type-ask/40 bg-type-ask/10",
