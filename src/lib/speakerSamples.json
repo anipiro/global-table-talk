@@ -1,0 +1,71 @@
+{
+  "voice_level": { "A": 0.1, "B": 0.1 },
+  "samples": [
+    {
+      "id": "a-speaks-b-overhears",
+      "label": "Ani speaks, Kato's phone overhears the same sentence",
+      "events": [
+        { "utt": 1, "phone": "A", "text": "ჩამიც მოიგონა რაღაც", "loudness": 0.09 },
+        { "utt": 1, "phone": "B", "text": "ჩამიც მოიგო რაღაცა", "loudness": 0.03 }
+      ],
+      "truth": { "1": "A" }
+    },
+    {
+      "id": "overhear-arrives-first",
+      "label": "Kato's phone posts the overheard copy before Ani's phone",
+      "events": [
+        { "utt": 1, "phone": "B", "text": "აბა რას შვებით, რა ხდება?", "loudness": 0.035 },
+        { "utt": 1, "phone": "A", "text": "აბა რას შვებით რა ხდება", "loudness": 0.1 }
+      ],
+      "truth": { "1": "A" }
+    },
+    {
+      "id": "b-speaks-a-overhears",
+      "label": "Kato speaks, Ani's phone overhears",
+      "events": [
+        { "utt": 1, "phone": "B", "text": "მაგრამ თუ დემოს ვუჩვენებთ", "loudness": 0.08 },
+        { "utt": 1, "phone": "A", "text": "მაგრამ თუ დემოს ვაჩვენებთ", "loudness": 0.04 }
+      ],
+      "truth": { "1": "B" }
+    },
+    {
+      "id": "overlapping-dialogue",
+      "label": "Both talk at once, different sentences",
+      "events": [
+        { "utt": 1, "phone": "A", "text": "როგორ ხარ დღეს", "loudness": 0.08 },
+        { "utt": 2, "phone": "B", "text": "კარგად ვარ მადლობა", "loudness": 0.07 }
+      ],
+      "truth": { "1": "A", "2": "B" }
+    },
+    {
+      "id": "overlap-with-echo",
+      "label": "Both talk at once and each phone also overhears the other",
+      "events": [
+        { "utt": 1, "phone": "A", "text": "ღვინო ძალიან კარგია", "loudness": 0.09 },
+        { "utt": 2, "phone": "B", "text": "ხინკალი მომაწოდე", "loudness": 0.085 },
+        { "utt": 2, "phone": "A", "text": "ხინკალი მომაწოდე", "loudness": 0.03 },
+        { "utt": 1, "phone": "B", "text": "ღვინო ძალიან კარგი", "loudness": 0.035 }
+      ],
+      "truth": { "1": "A", "2": "B" }
+    },
+    {
+      "id": "near-tie",
+      "label": "Same sentence, almost equally loud on both phones",
+      "events": [
+        { "utt": 1, "phone": "A", "text": "ხელფასი გადმოვიდა", "loudness": 0.06 },
+        { "utt": 1, "phone": "B", "text": "ხელფასი გადმოვიდა", "loudness": 0.058 }
+      ],
+      "truth": { "1": "A" },
+      "ambiguous": ["1"]
+    },
+    {
+      "id": "english-overlap",
+      "label": "English back-and-forth at the same moment",
+      "events": [
+        { "utt": 1, "phone": "A", "text": "How long has your family made wine?", "loudness": 0.08 },
+        { "utt": 2, "phone": "B", "text": "Since my grandfather was young.", "loudness": 0.08 }
+      ],
+      "truth": { "1": "A", "2": "B" }
+    }
+  ]
+}
