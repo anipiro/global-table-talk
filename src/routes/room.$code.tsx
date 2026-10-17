@@ -5,7 +5,7 @@ import { Mic, MicOff, Headphones, Sparkles, Type, Camera, ImagePlus, History, Sh
 import { supabase } from "@/integrations/supabase/client";
 import { getMemberId, inviteUrl, type Lang, type Line, type Media, type Member } from "@/lib/room";
 import { fmtTime, useRoom, useSignedUrls, useWakeLock } from "@/lib/useRoom";
-import { learnCorrection, loadLearning, unlockAudio, watchTalking, describePhoto, deviceLabel, generateRecap, listMics, micDeviceId, micSupported, playWhisper, requestCatchUp, setMicDebug, setMicDeviceId, startMic, stopMic } from "@/lib/agent";
+import { findSharedGround, learnCorrection, loadLearning, unlockAudio, watchTalking, describePhoto, deviceLabel, generateRecap, listMics, micDeviceId, micSupported, playWhisper, requestCatchUp, setMicDebug, setMicDeviceId, startMic, stopMic } from "@/lib/agent";
 import { classifyMicError, needsRecalibration } from "@/lib/crosstalk";
 import { VoiceCalibration } from "@/components/JoinForm";
 import { shareLink } from "@/lib/invites";
@@ -107,8 +107,15 @@ function RoomPage() {
     }
   }, [photos, data.status, meId, members]);
 
-  // Settle an open poll once everyone approved has voted or the countdown ended (once per poll per client).
+  // Settle an open poll once everyone approved has voted or the countdown ended (once per poll per phone).
   const settling = useRef<Set<string>>(new Set());
+  const [tick, setTick] = useState(0);
+  const hasOpenPoll = polls.some((p) => p.status === "open");
+  useEffect(() => {
+    if (!hasOpenPoll) return;
+    const t = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [hasOpenPoll]);
   useEffect(() => {
     const approved = members.filter((m) => m.approved);
     for (const p of polls) {
@@ -118,10 +125,25 @@ function RoomPage() {
       const expired = new Date(p.closes_at).getTime() <= Date.now();
       if (allVoted || expired) {
         settling.current.add(p.id);
-        void settlePoll(p.id);
+        settlePoll(p.id).catch((e) => console.warn("settle poll", e));
       }
     }
-  }, [polls, pollVotes, members]);
+  }, [polls, pollVotes, members, tick]);
+
+  // Shared Ground pass ~2 min after the room goes live — host's phone only, once per room.
+  useEffect(() => {
+    if (!isHost || !roomId || room?.status !== "live") return;
+    const key = `gamige-sg-${roomId}`;
+    const stored = localStorage.getItem(key);
+    if (stored === "done") return;
+    const liveAt = stored ? Number(stored) : Date.now();
+    if (!stored) localStorage.setItem(key, String(liveAt));
+    const t = setTimeout(() => {
+      localStorage.setItem(key, "done");
+      void findSharedGround(roomId);
+    }, Math.max(0, liveAt + 120_000 - Date.now()));
+    return () => clearTimeout(t);
+  }, [isHost, roomId, room?.status]);
 
   useEffect(() => {
     setMicDebug(debugOn ? setDebug : null);
@@ -477,7 +499,7 @@ function RoomPage() {
         </div>
         {sheetOpen && (
           <div className={`h-[calc(55dvh-3.5rem)] px-4 ${tab === "agents" ? "overflow-hidden pb-2" : "overflow-y-auto pb-6"}`}>
-            {tab === "notebook" && <NotebookSections entries={notebook} byId={byId} media={media} lang={me.language} polls={polls} />}
+            {tab === "notebook" && <NotebookSections entries={notebook} byId={byId} media={media} lang={me.language} polls={polls} pollVotes={pollVotes} agentMessages={agentMessages} myCards={cards.filter((c) => c.member_id === me.id && c.kind === "shared")} />}
             {tab === "agents" && <AgentFeed msgs={agentMessages} byId={byId} meId={me.id} status={data.status} retryIn={data.retryIn} onRetry={data.retry} media={media} onOpenMedia={setViewMedia} />}
             {tab === "photos" && (
               <>
