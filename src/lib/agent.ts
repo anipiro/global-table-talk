@@ -557,11 +557,11 @@ export async function settlePoll(pollId: string) {
   await call({ task: "settle_poll", pollId });
 }
 
-/** Writes everyone's recap, then asks for the "Tonight, painted" hero image without waiting for it:
+/** Starts the painting alongside everyone's recap without waiting for the image:
  *  the illustration takes a while and arrives on the recap screen through realtime. */
 export async function generateRecap(roomId: string) {
-  await call({ task: "recap", roomId });
   call({ task: "paint", roomId }).catch((e) => console.warn("paint", e));
+  await call({ task: "recap", roomId });
 }
 
 let audioUnlocked = false;

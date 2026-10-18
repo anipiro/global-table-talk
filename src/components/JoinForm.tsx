@@ -178,6 +178,6 @@ export function JoinForm({
   );
 }
 
-export function Screen({ children }: { children: React.ReactNode }) {
-  return <main className="screen-in mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pt-[max(env(safe-area-inset-top),2rem)] pb-[max(env(safe-area-inset-bottom),2rem)]">{children}</main>;
+export function Screen({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
+  return <main className={`screen-in mx-auto flex min-h-dvh w-full ${wide ? "max-w-md md:max-w-5xl" : "max-w-md"} flex-col px-5 pt-[max(env(safe-area-inset-top),2rem)] pb-[max(env(safe-area-inset-bottom),2rem)]`}>{children}</main>;
 }
