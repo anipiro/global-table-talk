@@ -72,11 +72,11 @@ function Recap() {
   }
 
   return (
-    <Screen>
-      <div ref={card} className="flex flex-col gap-5 rounded-lg border bg-card p-5">
+    <Screen wide>
+      <div ref={card} className="flex min-w-0 flex-col gap-5 rounded-lg border bg-card p-5 md:gap-6 md:p-8">
         {painting ? (
           <figure className="overflow-hidden rounded-md bg-secondary">
-            <img src={painting.url} crossOrigin="anonymous" alt={mediaCaption(painting, myLang) || "Tonight, painted"} className="aspect-[3/2] w-full object-cover" />
+            <img src={painting.url} crossOrigin="anonymous" alt={mediaCaption(painting, myLang) || "Tonight, painted"} className="aspect-[3/2] w-full object-cover md:max-h-[480px] md:object-contain" />
             <figcaption className="px-1 pb-1 pt-3">
               <p className="font-display text-[1.7rem] leading-none">{mediaCaption(painting, myLang)}</p>
               <p className="mt-1 text-xs text-muted-foreground">AI illustration</p>
@@ -84,7 +84,7 @@ function Recap() {
           </figure>
         ) : (
           <div role="status" className="relative overflow-hidden rounded-md bg-secondary">
-            <Shimmer className="aspect-[3/2] w-full rounded-none" />
+            <Shimmer className="aspect-[3/2] w-full rounded-none md:max-h-[480px]" />
             <p className="absolute inset-0 flex items-center justify-center gap-2 text-lg text-muted-foreground"><Sparkles className="size-5" aria-hidden /> Painting tonight…</p>
           </div>
         )}
@@ -94,7 +94,7 @@ function Recap() {
         </div>
         {group ? (
           <div className="overflow-hidden rounded-md bg-secondary">
-            {urls[group.storage_path] ? <img src={urls[group.storage_path]} crossOrigin="anonymous" alt="Group photo" className="w-full object-cover" /> : <Shimmer className="aspect-[4/3] w-full rounded-none" />}
+            {urls[group.storage_path] ? <img src={urls[group.storage_path]} crossOrigin="anonymous" alt="Group photo" className="w-full object-cover md:max-h-[400px] md:object-contain" /> : <Shimmer className="aspect-[4/3] w-full rounded-none md:max-h-[400px]" />}
           </div>
         ) : null}
         <ul className="flex flex-wrap gap-2" aria-label="Who was there">
@@ -112,7 +112,7 @@ function Recap() {
             <Shimmer className="mt-4 h-4 w-full" /><Shimmer className="mt-2 h-4 w-11/12" /><Shimmer className="mt-2 h-4 w-3/4" />
           </div>
         ) : (
-          story.map((c) => <p key={c.id} lang={members.find((m) => m.id === meId)?.language} className="whitespace-pre-wrap font-text text-[20px]">{renderBold(c.body)}</p>)
+          story.map((c) => <p key={c.id} lang={members.find((m) => m.id === meId)?.language} className="whitespace-pre-wrap break-words font-text text-[20px] leading-relaxed md:max-w-[70ch]">{renderBold(c.body)}</p>)
         )}
 
         {moments.length > 0 && (

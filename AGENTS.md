@@ -1,4 +1,5 @@
 # Gamige — technical rules
+- Start the paint request concurrently with recap writing, and await only recap text before leaving the room — why: painting uses existing notebook/media topics, so waiting for every recap adds unnecessary delay.
 - Caller-aborted AI requests return cancellation status 499 and never log runtime errors or retry — why: leaving the recap during painting is expected, not a screen-crashing failure.
 - Claude models use the gateway's native Messages provider in the shared streaming helper — why: the gateway rejects Claude requests on Chat Completions.
 - Shared Ground uses attributed recent speech and join facts through the existing cheap trigger/checker; unknown speakers and sensitive topics are excluded — why: spoken interests must be discoverable without checking every caption with an additional AI call.
