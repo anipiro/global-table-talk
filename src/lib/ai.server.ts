@@ -1,4 +1,5 @@
 import { createOpenAI } from "@ai-sdk/openai";
+import { createAnthropic } from "@ai-sdk/anthropic";
 import { streamText, type ModelMessage } from "ai";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
@@ -67,11 +68,11 @@ export function aiStream(
   const apiKey = process.env["LOVABLE_API_KEY"];
   if (!apiKey) throw new Error("AI is not configured");
   let runId = request.headers.get(RUN_ID) ?? undefined;
-  const provider = createOpenAI({
+  const providerOptions = {
     baseURL: GATEWAY,
     apiKey,
     headers: { "Lovable-API-Key": apiKey, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
-    fetch: async (input, init) => {
+    fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
       const h = new Headers(init?.headers);
       if (runId && !h.has(RUN_ID)) h.set(RUN_ID, runId);
       const original = init?.body ?? null;
@@ -88,7 +89,9 @@ export function aiStream(
       runId ??= res.headers.get(RUN_ID) ?? undefined;
       return res;
     },
-  });
+  };
+  const provider = createOpenAI(providerOptions);
+  const anthropic = model.startsWith("anthropic/") ? createAnthropic(providerOptions) : null;
   // ai@^7 rejects system-role messages (InvalidPromptError) — pass the system prompt as `instructions`.
   const messages: ModelMessage[] = [
     {
@@ -101,14 +104,15 @@ export function aiStream(
         : user,
     },
   ];
-  // Chat Completions works for every provider behind the gateway (the Responses API is OpenAI-only).
+  // Claude requires native Messages; other current providers use Chat Completions.
   return streamText({
-    model: provider.chat(model),
+    model: anthropic ? anthropic(model) : provider.chat(model),
+    ...(anthropic ? { maxOutputTokens: 16000, maxRetries: 0 } : {}),
     instructions: system,
     messages,
     onError: ({ error }) => console.error(`AI stream error (${model})`, error),
     abortSignal: request.signal,
-    ...(opts.onFinish ? { onFinish: ({ text }: { text: string }) => opts.onFinish!(text) } : {}),
+    ...(opts.onFinish ? { onFinish: ({ text }: { text: string }) => opts.onFinish?.(text) } : {}),
   });
 }
 

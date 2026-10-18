@@ -1,6 +1,7 @@
 # Gamige roadmap
-- [ ] Detect common ground from spoken shared interests, including shopping
-- [ ] Move Roast mode to Agents and expose Leave / host End the night actions
+- [x] Detect common ground from spoken shared interests, including shopping
+- [x] Move Roast mode to Agents and expose Leave / host End the night actions
+- [ ] Repair recap model request format and verify End the night flow
 - [x] Recap painting: newest tonight image, realtime placeholder, localized caption, PNG inclusion; hide from notebook references
 - [x] Agent-fetched pictures (media table) show inline in the live feed under the caption that triggered them, tappable to fullscreen; same fields the agent loop writes (line_id, kind, caption_by_language, credit); demo scene carries one scripted picture so Replay demo shows it
 - [x] App shell, database, realtime, screens, demo seed
