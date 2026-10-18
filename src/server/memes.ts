@@ -2,6 +2,7 @@ import { generateImage, IMAGE, LANG_NAME, MODELS, type db } from "@/lib/ai.serve
 import { NO_PEOPLE, storeGenerated } from "./images";
 import { BANNED } from "./banter";
 import { ROAST_MEME_CHANCE, ROAST_MEME_PREFIX, roastMemeAllowed, roastSlotId } from "./roastMemeBudget";
+import { isRequestCancellation } from "@/lib/request-cancellation";
 
 /** Feature 3 — joke translator memes. Called by the agent loop on the `joke` trigger:
  *  the speaker's agent explains what's funny, the listener's agent remakes it as a meme for their culture.
@@ -58,7 +59,7 @@ export async function addMeme(
   if (await inCooldown(supa, o.roomId)) return "cooldown";
   const { data: room, error: roomError } = await supa.from("rooms").select("roast_mode, status").eq("id", o.roomId).single();
   if (roomError || !room) return "cooldown";
-  if (room.roast_mode) return addPaintedRoast(request, supa, askJson, o);
+  if (room.roast_mode) return room.status === "live" ? addPaintedRoast(request, supa, askJson, o) : "cooldown";
 
   // 1. Speaker's agent: what's funny and why, in one line.
   const ex = await askJson<{ kind?: boolean; gist?: string; explanation?: string }>(request, MODELS.agent,
@@ -159,6 +160,10 @@ JSON: {"safe":true|false,"gist":"...","scene":"...","text":{${o.langs.map((l) =>
     await supa.from("agent_messages").update({ content: `${ROAST_MEME_PREFIX}${o.listener.name}'s agent turned the joke into a painted meme.` }).eq("id", id);
     return "added";
   } catch (e) {
+    if (isRequestCancellation(e, request.signal)) {
+      await supa.from("agent_messages").update({ content: `${ROAST_MEME_PREFIX}painting canceled.` }).eq("id", id);
+      return "cooldown";
+    }
     const status = (e as { statusCode?: number })?.statusCode;
     const paused = status === 402 || status === 403 || status === 404;
     await supa.from("agent_messages").update({ content: `${ROAST_MEME_PREFIX}${paused ? "[paused] " : ""}${e instanceof Error ? e.message.slice(0, 250) : "Painting stopped."}` }).eq("id", id);
