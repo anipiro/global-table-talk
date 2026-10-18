@@ -1,4 +1,6 @@
 # Gamige — technical rules
+- Painted roast memes reserve deterministic slots in existing agent notes before paid work; every phone competes for the same slots and failed attempts count — why: room-wide credit limits survive reloads and concurrent calls without schema changes.
+- Painted meme captions remain localized overlays on a single shared object-only illustration — why: one generation serves every guest and avoids expensive image lettering.
 - Start the paint request concurrently with recap writing, and await only recap text before leaving the room — why: painting uses existing notebook/media topics, so waiting for every recap adds unnecessary delay.
 - Caller-aborted AI requests return cancellation status 499 at both route and global request boundaries; clients treat 499 as cancellation and never log or retry canceled painting — why: leaving the recap during painting is expected, not a screen-crashing failure.
 - Claude models use the gateway's native Messages provider in the shared streaming helper — why: the gateway rejects Claude requests on Chat Completions.

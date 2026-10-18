@@ -1,4 +1,8 @@
-import { LANG_NAME, MODELS, type db } from "@/lib/ai.server";
+import { generateImage, IMAGE, LANG_NAME, MODELS, type db } from "@/lib/ai.server";
+import { NO_PEOPLE, storeGenerated } from "./images";
+import { BANNED } from "./banter";
+import { ROAST_MEME_CHANCE, ROAST_MEME_PREFIX, roastMemeAllowed, roastSlotId } from "./roastMemeBudget";
+import { isRequestCancellation } from "@/lib/request-cancellation";
 
 /** Feature 3 — joke translator memes. Called by the agent loop on the `joke` trigger:
  *  the speaker's agent explains what's funny, the listener's agent remakes it as a meme for their culture.
@@ -53,6 +57,9 @@ export async function addMeme(
   const { data: same } = await supa.from("media").select("id").eq("room_id", o.roomId).eq("kind", "meme").eq("line_id", o.lineId).limit(1);
   if (same?.length) return "reused";
   if (await inCooldown(supa, o.roomId)) return "cooldown";
+  const { data: room, error: roomError } = await supa.from("rooms").select("roast_mode, status").eq("id", o.roomId).single();
+  if (roomError || !room) return "cooldown";
+  if (room.roast_mode) return room.status === "live" ? addPaintedRoast(request, supa, askJson, o) : "cooldown";
 
   // 1. Speaker's agent: what's funny and why, in one line.
   const ex = await askJson<{ kind?: boolean; gist?: string; explanation?: string }>(request, MODELS.agent,
@@ -105,4 +112,61 @@ JSON: {"template_id": "<id>", "text": {${o.langs.map((l) => `"${l}": {"top": "..
     content: `${o.listener.name}'s agent turned ${o.speaker.name}'s joke into a meme.`,
   });
   return "added";
+}
+
+/** One image shared by every language; localized captions stay in the existing UI overlay. */
+async function addPaintedRoast(request: Request, supa: Supa, askJson: AskJson, o: Parameters<typeof addMeme>[3]): Promise<MemeResult> {
+  const { data: attempts, error } = await supa.from("agent_messages").select("created_at, content")
+    .eq("room_id", o.roomId).like("content", `${ROAST_MEME_PREFIX}%`);
+  if (error || !roastMemeAllowed(attempts ?? [], Date.now())) return "cooldown";
+  const { count, error: linesError } = await supa.from("lines").select("id", { count: "exact", head: true })
+    .eq("room_id", o.roomId).not("speaker_id", "is", null).gte("created_at", new Date(Date.now() - 60_000).toISOString());
+  if (linesError || (count ?? 0) < 4 || Math.random() >= ROAST_MEME_CHANCE) return "cooldown";
+  const id = await roastSlotId(o.roomId, (attempts ?? []).length);
+  const { error: claimError } = await supa.from("agent_messages").insert({
+    id, room_id: o.roomId, from_member_id: o.listener.id, type: "note", content: `${ROAST_MEME_PREFIX}the agents are painting a meme…`,
+  });
+  if (claimError) return "cooldown"; // includes primary-key collision: another phone won
+  try {
+    const plan = await askJson<{ safe?: boolean; gist?: string; scene?: string; text?: Record<string, { top?: string; bottom?: string }> }>(request, MODELS.banter,
+      `Make one kind painted roast meme about agents or a harmless situation from spoken conversation only. Never use private profile facts.
+Hard bans: appearance, weight, age, money, health, relationships, religion, politics, nationality stereotypes, real people's likenesses or copyrighted characters. If unsure set safe=false.
+Use a playful two-panel scene with objects or imaginary translator machines only; no people or lettering. English scene max 45 words, gist max 6 words.
+JSON: {"safe":true|false,"gist":"...","scene":"...","text":{${o.langs.map((l) => `"${l}":{"top":"max 8 words in ${LANG_NAME[l]}","bottom":"max 8 words"}`).join(",")}}}`,
+      `Spoken conversation:\n${o.context}\nJoke: ${o.joke}`);
+    const gist = memeLine(plan?.gist).slice(0, 80);
+    const scene = String(plan?.scene ?? "").trim().split(/\s+/).slice(0, 45).join(" ");
+    if (plan?.safe !== true || !gist || !scene || BANNED.test(`${gist} ${scene}`)) {
+      await supa.from("agent_messages").update({ content: `${ROAST_MEME_PREFIX}skipped — keeping it kind.` }).eq("id", id);
+      return "unkind";
+    }
+    const { data: prior, error: priorError } = await supa.from("media").select("query").eq("room_id", o.roomId).eq("kind", "meme");
+    if (priorError) throw new Error("Couldn't check existing memes");
+    if ((prior ?? []).some((m) => m.query.toLowerCase() === gist.toLowerCase())) {
+      await supa.from("agent_messages").update({ content: `${ROAST_MEME_PREFIX}reusing the table's earlier meme.` }).eq("id", id);
+      return "reused";
+    }
+    const caption_by_language: Record<string, string> = {};
+    for (const l of o.langs) {
+      const t = plan.text?.[l];
+      if (t?.top && t.bottom) caption_by_language[l] = `${memeLine(t.top)}\n${memeLine(t.bottom)}`;
+    }
+    if (!Object.keys(caption_by_language).length) throw new Error("No meme captions were generated");
+    const img = await generateImage(request, `Playful painted two-panel cartoon meme background, crisp expressive objects, clear bright composition. ${scene} ${NO_PEOPLE}`, IMAGE.meme);
+    const url = await storeGenerated(supa, o.roomId, img);
+    const { error: saveError } = await supa.from("media").insert({ room_id: o.roomId, line_id: o.lineId, kind: "meme", query: gist, url,
+      caption_by_language, credit: "AI illustration", created_by_member_id: o.listener.id });
+    if (saveError) throw new Error("Couldn't save the painted meme");
+    await supa.from("agent_messages").update({ content: `${ROAST_MEME_PREFIX}${o.listener.name}'s agent turned the joke into a painted meme.` }).eq("id", id);
+    return "added";
+  } catch (e) {
+    if (isRequestCancellation(e, request.signal)) {
+      await supa.from("agent_messages").update({ content: `${ROAST_MEME_PREFIX}painting canceled.` }).eq("id", id);
+      return "cooldown";
+    }
+    const status = (e as { statusCode?: number })?.statusCode;
+    const paused = status === 402 || status === 403 || status === 404;
+    await supa.from("agent_messages").update({ content: `${ROAST_MEME_PREFIX}${paused ? "[paused] " : ""}${e instanceof Error ? e.message.slice(0, 250) : "Painting stopped."}` }).eq("id", id);
+    throw e; // no retries; failed attempts also consume a slot
+  }
 }
