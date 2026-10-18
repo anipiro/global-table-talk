@@ -2,11 +2,13 @@ import { createStart, createCsrfMiddleware, createMiddleware } from "@tanstack/r
 
 import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
+import { cancellationResponse, isRequestCancellation } from "./lib/request-cancellation";
 
-const errorMiddleware = createMiddleware().server(async ({ next }) => {
+const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
   try {
     return await next();
   } catch (error) {
+    if (isRequestCancellation(error, request.signal)) return cancellationResponse();
     if (error != null && typeof error === "object" && "statusCode" in error) {
       throw error;
     }

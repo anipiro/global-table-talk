@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Lang, Member } from "./room";
+import { isRequestCancellation } from "./request-cancellation";
 import { attribute, cleanTranscript, isLoudestFrame, keepByConfidence, keepByLanguage, learnFromCorrection, ownVoiceRef, speakingLevel, type VoiceLearning } from "./crosstalk";
 
 /** Calls the agent server endpoint; throws with a readable message on failure. */
@@ -9,6 +10,7 @@ async function call(body: Record<string, string>) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+  if (res.status === 499) throw new DOMException("Request cancelled", "AbortError");
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "Agent unavailable" }));
     throw new Error(err.error ?? "Agent unavailable");
@@ -560,7 +562,9 @@ export async function settlePoll(pollId: string) {
 /** Starts the painting alongside everyone's recap without waiting for the image:
  *  the illustration takes a while and arrives on the recap screen through realtime. */
 export async function generateRecap(roomId: string) {
-  call({ task: "paint", roomId }).catch((e) => console.warn("paint", e));
+  call({ task: "paint", roomId }).catch((e) => {
+    if (!isRequestCancellation(e)) console.warn("paint", e);
+  });
   await call({ task: "recap", roomId });
 }
 
