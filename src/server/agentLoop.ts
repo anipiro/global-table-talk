@@ -3,7 +3,7 @@ import { addPicture, type PictureResult } from "./media";
 import { addMeme, type MemeResult } from "./memes";
 import { BANTER_PREFIX, maybeBanter, type BanterResult } from "./banter";
 import { openPoll, type PollResult } from "./polls";
-import { SHARED_PREFIX } from "./sharedGround";
+import { SHARED_PREFIX, findSharedGround, type SharedResult } from "./sharedGround";
 import { award, BADGE_PREFIX, firstWords, quietest } from "./badges";
 
 /** Feature 1 — the agent loop. Runs once per new line (called after its translations are saved):
@@ -13,7 +13,7 @@ import { award, BADGE_PREFIX, firstWords, quietest } from "./badges";
  *  Reuse first: if the notebook already has the subject, the listener's agent points to it instead. */
 
 type Supa = ReturnType<typeof db>;
-type Trigger = "none" | "unknown_name" | "reference" | "joke" | "decision" | "visual" | "missed";
+type Trigger = "none" | "unknown_name" | "reference" | "joke" | "decision" | "visual" | "missed" | "shared_ground";
 type Member = { id: string; name: string; language: string; facts: string; role: string };
 
 const COOLDOWN_MS = 15_000; // max one agent exchange per room every 15 s
@@ -23,7 +23,7 @@ const NOTEBOOK_KIND: Partial<Record<Trigger, string>> = {
 };
 
 export type LoopResult = {
-  ok: true; trigger?: Trigger; skipped?: string; reused?: boolean; models?: string[]; picture?: PictureResult | "error" | undefined; meme?: MemeResult | "error"; banter?: BanterResult | "error"; poll?: PollResult | "error"; wrote?: boolean; badges?: string[];
+  ok: true; trigger?: Trigger; skipped?: string; reused?: boolean; models?: string[]; picture?: PictureResult | "error" | undefined; meme?: MemeResult | "error"; banter?: BanterResult | "error"; poll?: PollResult | "error"; shared?: SharedResult; wrote?: boolean; badges?: string[];
 };
 
 async function inCooldown(supa: Supa, roomId: string) {
@@ -116,7 +116,7 @@ async function loop(request: Request, supa: Supa, lineId: string): Promise<LoopR
   if (!speaker) return { ok: true, skipped: "no speaker" };
   noteBadge(request, "first_words", await firstWords(supa, roomId, line.id, speaker, members).catch(() => false));
   const listeners = members.filter((m) => m.language !== speaker.language);
-  if (!listeners.length) return { ok: true, skipped: "no listener" };
+  if (members.length < 2) return { ok: true, skipped: "no listener" };
   if (!worthALook(line.text)) return { ok: true, skipped: "filler" };
   if (await inCooldown(supa, roomId)) return { ok: true, skipped: "cooldown" };
 
@@ -133,8 +133,9 @@ Decide if the LATEST line needs the agents' help. Be strict: most lines are "non
 - joke: humour or wordplay that won't survive translation.
 - decision: the table just agreed on a plan, or someone proposes or asks about one ("let's go to Kakheti on Sunday?").
 - missed: the speaker sounds lost ("what?", "I don't follow").
+- shared_ground: the latest line establishes a shared hobby or interest between identified people at this table (e.g. two people each say they like shopping). Use explicit speech only, no private or sensitive topics. This applies even when everyone speaks the same language.
 People at the table (never unknown): ${members.map((m) => m.name).join(", ")}.
-JSON: {"trigger": "none|unknown_name|reference|visual|joke|decision|missed", "subject": "the name/thing, original spelling plus English in brackets if different", "ask": "max 12-word question, in English, from a listener's agent to ${speaker.name}'s agent", "proposal": true if decision is still a suggestion or question rather than settled, else false,
+JSON: {"trigger": "none|unknown_name|reference|visual|joke|decision|missed|shared_ground", "subject": "the name/thing, original spelling plus English in brackets if different", "ask": "max 12-word question, in English, from a listener's agent to ${speaker.name}'s agent", "proposal": true if decision is still a suggestion or question rather than settled, else false,
  "bridge": true only if the latest line is a question addressed to ${quiet?.name ?? "nobody"} (the quietest person lately), else false,
  "new_word": "the word, if ${speaker.name} correctly used a word from ${otherLangs.join(" or ") || "another language"} (not a name), else empty"}`,
     `Last lines:\n${context}\n\nLATEST line (by ${speaker.name}): ${line.text}`);
@@ -142,6 +143,8 @@ JSON: {"trigger": "none|unknown_name|reference|visual|joke|decision|missed", "su
   const word = String(trig?.new_word ?? "").trim().split(/\s+/).slice(0, 3).join(" ");
   if (word) noteBadge(request, "new_word", await award(supa, roomId, speaker, members, "new_word", word));
   const trigger = trig?.trigger ?? "none";
+  if (trigger === "shared_ground") return { ok: true, trigger, shared: await findSharedGround(request, supa, askJson, roomId, speaker.id) };
+  if (!listeners.length) return { ok: true, skipped: "no listener" };
   if (trigger === "none" || !(trigger in NOTEBOOK_KIND || ["decision", "missed", "joke"].includes(trigger))) {
     // Nothing to explain: maybe an agent cracks a joke instead (rare, lively rooms only).
     try {

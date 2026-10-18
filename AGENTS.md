@@ -1,4 +1,6 @@
 # Gamige — technical rules
+- Shared Ground uses attributed recent speech and join facts through the existing cheap trigger/checker; unknown speakers and sensitive topics are excluded — why: spoken interests must be discoverable without checking every caption with an additional AI call.
+- Leaving disconnects this phone's mic, whisper and room subscription while retaining its member identity and historical rows — why: returning must preserve the seat and host ownership without deleting the night's records.
 - Recap painting selection and notebook exclusion share the media helpers in `src/components/Media.tsx` — why: both views must agree on which existing media rows represent the night's painting without extra AI calls or subscriptions.
 - Guests have no accounts; identity is a member id kept in localStorage per room code, and tables use open guest RLS policies — why: join-by-name was a product requirement.
 - All AI work goes through the single server route `src/routes/api/agent.ts` (task-based), with model helpers in `src/lib/ai.server.ts` — why: keeps the gateway key server-side and one place to change prompts.
