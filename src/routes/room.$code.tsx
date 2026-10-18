@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Mic, MicOff, Headphones, Type, ImagePlus, History, Share2, Rows3, HelpCircle, Moon, X, ChevronUp, Hand, AudioLines, BookOpen, MessagesSquare, Image as ImageIcon, Users, Activity, Ellipsis, ArrowDown, Flame } from "lucide-react";
+import { Mic, MicOff, Headphones, Type, ImagePlus, History, Share2, Rows3, HelpCircle, Moon, X, ChevronUp, Hand, AudioLines, BookOpen, MessagesSquare, Image as ImageIcon, Users, Activity, Ellipsis, ArrowDown, Flame, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getMemberId, inviteUrl, type Lang, type Line, type Media, type Member } from "@/lib/room";
 import { fmtTime, useRoom, useSignedUrls, useWakeLock } from "@/lib/useRoom";
@@ -25,6 +25,7 @@ import { LANGS } from "@/lib/room";
 import { Confetti, EveryonesIn, HarmonyRing, TableAvatar, useTableLife, useVoiceLevels } from "@/components/TableLife";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/room/$code")({
   ssr: false,
@@ -97,6 +98,7 @@ function RoomPage() {
   const [streaming, setStreaming] = useState<string | null>(null);
   const [catchDone, setCatchDone] = useState(false);
   const [ending, setEnding] = useState(false);
+  const [roomAction, setRoomAction] = useState<"leave" | "end" | null>(null);
   const groupInput = useRef<HTMLInputElement>(null);
 
   // "Nika shared a photo" for everyone else, with a button that opens it.
@@ -276,13 +278,16 @@ function RoomPage() {
   /** Host: group photo → upload → recap generation starts → room ends, so everyone moves to the Recap
    *  screen right away and sees it fill in as the agents finish writing. */
   async function endNight(file?: File) {
+    if (!room || !me || !isHost || ending) return;
+    setRoomAction(null);
     setEnding(true);
     const t = toast.loading(file ? "Saving the group photo…" : "Ending the night…");
     try {
       if (file) await sharePhoto(room!.id, me!.id, file, true);
       await stopMic();
       const recap = generateRecap(room!.id).catch(() => toast.error("The recap couldn't be written"));
-      await supabase.from("rooms").update({ status: "ended" }).eq("id", room!.id);
+      const { error } = await supabase.from("rooms").update({ status: "ended" }).eq("id", room.id);
+      if (error) throw error;
       toast.dismiss(t);
       nav({ to: "/recap/$code", params: { code } });
       await recap;
@@ -290,6 +295,14 @@ function RoomPage() {
       toast.error(e instanceof Error ? e.message : "Couldn't end the night", { id: t });
       setEnding(false);
     }
+  }
+
+  async function leaveTable() {
+    await stopMic();
+    window.speechSynthesis?.cancel();
+    setMicOn(false);
+    setRoomAction(null);
+    await nav({ to: "/" });
   }
 
   if (recalibrating)
@@ -319,7 +332,7 @@ function RoomPage() {
       {/* top bar */}
       <header className="z-20 px-4 pb-3 pt-[max(env(safe-area-inset-top),0.75rem)] text-base sm:px-6 sm:pt-5 lg:px-12">
         {/* room identity row: code, live status, who's here (the person talking bobs and gets a pulsing ring) */}
-        <div className="flex min-w-0 items-center gap-3 pb-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-3 pb-3">
           <h1 className="shrink-0 whitespace-nowrap font-display text-[34px] leading-none">Table {room.code}</h1>
           <span className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
             <span className="relative size-2.5" aria-hidden>
@@ -339,6 +352,10 @@ function RoomPage() {
             ))}
             <span className="ml-2.5 whitespace-nowrap text-sm font-semibold text-muted-foreground">{life.approved.length} here</span>
           </span>
+        </div>
+        <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+          {isHost && <Button variant="outline" size="sm" disabled={ending} onClick={() => setRoomAction("end")}><Moon className="size-4" />End the night</Button>}
+          <Button variant="outline" size="sm" onClick={() => setRoomAction("leave")}><LogOut className="size-4" />Leave</Button>
         </div>
         <div className="flex items-center gap-2">
           <IconBtn
@@ -478,7 +495,7 @@ function RoomPage() {
             {isHost && (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem disabled={ending} onSelect={() => groupInput.current?.click()} className="text-destructive focus:text-destructive">
+                <DropdownMenuItem disabled={ending} onSelect={() => setRoomAction("end")} className="text-destructive focus:text-destructive">
                   <Moon aria-hidden /> End the night
                 </DropdownMenuItem>
               </>
@@ -544,7 +561,10 @@ function RoomPage() {
               render={(t) => (
                 <>
                   {t === "notebook" && <NotebookSections entries={notebook} byId={byId} media={media} lang={me.language} polls={polls} pollVotes={pollVotes} agentMessages={agentMessages} myCards={cards.filter((c) => c.member_id === me.id && c.kind === "shared")} />}
-                  {t === "agents" && <AgentFeed msgs={agentMessages} byId={byId} meId={me.id} status={data.status} retryIn={data.retryIn} onRetry={data.retry} media={media} onOpenMedia={setViewMedia} levels={life.levels} />}
+                  {t === "agents" && <div className="flex h-full min-h-0 flex-col gap-3">
+                    {isHost && <div className="shrink-0"><RoastToggle room={room} /></div>}
+                    <div className="min-h-0 flex-1"><AgentFeed msgs={agentMessages} byId={byId} meId={me.id} status={data.status} retryIn={data.retryIn} onRetry={data.retry} media={media} onOpenMedia={setViewMedia} levels={life.levels} /></div>
+                  </div>}
                   {t === "photos" && (
                     <>
                       <PhotoGrid photos={photos} captions={captions} lang={me.language} onOpen={setViewPhoto} />
@@ -554,7 +574,6 @@ function RoomPage() {
                   {t === "diagnostics" && debugOn && <Diagnostics lines={lines} members={members} />}
                   {t === "guests" && isHost && (
                     <div className="flex flex-col gap-6 pt-2">
-                      <RoastToggle room={room} />
                       <GuestList room={room} members={members} />
                       <InvitePanel room={room} me={me} />
                     </div>
@@ -566,6 +585,19 @@ function RoomPage() {
         </SheetPanel>
       </section>
       </div>
+      <Dialog open={roomAction !== null} onOpenChange={(open) => { if (!open) setRoomAction(null); }}>
+        <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md">
+          <DialogTitle>{roomAction === "end" ? "End the night?" : "Leave this table?"}</DialogTitle>
+          <DialogDescription>{roomAction === "end" ? "Everyone will move to tonight’s memory card. You can add a group photo first." : "Your microphone and whisper audio will stop. The table stays open, and you can return to your seat on this phone."}</DialogDescription>
+          <div className="flex flex-col gap-2">
+            {roomAction === "end" ? <>
+              <Button disabled={ending} onClick={() => groupInput.current?.click()}><ImagePlus className="size-4" />Add group photo</Button>
+              <Button variant="destructive" disabled={ending} onClick={() => void endNight()}>End without photo</Button>
+            </> : <Button variant="destructive" onClick={() => void leaveTable()}><LogOut className="size-4" />Leave table</Button>}
+            <Button variant="outline" onClick={() => setRoomAction(null)}>Cancel</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       {viewPhoto && photos.find((p) => p.id === viewPhoto) && (
         <PhotoViewer photo={photos.find((p) => p.id === viewPhoto)!} captions={captions} lang={me.language} byId={byId} onClose={() => setViewPhoto(null)} />
       )}
