@@ -1,7 +1,7 @@
 # Gamige roadmap
 - [x] Detect common ground from spoken shared interests, including shopping
 - [x] Move Roast mode to Agents and expose Leave / host End the night actions
-- [ ] Repair recap model request format and verify End the night flow
+- [x] Repair recap model request format and verify End the night flow
 - [x] Recap painting: newest tonight image, realtime placeholder, localized caption, PNG inclusion; hide from notebook references
 - [x] Agent-fetched pictures (media table) show inline in the live feed under the caption that triggered them, tappable to fullscreen; same fields the agent loop writes (line_id, kind, caption_by_language, credit); demo scene carries one scripted picture so Replay demo shows it
 - [x] App shell, database, realtime, screens, demo seed
@@ -61,7 +61,7 @@
 - [x] Discord-inspired polish: badges, header, icon tabs (kept warm obsidian + amber per project memory)
 - [x] Header: room code, live dot, member avatars + count
 - [x] Channel-style tab bar with icons
-- [ ] Keep mic/Gemini pipelines intact
+- [x] Keep mic/Gemini pipelines intact
 
 - [x] Discord redesign: live room screen + stacked original/translation bubble feed (done 2026-10-17)
 - [x] Poll card: X button to dismiss it on this phone (stuck demo poll)
