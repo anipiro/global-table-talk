@@ -36,7 +36,7 @@ export function MediaCard({ media, lang, large = false, onOpen }: {
   const caption = mediaCaption(media, lang);
   const isMeme = media.kind === "meme";
   return (
-    <figure className={`overflow-hidden rounded-2xl bg-card ${large ? "" : "max-w-sm"}`}>
+    <figure className={`overflow-hidden rounded-lg bg-card ${large ? "" : "max-w-sm"}`}>
       <div className="relative">
         <img src={media.url} alt={caption || media.query} loading="lazy"
           className={`w-full ${isMeme ? "max-h-[70dvh] object-contain" : large ? "max-h-[70dvh] object-contain" : "aspect-[4/3] object-cover"} rounded-2xl`} />
@@ -59,7 +59,7 @@ export function MediaCard({ media, lang, large = false, onOpen }: {
       {!isMeme && (caption || media.credit) && (
         <figcaption className="p-3">
           {caption && <p className={large ? "text-2xl font-semibold" : "font-semibold"}>{caption}</p>}
-          {media.credit && <p className="mt-0.5 text-xs text-muted-foreground">{media.credit}</p>}
+          {media.credit && <p className="mt-0.5 text-sm text-muted-foreground">{media.credit}</p>}
         </figcaption>
       )}
     </figure>
@@ -73,7 +73,7 @@ export function AgentMediaSection({ media, lang, onOpen }: {
   if (!media.length) return null;
   return (
     <section className="mt-6">
-      <h3 className="mb-2 text-lg font-semibold">From the agents</h3>
+      <h3 className="mb-2 text-[1.9rem] leading-none">From the agents</h3>
       <ul className="flex flex-col gap-3">
         {[...media].reverse().map((m) => (
           <li key={m.id}>
@@ -98,8 +98,8 @@ export function MediaViewer({ media, lang, by, onClose }: {
   return (
     <div role="dialog" aria-modal="true" aria-label={caption || media.query} className="fixed inset-0 z-50 flex flex-col bg-background pb-safe pt-safe">
       <div className="flex items-center justify-between px-4 py-2">
-        <p className="text-base text-muted-foreground">Found by <span className="font-semibold" style={{ color: by?.color }}>{by ? `${by.name}'s agent` : "an agent"}</span></p>
-        <button onClick={onClose} aria-label="Close picture" className="flex h-11 w-11 items-center justify-center rounded-full bg-secondary"><X /></button>
+        <p className="text-base text-muted-foreground">Found by <span className="speaker-ink font-semibold" style={{ "--speaker": by?.color } as React.CSSProperties}>{by ? `${by.name}'s agent` : "an agent"}</span></p>
+        <button onClick={onClose} aria-label="Close picture" className="flex size-11 items-center justify-center rounded-xl border-2 border-input bg-card"><X /></button>
       </div>
       <div className="flex min-h-0 flex-1 items-center justify-center px-2" onClick={onClose}>
         <MediaCard media={media} lang={lang} large />

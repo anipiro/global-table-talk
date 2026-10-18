@@ -30,8 +30,12 @@ Microsoft Group Transcribe. Our difference is the agents and the belonging layer
   table-life animations at the end of `src/styles.css`, and table-life steps in `src/lib/demoScript.ts` (badges, simulated
   voices in "Replay demo" via `simulateVoice`, a separate `demo-level` broadcast that never affects loudest-phone). Covers voice ripples, connection web, harmony meter, agent
   levels and badges. **Person A pauses Lovable on these screens meanwhile** (Lovable edits there would conflict).
-  Keep the existing visual style: lucide icons, existing color tokens, clean and universal (no country-specific themes,
-  no wine/food motifs). Animations: CSS transform/opacity only, no heavy canvas on phones; respect reduced motion.
+  Design system: "Editorial" (from PR #1, see the header comment in `src/styles.css` and `CHANGES-ui-redesign.md`):
+  light tan/beige palette with brown primary, flat surfaces (no shadows, blur or gradients), Instrument Serif headings,
+  speaker colours never as text (`.speaker-ink`, soft colour-mix discs and rules), brown ring for talking, apricot for
+  badges, aubergine for private cards, terracotta for the mic. Use lucide icons and the existing tokens; clean and
+  universal (no country-specific themes, no wine/food motifs). Animations: CSS transform/opacity only, no heavy canvas
+  on phones; respect reduced motion.
   Check the UI locally (`npm run dev`) before pushing.
 - **The database is the contract.** Never rename, drop, or change the type of existing tables/columns.
   New tables/columns: ask the user first; the front adds them through Lovable so Lovable Cloud stays in sync.

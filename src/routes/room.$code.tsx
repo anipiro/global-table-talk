@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Mic, MicOff, Headphones, Sparkles, Type, Camera, ImagePlus, History, Share2, Rows3, HelpCircle, Moon, X, ChevronUp, ChevronDown, Hand, Activity, AudioLines, BookOpen, MessagesSquare, Image as ImageIcon, Users, Flame } from "lucide-react";
+import { Mic, MicOff, Headphones, Type, ImagePlus, History, Share2, Rows3, HelpCircle, Moon, X, ChevronUp, Hand, AudioLines, BookOpen, MessagesSquare, Image as ImageIcon, Users, Activity, Ellipsis, ArrowDown, Flame } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getMemberId, inviteUrl, type Lang, type Line, type Media, type Member } from "@/lib/room";
 import { fmtTime, useRoom, useSignedUrls, useWakeLock } from "@/lib/useRoom";
@@ -23,13 +23,15 @@ import { PollCard, settlePoll } from "@/components/Polls";
 import { isGroupPhoto, sharePhoto } from "@/lib/photos";
 import { LANGS } from "@/lib/room";
 import { Confetti, EveryonesIn, HarmonyRing, TableAvatar, useTableLife, useVoiceLevels } from "@/components/TableLife";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 export const Route = createFileRoute("/room/$code")({
   ssr: false,
   head: () => ({
     meta: [
       { title: "At the table — Gamige" },
-      { name: "description", content: "Live captions, translations and your personal agent at the dinner table." },
+      { name: "description", content: "Live captions and translation with speaker names, plus your personal agent." },
       { property: "og:title", content: "At the table — Gamige" },
       { property: "og:description", content: "Live captions in your language." },
       { property: "og:type", content: "website" },
@@ -187,21 +189,21 @@ function RoomPage() {
   }, [translations, lines, me]);
 
   if (room === undefined) return <Screen><p className="text-muted-foreground">Loading…</p></Screen>;
-  if (!room) return <Screen><h1 className="text-3xl font-bold">Table not found</h1></Screen>;
+  if (!room) return <Screen><h1 className="text-3xl font-semibold">Table not found</h1></Screen>;
   if (!me)
     return (
       <Screen>
-        <h1 className="text-3xl font-bold">You're not at this table</h1>
+        <h1 className="text-3xl font-semibold">You're not at this table</h1>
         <p className="mt-2 text-muted-foreground">You may have been removed, or joined on another phone.</p>
-        <Link to="/t/$code" params={{ code }} className="mt-6 text-primary">Join table {room.code}</Link>
+        <Link to="/t/$code" params={{ code }} className={buttonVariants({ variant: "outline", className: "mt-6 self-start" })}>Join table {room.code}</Link>
       </Screen>
     );
   if (!me.approved || (room.status === "lobby" && !isHost))
     return (
       <Screen>
         <div className="flex flex-1 flex-col items-center justify-center text-center">
-          <div className="mb-6 h-16 w-16 animate-pulse rounded-full" style={{ background: me.color }} />
-          <h1 className="text-3xl font-bold">{!me.approved ? "Waiting for the host" : "Almost time"}</h1>
+          <div className="mb-6 size-16 animate-pulse rounded-full" style={{ background: me.color }} />
+          <h1 className="text-3xl font-semibold">{!me.approved ? "Waiting for the host" : "Almost time"}</h1>
           <p className="mt-3 text-lg text-muted-foreground">
             {!me.approved ? "They'll let you in shortly." : "The host will start the night soon."}
           </p>
@@ -263,7 +265,7 @@ function RoomPage() {
     const t = toast.loading("Sharing your photo…");
     try {
       await sharePhoto(room!.id, me!.id, file);
-      toast.success("Photo shared — your agents are describing it", { id: t });
+      toast.success("Photo shared. Your agents are describing it.", { id: t });
       setTab("photos");
       setSheetOpen(true);
     } catch {
@@ -300,64 +302,73 @@ function RoomPage() {
             if (!level) sessionStorage.setItem("gamige-calibration-skipped", me.id);
             if (level) {
               await supabase.from("members").update({ voice_level: level, voice_calibrated_at: new Date().toISOString(), voice_device: deviceLabel() }).eq("id", me.id);
-              toast.success("Voice calibrated — your phone will ignore quieter voices now");
+              toast.success("Voice calibrated. Your phone will now ignore quieter voices.");
             }
           }}
         />
       </Screen>
     );
 
+  const tabList = ["notebook", "agents", "photos", ...(isHost ? ["guests"] : []), ...(debugOn ? ["diagnostics"] : [])] as Tab[];
   return (
-    <div className={`px-safe flex h-dvh flex-col overflow-x-hidden ${big ? "text-[28px]" : "text-[20px]"}`}>
+    <div className={`px-safe h-dvh overflow-x-hidden ${big ? "text-[28px]" : "text-[20px]"}`}>
       {life.confetti && <Confetti colors={life.approved.map((m) => m.color)} />}
+      {/* The room fills the whole page at every width. The side gutter grows with the screen (16px on a phone, 24px from 640px,
+          48px from 1024px) so the content keeps comfortable margins. */}
+      <div className="flex h-full w-full flex-col">
       {/* top bar */}
-      <header className="z-20 border-b bg-background/95 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.75rem)] text-base backdrop-blur">
-        {/* room identity row: code, who's here, live status */}
-        <div className="flex min-w-0 items-center gap-2 pb-2 text-sm">
-          <span className="shrink-0 font-display text-lg font-bold tracking-wide">Table {room.code}</span>
-          <span className="flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-online" /> live
+      <header className="z-20 px-4 pb-3 pt-[max(env(safe-area-inset-top),0.75rem)] text-base sm:px-6 sm:pt-5 lg:px-12">
+        {/* room identity row: code, live status, who's here (the person talking bobs and gets a pulsing ring) */}
+        <div className="flex min-w-0 items-center gap-3 pb-3">
+          <h1 className="shrink-0 whitespace-nowrap font-display text-[34px] leading-none">Table {room.code}</h1>
+          <span className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+            <span className="relative size-2.5" aria-hidden>
+              <span className="absolute inset-0 rounded-full bg-online" />
+              <span className="absolute inset-0 animate-ping rounded-full bg-online opacity-60" />
+            </span>
+            Live
           </span>
-          <HarmonyRing value={life.harmony} size={22} celebrate={life.celebrate} />
+          {life.harmony !== null && <HarmonyRing value={life.harmony} size={22} celebrate={life.celebrate} />}
           {life.celebrate && <EveryonesIn />}
-          <span className="ml-auto flex items-center gap-1">
-            {life.approved.slice(0, 4).map((m) => (
-              <span key={m.id} title={m.name} className="rounded-full ring-2 ring-background">
-                <TableAvatar member={m} size={24} level={life.levels.get(m.id)} pop={life.pops.get(m.id)} />
+          <span className="ml-auto flex shrink-0 items-center">
+            {life.approved.slice(0, 4).map((m, i) => (
+              <span key={m.id} className="relative rounded-full ring-[3px] ring-background" style={{ marginLeft: i ? -6 : 0, zIndex: 6 - i }}
+                title={talking.includes(m.id) ? `${m.name} is speaking` : m.name}>
+                <TableAvatar member={m} size={32} level={life.levels.get(m.id)} pop={life.pops.get(m.id)} />
               </span>
             ))}
-            <span className="ml-1 text-xs text-muted-foreground">{life.approved.length} here</span>
+            <span className="ml-2.5 whitespace-nowrap text-sm font-semibold text-muted-foreground">{life.approved.length} here</span>
           </span>
         </div>
         <div className="flex items-center gap-2">
-        <IconBtn
-          label="Whisper in my headphones"
-          active={me.whisper_on}
-          onClick={() => {
-            unlockAudio(); // must run inside the tap so iPhone Safari allows later playback
-            void supabase.from("members").update({ whisper_on: !me.whisper_on }).eq("id", me.id).then(({ error }) => error && toast.error("Couldn't save whisper setting"));
-          }}
-        >
-          <Headphones />
-        </IconBtn>
-        <button onClick={catchUp} disabled={streaming !== null && !catchDone} className="flex h-12 flex-1 items-center justify-center gap-2 rounded-full bg-secondary px-3 font-semibold disabled:opacity-60">
-          <Sparkles className="h-5 w-5 text-primary" /> Catch me up
-        </button>
-        <IconBtn label="Big text" active={big} onClick={() => setBig(!big)}>
-          <Type />
-        </IconBtn>
+          <IconBtn
+            label="Whisper in my headphones"
+            active={me.whisper_on}
+            onClick={() => {
+              unlockAudio(); // must run inside the tap so iPhone Safari allows later playback
+              void supabase.from("members").update({ whisper_on: !me.whisper_on }).eq("id", me.id).then(({ error }) => error && toast.error("Couldn't save whisper setting"));
+            }}
+          >
+            <Headphones />
+          </IconBtn>
+          <Button variant="outline" className="flex-1" onClick={catchUp} disabled={streaming !== null && !catchDone}>
+            Catch me up
+          </Button>
+          <IconBtn label="Big text" active={big} onClick={() => setBig(!big)}>
+            <Type />
+          </IconBtn>
         </div>
       </header>
       {(me.whisper_on || room.roast_mode) && (
-        <div className="flex flex-wrap justify-center gap-2 border-b bg-background/95 py-1.5 text-sm">
+        <div className="mx-4 mb-2 flex flex-wrap gap-2 text-sm sm:mx-6 lg:mx-12">
           {me.whisper_on && (
-            <span className="flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-0.5 text-primary">
-              <Headphones className="h-3.5 w-3.5" /> Whispering in {LANGS.find((l) => l.id === me.language)?.label ?? me.language}
+            <span className="flex items-center gap-2 rounded-xl bg-card px-3 py-2">
+              <Headphones className="size-4 text-muted-foreground" aria-hidden /> Whispering in {LANGS.find((l) => l.id === me.language)?.label ?? me.language}
             </span>
           )}
           {room.roast_mode && (
-            <span className="flex items-center gap-1.5 rounded-full bg-speaking/15 px-3 py-0.5 text-speaking">
-              <Flame className="h-3.5 w-3.5" /> Roast mode on
+            <span className="flex items-center gap-2 rounded-xl bg-apricot px-3 py-2 font-semibold">
+              <Flame className="size-4" aria-hidden /> Roast mode on
             </span>
           )}
         </div>
@@ -372,28 +383,32 @@ function RoomPage() {
         />
       )}
       {!micIssue && needsRecalibration(me, deviceLabel()) && !recalibrating && (
-        <button onClick={recalibrate} className="flex items-center gap-2 border-b bg-secondary px-4 py-2 text-left text-sm">
-          <AudioLines className="h-4 w-4 shrink-0 text-primary" />
-          {me.voice_level ? "You seem to be on a different phone — recalibrate your voice" : "Calibrate your voice so your phone ignores the neighbours"}
+        <button onClick={recalibrate} className="mx-4 mb-2 flex min-h-11 items-center gap-2 rounded-xl bg-card px-4 py-2 text-left text-sm sm:mx-6 lg:mx-12">
+          <AudioLines className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+          {me.voice_level ? "You seem to be on a different phone. Recalibrate your voice." : "Calibrate your voice so your phone ignores the neighbours"}
         </button>
       )}
 
       {/* debug overlay */}
       {debugOn && !(sheetOpen && tab === "diagnostics") && (
-        <div className="pointer-events-none fixed bottom-40 left-3 z-40 rounded-2xl bg-background/90 p-3 font-mono text-xs shadow-lg backdrop-blur">
+        <div className="pointer-events-none fixed bottom-40 left-3 z-40 rounded-lg border bg-background p-3 font-mono text-xs">
           <p>RMS {debug.rms.toFixed(4)}</p>
           <p>threshold {debug.threshold ? debug.threshold.toFixed(4) : "off"}</p>
           <p>dropped {debug.dropped}</p>
-          <div className="mt-1 h-2 w-32 overflow-hidden rounded-full bg-secondary">
+          <div className="mt-1 h-2 w-32 overflow-hidden rounded-sm bg-secondary">
             <div className={`h-full ${debug.threshold && debug.rms < debug.threshold ? "bg-destructive" : "bg-primary"}`} style={{ width: `${Math.min(100, debug.rms * 400)}%` }} />
           </div>
         </div>
       )}
 
-      {/* private cards */}
-      <div className="pointer-events-none absolute inset-x-0 top-20 z-30 flex flex-col gap-2 px-3">
-        <CardStack big={big} cards={myCards} members={members} onDismiss={(id) => setDismissed((d) => new Set(d).add(id))} />
-      </div>
+      {/* private cards: in the page flow, so the feed gets shorter instead of being covered. When the screen runs out of room
+          (several cards, a banner and the open sheet), this area gives up space first and scrolls, so the tab bar never leaves
+          the screen; a peek of the top card always stays. */}
+      {myCards.length > 0 && (
+        <div className="flex max-h-[40dvh] min-h-24 shrink flex-col gap-2 overflow-y-auto overflow-x-hidden px-4 py-2 sm:px-6 lg:px-12">
+          <CardStack big={big} cards={myCards} members={members} onDismiss={(id) => setDismissed((d) => new Set(d).add(id))} />
+        </div>
+      )}
 
       {/* polls: the newest open one slides up; a freshly closed one shows its result briefly; X hides it on this phone */}
       {(() => {
@@ -409,127 +424,233 @@ function RoomPage() {
       })()}
 
       {streaming !== null && (
-        <div className="fixed inset-0 z-50 flex items-end bg-background/60 backdrop-blur-sm" onClick={() => catchDone && setStreaming(null)}>
-          <div role="dialog" aria-label="Catching you up" className="animate-sheet-up max-h-[70dvh] w-full overflow-y-auto rounded-t-3xl border-t bg-card p-5 pb-8" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-end bg-background/80" onClick={() => catchDone && setStreaming(null)}>
+          <div role="dialog" aria-label="Catching you up" className="animate-sheet-up mx-auto max-h-[70dvh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-sheet p-5 pb-8" onClick={(e) => e.stopPropagation()}>
             <div className="mb-2 flex items-center justify-between">
-              <p className="flex items-center gap-2 text-sm font-semibold text-primary"><Sparkles className="h-4 w-4" /> Your agent · catching you up</p>
-              <button aria-label="Close" onClick={() => setStreaming(null)} className="rounded-full p-1 text-muted-foreground"><X className="h-5 w-5" /></button>
+              <p className="text-sm font-semibold text-muted-foreground">Catch-up for you</p>
+              <button aria-label="Close" onClick={() => setStreaming(null)} className="-mr-2 flex size-11 items-center justify-center rounded-xl text-muted-foreground hover:bg-accent"><X className="size-5" /></button>
             </div>
-            <p className="whitespace-pre-wrap text-xl leading-relaxed">
-              {streaming ? renderBold(streaming) : "Thinking…"}
-              {!catchDone && <span className="ml-1 inline-block h-5 w-2 animate-pulse rounded-sm bg-primary align-middle" />}
+            <p className="whitespace-pre-wrap text-xl">
+              {streaming ? renderBold(streaming) : "Writing your catch-up…"}
+              {!catchDone && <span className="ml-1 inline-block h-5 w-2 animate-pulse rounded-sm bg-brown align-middle" />}
             </p>
           </div>
         </div>
       )}
 
-      <Feed lines={lines} byId={byId} textFor={textFor} interim={micOn ? interim : ""} me={me} talking={talking} onFix={setFixLine}
+      <Feed lines={lines} byId={byId} textFor={textFor} interim={micOn ? interim : ""} me={me} micOn={micOn} onFix={setFixLine}
         media={media} lang={me.language} onOpenMedia={setViewMedia} />
       {fixLine && <ReassignSheet line={fixLine} members={members} me={me} onClose={() => setFixLine(null)} />}
 
-      {/* action row */}
-      <div className="flex items-center gap-3 border-t px-3 py-2">
-      <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-2 overflow-x-auto text-sm [&>*]:shrink-0">
+      {/* action row: the two things you reach for most, everything else under More, the mic under the thumb */}
+      <div className="flex items-center gap-2 px-4 py-3 sm:px-6 sm:py-4 lg:px-12">
         <PhotoButtons onFile={(f) => void shareOne(f)} />
-        <Link to="/history/$code" params={{ code }} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-2">
-          <History className="h-4 w-4" /> History
-        </Link>
-        <Link to="/overlap/$code" params={{ code }} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-2">
-          <Rows3 className="h-4 w-4" /> Who said what
-        </Link>
-        <button onClick={() => shareLink(inviteUrl(room.code)).then((r) => r === "copied" && toast.success("Table link copied"))} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-2" aria-label="Invite">
-          <Share2 className="h-4 w-4" />
-        </button>
-        <button
-          onClick={() => { const v = !holdMode; setHoldMode(v); localStorage.setItem("gamige-hold-to-talk", v ? "1" : "0"); if (!v && micOn) void micStop(); }}
-          aria-pressed={holdMode}
-          className={`flex items-center gap-1 rounded-full px-3 py-2 ${holdMode ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
-        >
-          <Hand className="h-4 w-4" /> Hold to talk
-        </button>
-        <button
-          onClick={() => { const v = !debugOn; setDebugOn(v); localStorage.setItem("gamige-debug-mic", v ? "1" : "0"); }}
-          aria-pressed={debugOn}
-          className={`flex items-center gap-1 rounded-full px-3 py-2 ${debugOn ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
-          aria-label="Mic debug overlay"
-        >
-          <Activity className="h-4 w-4" />
-        </button>
-        <button onClick={recalibrate} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-2" aria-label="Recalibrate my voice">
-          <AudioLines className="h-4 w-4" />
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="secondary"><Ellipsis aria-hidden /> More</Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="top" align="start" className="w-64">
+            <DropdownMenuItem asChild>
+              <Link to="/history/$code" params={{ code }}><History aria-hidden /> History</Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to="/overlap/$code" params={{ code }}><Rows3 aria-hidden /> Who said what</Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void shareLink(inviteUrl(room.code)).then((r) => r === "copied" && toast.success("Table link copied"))}>
+              <Share2 aria-hidden /> Invite link
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuCheckboxItem
+              checked={holdMode}
+              onCheckedChange={(v) => { setHoldMode(v); localStorage.setItem("gamige-hold-to-talk", v ? "1" : "0"); if (!v && micOn) void micStop(); }}
+            >
+              <Hand aria-hidden /> Hold to talk
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={debugOn}
+              onCheckedChange={(v) => { setDebugOn(v); localStorage.setItem("gamige-debug-mic", v ? "1" : "0"); }}
+            >
+              <Activity aria-hidden /> Mic debug overlay
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuItem onSelect={recalibrate}>
+              <AudioLines aria-hidden /> Recalibrate voice
+            </DropdownMenuItem>
+            {isHost && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem disabled={ending} onSelect={() => groupInput.current?.click()} className="text-destructive focus:text-destructive">
+                  <Moon aria-hidden /> End the night
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
         {isHost && (
-          <>
-            <button disabled={ending} onClick={() => groupInput.current?.click()} className="ml-auto flex items-center gap-1 rounded-full border border-primary/50 px-3 py-2 text-primary">
-              <Moon className="h-4 w-4" /> End the night
-            </button>
-            <input ref={groupInput} type="file" accept="image/*" capture="user" hidden onChange={(e) => {
-              const f = e.target.files?.[0];
-              e.target.value = "";
-              if (f) endNight(f);
-              else if (confirm("End without a group photo?")) endNight();
-            }} />
-          </>
+          <input ref={groupInput} type="file" accept="image/*" capture="user" hidden onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = "";
+            if (f) endNight(f);
+            else if (confirm("End without a group photo?")) endNight();
+          }} />
         )}
-      </div>
-      {/* mic sits at the bottom-right, under the thumb */}
+        {/* mic sits at the bottom-right, under the thumb */}
         <button
           {...(holdMode
             ? { onPointerDown: () => void micStart(), onPointerUp: () => void micStop(), onPointerLeave: () => micOn && void micStop() }
             : { onClick: toggleMic })}
           aria-label={micOn ? "Stop mic" : holdMode ? "Hold to talk" : "Start mic"}
+          data-on={micOn}
           disabled={!me.can_speak}
-          className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full transition ${micOn ? "bg-primary text-primary-foreground shadow-[0_0_0_6px] shadow-primary/25" : "bg-secondary"} disabled:opacity-40`}
+          className={`mic-btn ml-auto grid size-[76px] shrink-0 place-items-center rounded-full border-2 [&_svg]:relative [&_svg]:z-10 [&_svg]:size-8 disabled:cursor-not-allowed disabled:border-border disabled:bg-secondary disabled:text-muted-foreground ${micOn ? "border-terracotta bg-terracotta text-cream" : "border-input bg-card text-foreground"}`}
         >
+          <span className="mic-pulse" aria-hidden />
+          <span className="mic-pulse" aria-hidden />
+          <span className="mic-wave" aria-hidden>
+            {Array.from({ length: 28 }, (_, i) => <i key={i} style={{ "--ang": `${(i * 360) / 28}deg`, "--k": i } as React.CSSProperties} />)}
+          </span>
           {micOn ? <Mic /> : holdMode ? <Hand /> : <MicOff />}
         </button>
       </div>
 
       {/* bottom sheet */}
-      <section className={`pb-safe border-t bg-card transition-all ${big ? "text-[20px]" : "text-base"} ${sheetOpen ? "h-[55dvh]" : "h-14 box-content"}`}>
-        <div className="flex h-14 items-center gap-1 px-2">
-          {(["notebook", "agents", "photos", ...(isHost ? ["guests"] : []), ...(debugOn ? ["diagnostics"] : [])] as Tab[]).map((t) => {
+      <section className={`flex flex-col-reverse ${big ? "text-[20px]" : "text-base"}`}>
+        <div className="bg-brown pb-safe">
+        <div className="flex h-14 shrink-0 items-stretch px-2 py-1.5 sm:px-5 lg:px-11">
+          <div className="relative flex min-w-0 flex-1 items-stretch gap-0.5" style={{ "--n": tabList.length, "--i": Math.max(0, tabList.indexOf(tab)) } as React.CSSProperties}>
+          <span data-tab-indicator aria-hidden="true" className={`tab-indicator ${sheetOpen ? "opacity-100" : "opacity-0"}`} />
+          {tabList.map((t) => {
             const pending = t === "guests" ? members.filter((m) => !m.approved).length : 0;
             const Icon = TAB_ICONS[t];
+            const active = sheetOpen && tab === t;
             return (
-              <button key={t} onClick={() => { setTab(t); setSheetOpen(true); }}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-full py-2 text-sm font-semibold capitalize ${sheetOpen && tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>
-                <Icon className="h-4 w-4" aria-hidden />
-                {t === "diagnostics" ? "Diag." : t}{pending > 0 && <span className="ml-1 rounded-full bg-destructive px-1.5 text-xs text-destructive-foreground">{pending}</span>}
+              <button key={t} onClick={() => { setTab(t); setSheetOpen(true); }} aria-pressed={active}
+                className={`relative z-10 flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-2xl text-xs font-semibold capitalize transition-colors duration-300 ${active ? "text-foreground" : "text-cream-2 hover:bg-cream/10"}`}>
+                <Icon className="size-5" aria-hidden />
+                {t === "diagnostics" ? "Diag." : t}
+                {pending > 0 && <span className="absolute right-1/4 top-0 min-w-5 rounded-full bg-terracotta px-1.5 text-center text-xs font-bold text-cream ring-2 ring-brown">{pending}</span>}
               </button>
             );
           })}
-          <button aria-label="Toggle panel" onClick={() => setSheetOpen(!sheetOpen)} className="p-2 text-muted-foreground">
-            {sheetOpen ? <ChevronDown /> : <ChevronUp />}
+          </div>
+          <button aria-label="Toggle panel" aria-expanded={sheetOpen} onClick={() => setSheetOpen(!sheetOpen)} className="ml-0.5 flex min-h-11 w-12 shrink-0 items-center justify-center self-center rounded-2xl text-cream-2 hover:text-cream">
+            <ChevronUp className={`transition-transform duration-500 ease-out motion-reduce:transition-none ${sheetOpen ? "rotate-180" : ""}`} />
           </button>
         </div>
-        {sheetOpen && (
-          <div className={`h-[calc(55dvh-3.5rem)] px-4 ${tab === "agents" ? "overflow-hidden pb-2" : "overflow-y-auto pb-6"}`}>
-            {tab === "notebook" && <NotebookSections entries={notebook} byId={byId} media={media} lang={me.language} polls={polls} pollVotes={pollVotes} agentMessages={agentMessages} myCards={cards.filter((c) => c.member_id === me.id && c.kind === "shared")} />}
-            {tab === "agents" && <AgentFeed msgs={agentMessages} byId={byId} meId={me.id} status={data.status} retryIn={data.retryIn} onRetry={data.retry} media={media} onOpenMedia={setViewMedia} levels={life.levels} />}
-            {tab === "photos" && (
-              <>
-                <PhotoGrid photos={photos} captions={captions} lang={me.language} onOpen={setViewPhoto} />
-                <AgentMediaSection media={media} lang={me.language} onOpen={setViewMedia} />
-              </>
-            )}
-            {tab === "diagnostics" && debugOn && <Diagnostics lines={lines} members={members} />}
-            {tab === "guests" && isHost && (
-              <div className="flex flex-col gap-6 pt-2">
-                <RoastToggle room={room} />
-                <GuestList room={room} members={members} />
-                <InvitePanel room={room} me={me} />
-              </div>
-            )}
+        </div>
+        <SheetPanel open={sheetOpen}>
+          <div className="h-[calc(40dvh-3.5rem)] shrink-0 overflow-hidden rounded-t-3xl bg-sheet px-5 pt-5 sm:px-6 lg:px-12">
+            <TabSwap
+              tab={tab}
+              render={(t) => (
+                <>
+                  {t === "notebook" && <NotebookSections entries={notebook} byId={byId} media={media} lang={me.language} polls={polls} pollVotes={pollVotes} agentMessages={agentMessages} myCards={cards.filter((c) => c.member_id === me.id && c.kind === "shared")} />}
+                  {t === "agents" && <AgentFeed msgs={agentMessages} byId={byId} meId={me.id} status={data.status} retryIn={data.retryIn} onRetry={data.retry} media={media} onOpenMedia={setViewMedia} levels={life.levels} />}
+                  {t === "photos" && (
+                    <>
+                      <PhotoGrid photos={photos} captions={captions} lang={me.language} onOpen={setViewPhoto} />
+                      <AgentMediaSection media={media} lang={me.language} onOpen={setViewMedia} />
+                    </>
+                  )}
+                  {t === "diagnostics" && debugOn && <Diagnostics lines={lines} members={members} />}
+                  {t === "guests" && isHost && (
+                    <div className="flex flex-col gap-6 pt-2">
+                      <RoastToggle room={room} />
+                      <GuestList room={room} members={members} />
+                      <InvitePanel room={room} me={me} />
+                    </div>
+                  )}
+                </>
+              )}
+            />
           </div>
-        )}
+        </SheetPanel>
       </section>
+      </div>
       {viewPhoto && photos.find((p) => p.id === viewPhoto) && (
         <PhotoViewer photo={photos.find((p) => p.id === viewPhoto)!} captions={captions} lang={me.language} byId={byId} onClose={() => setViewPhoto(null)} />
       )}
       {viewMedia && media.find((m) => m.id === viewMedia) && (
         <MediaViewer media={media.find((m) => m.id === viewMedia)!} lang={me.language} by={byId.get(media.find((m) => m.id === viewMedia)!.created_by_member_id ?? "")} onClose={() => setViewMedia(null)} />
       )}
+    </div>
+  );
+}
+
+/**
+ * Opens and closes the bottom sheet smoothly. Mounting it in place made the whole page jump by the sheet's height in one frame
+ * and closing it had no animation at all. Now the row's height eases between 0 and its natural height (grid-template-rows 0fr to 1fr,
+ * 0.5s), the content fades in step with it, and on close the sheet stays mounted until the easing has finished. Content is anchored
+ * to the top edge, so it travels with the edge like a drawer. A forced style calculation between the collapsed and the expanded
+ * state (in the layout effect) is what lets the opening transition run. With reduced motion it opens and closes instantly.
+ */
+function SheetPanel({ open, children }: { open: boolean; children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(open);
+  const [expanded, setExpanded] = useState(open);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      return;
+    }
+    setExpanded(false);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setMounted(false);
+      return;
+    }
+    const id = window.setTimeout(() => setMounted(false), 520);
+    return () => window.clearTimeout(id);
+  }, [open]);
+  useLayoutEffect(() => {
+    if (!mounted || !open || expanded) return;
+    // The panel is in the DOM collapsed. Reading its box makes the browser compute that collapsed style now, so switching to the
+    // expanded style in the same task starts a transition from it instead of appearing at full height.
+    void box.current?.getBoundingClientRect();
+    setExpanded(true);
+  }, [mounted, open, expanded]);
+  if (!mounted) return null;
+  return (
+    <div
+      ref={box}
+      className="grid transition-[grid-template-rows] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+      style={{ gridTemplateRows: expanded ? "1fr" : "0fr" }}
+      aria-hidden={!open}
+    >
+      <div className={`min-h-0 overflow-hidden transition-opacity duration-300 motion-reduce:transition-none ${expanded ? "opacity-100" : "opacity-0"}`}>{children}</div>
+    </div>
+  );
+}
+
+/**
+ * Swaps the bottom sheet's content when the tab changes: the old panel fades and lifts away (the .tab-leave animation is 140ms;
+ * the swap waits 170ms so it never cuts the fade short), then the new one rises in (.tab-enter). The panel is a fixed-size, keyed box, so every tab has the
+ * same width and starts at the top, and the padding and scroll mode never change under an open sheet. It mounts only while
+ * the sheet is open, so opening it never flashes the previous tab. With reduced motion the swap is immediate.
+ */
+function TabSwap({ tab, render }: { tab: Tab; render: (t: Tab) => React.ReactNode }) {
+  const [shown, setShown] = useState<Tab>(tab);
+  const [leaving, setLeaving] = useState(false);
+  useEffect(() => {
+    if (tab === shown) {
+      setLeaving(false);
+      return;
+    }
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setShown(tab);
+      return;
+    }
+    setLeaving(true);
+    const id = window.setTimeout(() => {
+      setShown(tab);
+      setLeaving(false);
+    }, 170);
+    return () => window.clearTimeout(id);
+  }, [tab, shown]);
+  return (
+    <div
+      key={shown}
+      className={`h-full [scrollbar-gutter:stable] ${shown === "agents" ? "overflow-hidden pb-2" : "overflow-y-auto pb-6"} ${leaving ? "tab-leave" : "tab-enter"}`}
+    >
+      {render(shown)}
     </div>
   );
 }
@@ -546,19 +667,19 @@ function MicIssueBanner({ kind, onRetry, onClose }: { kind: "denied" | "disconne
         ? "The microphone disappeared or is busy (another app, or it was unplugged)."
         : "This browser doesn't support live captions. Use Chrome, Edge or Safari.";
   return (
-    <div className="flex flex-col gap-2 border-b bg-destructive/15 px-4 py-3 text-sm">
+    <div className="flex flex-col gap-2 border-b border-destructive bg-card px-4 py-3 text-base sm:px-6 lg:px-12">
       <div className="flex items-start justify-between gap-2">
         <p>{text}</p>
-        <button onClick={onClose} aria-label="Dismiss"><X className="h-4 w-4" /></button>
+        <button onClick={onClose} aria-label="Dismiss" className="-mr-3 -mt-2 flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent"><X className="size-4" /></button>
       </div>
       {kind !== "unsupported" && (
         <div className="flex flex-wrap items-center gap-2">
-          <button onClick={onRetry} className="rounded-full bg-primary px-4 py-2 font-semibold text-primary-foreground">Retry</button>
+          <Button onClick={onRetry}>Retry</Button>
           {mics.length > 1 && (
             <select
               value={micDeviceId() ?? ""}
               onChange={(e) => { setMicDeviceId(e.target.value || null); onRetry(); }}
-              className="rounded-full bg-secondary px-3 py-2"
+              className="min-h-11 rounded-lg border-2 border-input bg-card px-3"
               aria-label="Choose microphone"
             >
               <option value="">Default microphone</option>
@@ -574,16 +695,18 @@ function MicIssueBanner({ kind, onRetry, onClose }: { kind: "denied" | "disconne
 function IconBtn({ children, label, active, onClick }: { children: React.ReactNode; label: string; active?: boolean; onClick: () => void }) {
   return (
     <button aria-label={label} aria-pressed={active} onClick={onClick}
-      className={`flex h-12 w-12 items-center justify-center rounded-full ${active ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
+      className={`flex size-11 shrink-0 items-center justify-center rounded-xl border-2 transition-transform active:scale-95 ${active ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card"}`}>
       {children}
     </button>
   );
 }
 
-/** Chat-bubble caption feed: other people's lines sit on the left, mine on the right. Each bubble shows
- *  the original spoken text on top, a subtle divider, and the translation in my language underneath. */
-function Feed({ lines, byId, textFor, interim, me, talking, onFix, media, lang, onOpenMedia }: {
-  lines: Line[]; byId: Map<string, Member>; textFor: (l: Line) => string | null; interim: string; me: Member; talking: string[]; onFix: (l: Line) => void;
+/** Transcript of the table, set like film subtitles: the newest line is the biggest and older lines step down.
+ *  Each line is one unit: a thread and a name chip in the speaker's colour, the line in my language and,
+ *  underneath in muted text, what was actually said. A line that arrives live fades in word by word.
+ *  Pictures and memes an agent made for a line hang under it. */
+function Feed({ lines, byId, textFor, interim, me, micOn, onFix, media, lang, onOpenMedia }: {
+  lines: Line[]; byId: Map<string, Member>; textFor: (l: Line) => string | null; interim: string; me: Member; micOn: boolean; onFix: (l: Line) => void;
   media: Media[]; lang: string; onOpenMedia: (id: string) => void;
 }) {
   const isNewMedia = useIsNew(media);
@@ -592,71 +715,91 @@ function Feed({ lines, byId, textFor, interim, me, talking, onFix, media, lang, 
 
   const ref = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
+  // The bottom sheet opening or closing resizes this feed. If the reader is at the newest line, keep it in view through every frame of
+  // the resize, so it neither slides out of sight nor needs a jump afterwards. Someone who scrolled up is left where they are.
+  const atBottomRef = useRef(true);
+  atBottomRef.current = atBottom;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      if (atBottomRef.current) el.scrollTop = el.scrollHeight;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const [showOrig, setShowOrig] = useState<Set<string>>(new Set());
+  // Which lines arrived live (so they animate). History that loads in one batch does not.
+  const known = useRef<Set<string>>(new Set());
+  const live = useRef<Set<string>>(new Set());
+  const loaded = useRef(false);
+  const batch = !loaded.current && lines.length > 1;
+  for (const l of lines) {
+    if (!known.current.has(l.id)) {
+      known.current.add(l.id);
+      if (!batch) live.current.add(l.id);
+    }
+  }
+  useEffect(() => {
+    if (lines.length > 0) loaded.current = true;
+  }, [lines.length]);
   useEffect(() => {
     if (atBottom) ref.current?.scrollTo({ top: ref.current.scrollHeight, behavior: "smooth" });
-  }, [lines.length, media.length, interim, atBottom]);
+  }, [lines.length, media.length, interim, atBottom, micOn]);
+  const words = (s: string) => s.split(" ").map((w, k) => <Fragment key={k}><span className="tl-w" style={{ "--w": k } as React.CSSProperties}>{w}</span>{" "}</Fragment>);
+  const initial = (name?: string) => (name ?? "?").slice(0, 1).toUpperCase();
   return (
-    <div className="relative flex-1 overflow-hidden">
+    <div className="relative min-h-0 flex-1 overflow-hidden">
       <div ref={ref} onScroll={(e) => { const el = e.currentTarget; setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 60); }}
-        className="h-full overflow-y-auto px-3 py-4">
-        {lines.length === 0 && <p className="mt-20 text-center text-muted-foreground">Tap the mic and start talking.<br />Captions appear here for everyone.</p>}
-        <ul className="flex flex-col gap-4">
-          {lines.map((l) => {
+        className={`flex h-full flex-col overflow-y-auto px-4 pt-8 sm:px-6 lg:px-12 ${atBottom ? "pb-4" : "pb-[72px]"}`}
+        style={{ WebkitMaskImage: "linear-gradient(to bottom, transparent 0, #000 40px)", maskImage: "linear-gradient(to bottom, transparent 0, #000 40px)" }}>
+        {lines.length === 0 && <p className="mt-16 text-center text-base text-muted-foreground sm:m-auto sm:max-w-sm sm:text-balance">No captions yet. Turn on your microphone, or wait for someone to speak.</p>}
+        <ul className={`flex flex-col ${lines.length ? "mt-auto" : ""}`}>
+          {lines.map((l, idx) => {
             const sp = byId.get(l.speaker_id ?? "");
-            const mine = l.speaker_id === me.id;
             const tr = textFor(l);
             const orig = showOrig.has(l.id) || !tr;
             const pending = !tr && l.language !== me.language;
-            const isTalking = !!sp && talking.includes(sp.id);
+            const isLive = live.current.has(l.id);
+            const age = Math.min(lines.length - 1 - idx + (interim ? 1 : 0), 6);
+            const bodyText = orig ? l.text : tr!;
+            const text = (
+              <>
+                <p lang={orig ? l.language : me.language} className={`tl-big break-words ${pending ? "text-muted-foreground" : ""}`} style={{ fontWeight: 500 + Math.round(l.loudness * 2) * 50 }}>
+                  {isLive ? words(bodyText) : bodyText}
+                </p>
+                {tr && !showOrig.has(l.id) && <p lang={l.language} className="tl-small break-words">{l.text}</p>}
+                {pending && <p className="mt-1 text-sm text-muted-foreground">translating…</p>}
+                {tr && showOrig.has(l.id) && <p className="mt-1 text-sm text-muted-foreground">original · tap for translation</p>}
+              </>
+            );
             return (
-              <li key={l.id} className={`flex items-end gap-2 ${mine ? "flex-row-reverse" : ""}`}>
-                {/* avatar chip in the speaker's color; glows while they're talking */}
-                <span
-                  className={`relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-primary-foreground transition-shadow sm:h-9 sm:w-9 sm:text-sm ${isTalking ? "animate-pulse" : ""}`}
-                  style={{ background: sp?.color ?? "var(--muted)", boxShadow: isTalking ? `0 0 0 3px ${sp!.color}55, 0 0 14px ${sp!.color}88` : undefined }}
-                  aria-hidden
-                >
-                  {(sp?.name ?? "?").slice(0, 1).toUpperCase()}
-                </span>
-                <div className={`flex min-w-0 max-w-[85%] flex-col ${mine ? "items-end" : "items-start"}`}>
-                  {l.ambiguous && (
-                    <button onClick={() => onFix(l)} className="mb-1 flex items-center gap-1 rounded-full border border-primary/50 px-2 py-0.5 text-[0.55em] text-primary">
-                      <HelpCircle className="h-3.5 w-3.5" /> Not sure who said this · tap to fix
+              <li key={l.id} data-age={age} className={`tline ${isLive ? "tline-new" : ""}`} style={{ "--speaker": sp?.color } as React.CSSProperties}>
+                {l.ambiguous && (
+                  <button onClick={() => onFix(l)} className="mb-2 flex min-h-11 items-center gap-1.5 rounded-xl border-2 border-primary px-3 text-sm font-semibold">
+                    <HelpCircle className="size-4" aria-hidden /> Not sure who said this · tap to fix
+                  </button>
+                )}
+                <div className="tl-in">
+                  <div className="tl-who">
+                    <button onClick={() => onFix(l)} aria-label={`Change speaker: ${sp?.name ?? "Unknown speaker"}`}
+                      className="tl-chip relative z-10 min-w-11 text-left after:absolute after:inset-x-0 after:-inset-y-2.5 after:content-['']">
+                      <span className="tl-disc" aria-hidden>{initial(sp?.name)}</span>
+                      {sp?.name ?? "Unknown speaker"}{l.ambiguous ? "?" : ""}
                     </button>
+                    {sp && <span className="tl-lang">{sp.role === "talk" ? "Local" : sp.role === "follow" ? "Tourist" : "Local · Tourist"} · {sp.language.toUpperCase()}</span>}
+                    <span className="text-muted-foreground">{fmtTime(l.created_at)}</span>
+                  </div>
+                  {tr ? (
+                    <button className="block w-full text-left"
+                      onClick={() => setShowOrig((s) => { const n = new Set(s); n.has(l.id) ? n.delete(l.id) : n.add(l.id); return n; })}>
+                      {text}
+                    </button>
+                  ) : (
+                    <div>{text}</div>
                   )}
-                  <button onClick={() => onFix(l)} aria-label={`Change speaker: ${sp?.name ?? "Unknown speaker"}`}
-                    className={`mb-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 px-1 text-left text-[0.6em] font-semibold ${sp ? "" : "italic text-muted-foreground"}`} style={{ color: sp?.color }}>
-                    {sp?.name ?? "Unknown speaker"}{l.ambiguous ? "?" : ""}
-                    {sp && (
-                      <span className="rounded-full border border-border bg-secondary px-1.5 py-px text-[0.85em] font-medium text-muted-foreground">
-                        {sp.role === "talk" ? "Local" : sp.role === "follow" ? "Tourist" : "Local · Tourist"} · {sp.language.toUpperCase()}
-                      </span>
-                    )}
-                    <span className="font-normal text-muted-foreground">{fmtTime(l.created_at)}</span>
-                  </button>
-                  <button
-                    className={`block w-full rounded-3xl border px-4 py-3 text-left shadow-sm transition ${
-                      mine
-                        ? "rounded-br-md border-primary/30 bg-primary/15"
-                        : "rounded-bl-md border-border bg-card"
-                    } ${isTalking ? "ring-2 ring-speaking/60" : ""}`}
-                    onClick={() => tr && setShowOrig((s) => { const n = new Set(s); n.has(l.id) ? n.delete(l.id) : n.add(l.id); return n; })}
-                  >
-                    <p className={`break-words leading-snug ${pending ? "text-muted-foreground" : ""}`} style={{ fontWeight: 400 + Math.round(l.loudness * 3) * 100 }}>
-                      {orig ? l.text : tr}
-                    </p>
-                    {tr && !showOrig.has(l.id) && (
-                      <>
-                        <hr className="my-2 border-border" />
-                        <p className="break-words text-[0.8em] leading-snug text-muted-foreground">{l.text}</p>
-                      </>
-                    )}
-                    {pending && <p className="mt-1 text-[0.55em] text-muted-foreground">translating…</p>}
-                    {tr && showOrig.has(l.id) && <p className="mt-1 text-[0.55em] text-muted-foreground">original · tap for translation</p>}
-                  </button>
                   {(byLine.get(l.id) ?? []).map((m) => (
-                    <div key={m.id} className={`mt-2 w-full ${isNewMedia(m.id) ? "animate-glow rounded-2xl" : ""}`}>
+                    <div key={m.id} className={`mt-3 w-full max-w-md ${isNewMedia(m.id) ? "animate-fresh rounded-2xl" : ""}`}>
                       <MediaCard media={m} lang={lang} onOpen={() => onOpenMedia(m.id)} />
                     </div>
                   ))}
@@ -665,21 +808,30 @@ function Feed({ lines, byId, textFor, interim, me, talking, onFix, media, lang, 
             );
           })}
           {interim && (
-            <li className="flex flex-row-reverse items-end gap-2 opacity-60">
-              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-primary-foreground" style={{ background: me.color }} aria-hidden>
-                {me.name.slice(0, 1).toUpperCase()}
-              </span>
-              <div className="max-w-[82%] rounded-3xl rounded-br-md border border-primary/30 bg-primary/15 px-4 py-3">
-                <p className="italic leading-snug">{interim}</p>
+            <li data-age={0} className="tline" style={{ "--speaker": me.color } as React.CSSProperties}>
+              <div className="tl-in">
+                <div className="tl-who">
+                  <span className="tl-chip"><span className="tl-disc" aria-hidden>{initial(me.name)}</span>{me.name}</span>
+                  <span className="text-muted-foreground">now</span>
+                </div>
+                <p lang={me.language} className="tl-big text-muted-foreground">{interim}</p>
               </div>
             </li>
           )}
         </ul>
+        {micOn && (
+          <div className="mt-5">
+            <span role="status" className="tl-listening">
+              <span className="tl-eq" aria-hidden><i /><i /><i /><i /></span>
+              Listening to you
+            </span>
+          </div>
+        )}
       </div>
       {!atBottom && (
         <button onClick={() => { setAtBottom(true); ref.current?.scrollTo({ top: ref.current.scrollHeight, behavior: "smooth" }); }}
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-primary px-5 py-2 text-base font-semibold text-primary-foreground shadow-lg">
-          Jump to live ↓
+          className="absolute inset-x-4 bottom-2 sm:inset-x-6 lg:inset-x-12 flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brown px-4 text-base font-bold text-cream">
+          Jump to live <ArrowDown className="size-4" aria-hidden />
         </button>
       )}
     </div>
@@ -692,7 +844,7 @@ function PhotoButtons({ onFile }: { onFile: (f: File) => void }) {
   return (
     <>
       {/* no capture attribute: iPhone offers Photo Library or Take Photo */}
-      <button onClick={() => input.current?.click()} className="flex min-h-11 items-center gap-1 rounded-full bg-secondary px-3 py-2"><ImagePlus className="h-4 w-4" /> Share a photo</button>
+      <Button variant="outline" onClick={() => input.current?.click()}><ImagePlus aria-hidden /> Share a photo</Button>
       <input ref={input} type="file" accept="image/*" hidden onChange={pick} aria-label="Choose a photo" />
     </>
   );

@@ -56,19 +56,19 @@ function SpeakerEvalPage() {
           who-said-what logic. Each run is saved so you can see accuracy change over time.
         </p>
       </header>
-      <button onClick={run} disabled={busy} className="rounded-full bg-primary py-4 text-lg font-semibold text-primary-foreground disabled:opacity-50">
+      <button onClick={run} disabled={busy} className="rounded-md bg-primary py-4 text-lg font-semibold text-primary-foreground disabled:opacity-50">
         {busy ? "Running samples…" : "Run evaluation"}
       </button>
 
       {chart.length > 0 && (
-        <section className="rounded-3xl bg-card p-4">
+        <section className="rounded-lg bg-card p-4">
           <h2 className="mb-3 font-semibold">Accuracy over time</h2>
           <div className="flex h-32 items-end gap-1" role="img" aria-label="Accuracy per run">
             {chart.map((r) => {
               const a = pct(r.correct, r.total);
               return (
                 <div key={r.id} title={`${new Date(r.created_at).toLocaleString()} · ${a}%`} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
-                  <span className="text-[10px] text-muted-foreground">{a}</span>
+                  <span className="text-xs text-muted-foreground">{a}</span>
                   <div className={`w-full rounded-t ${a === 100 ? "bg-primary" : "bg-destructive"}`} style={{ height: `${Math.max(4, a)}%` }} />
                 </div>
               );
@@ -85,7 +85,7 @@ function SpeakerEvalPage() {
           const a = pct(r.correct, r.total);
           const delta = prev ? a - pct(prev.correct, prev.total) : 0;
           return (
-            <div key={r.id} className="rounded-2xl bg-card p-3">
+            <div key={r.id} className="rounded-md bg-card p-3">
               <button onClick={() => setOpen(open === r.id ? null : r.id)} className="flex w-full items-center gap-3 text-left">
                 <span className={`text-2xl font-bold ${a === 100 ? "text-primary" : "text-destructive"}`}>{a}%</span>
                 <span className="flex-1 text-sm">

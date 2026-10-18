@@ -30,7 +30,7 @@ function tick() {
   raf = ripples.size ? requestAnimationFrame(tick) : 0;
 }
 
-/** Ring behind an avatar that pulses with the member's live mic level (from the room's level broadcast). */
+/** The editorial "talking" ring (brown, flat), driven live by the member's mic level from the room's level broadcast. */
 export function VoiceRipple({ member }: { member: Member }) {
   const el = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -42,8 +42,7 @@ export function VoiceRipple({ member }: { member: Member }) {
     return () => { ripples.delete(node); };
   }, [member.id, member.voice_level]);
   return (
-    <span ref={el} aria-hidden className="voice-ripple pointer-events-none absolute inset-0 rounded-full"
-      style={{ opacity: 0, border: `2px solid ${member.color}`, background: `${member.color}33`, boxShadow: `0 0 12px ${member.color}` }} />
+    <span ref={el} aria-hidden className="voice-ripple pointer-events-none absolute -inset-1 rounded-full border-2 border-brown" style={{ opacity: 0 }} />
   );
 }
 
@@ -62,7 +61,7 @@ export function TableAvatar({ member, size, level, pop }: { member: Member; size
       <Avatar member={member} size={size} level={level} />
       {Icon && (
         <span key={pop} aria-hidden
-          className="animate-badge-pop pointer-events-none absolute left-1/2 top-0 z-10 flex items-center justify-center rounded-full border-2 border-primary bg-card text-primary shadow-lg"
+          className="animate-badge-pop pointer-events-none absolute left-1/2 top-0 z-10 flex items-center justify-center rounded-full border-2 border-background bg-apricot text-foreground"
           style={{ width: Math.max(22, size * 0.6), height: Math.max(22, size * 0.6) }}>
           <Icon style={{ width: "60%", height: "60%" }} />
         </span>
@@ -75,10 +74,10 @@ export function TableAvatar({ member, size, level, pop }: { member: Member; size
 export function BadgeRow({ badges, size = 16 }: { badges: Badge[] | undefined; size?: number }) {
   if (!badges?.length) return null;
   return (
-    <span className="flex items-center justify-center gap-1 text-primary" aria-label={`Badges: ${badges.map((b) => BADGE_LABEL[b.kind]).join(", ")}`}>
+    <span className="flex items-center justify-center gap-1 text-foreground" aria-label={`Badges: ${badges.map((b) => BADGE_LABEL[b.kind]).join(", ")}`}>
       {badges.map((b) => {
         const Icon = BADGE_ICON[b.kind];
-        return <span key={b.kind} title={BADGE_LABEL[b.kind]} className="rounded-full bg-primary/15 p-1"><Icon style={{ width: size, height: size }} aria-hidden /></span>;
+        return <span key={b.kind} title={BADGE_LABEL[b.kind]} className="rounded-full bg-apricot p-1"><Icon style={{ width: size, height: size }} aria-hidden /></span>;
       })}
     </span>
   );
@@ -91,20 +90,20 @@ export function HarmonyRing({ value, size, celebrate, showLabel = false }: { val
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const pct = value === null ? null : Math.round(value * 100);
-  const color = value !== null && value >= 0.9 ? "var(--online)" : "var(--primary)";
+  const color = "var(--brown)";
   return (
     <span className="relative inline-flex shrink-0 items-center justify-center" style={{ width: size, height: size }}
       role="img" aria-label={pct === null ? "Harmony: waiting for more conversation" : `Harmony ${pct}%: how evenly the last 5 minutes were shared`}>
-      {celebrate && <span aria-hidden className="animate-harmony-glow absolute inset-0 rounded-full" style={{ boxShadow: "0 0 24px 6px var(--online)" }} />}
+      {celebrate && <span aria-hidden className="animate-harmony-glow absolute inset-0 rounded-full border-[3px] border-apricot" />}
       <svg width={size} height={size} className="-rotate-90" aria-hidden>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--secondary)" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--border)" strokeWidth={stroke} />
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round"
           strokeDasharray={c} strokeDashoffset={c * (1 - (value ?? 0))} style={{ transition: "stroke-dashoffset 1.2s ease, stroke .6s" }} />
       </svg>
       {showLabel && (
         <span className="absolute inset-0 flex flex-col items-center justify-center text-center">
-          <span className="font-display font-bold tabular-nums" style={{ fontSize: size * 0.22 }}>{pct === null ? "—" : `${pct}%`}</span>
-          <span className="uppercase tracking-widest text-muted-foreground" style={{ fontSize: Math.max(10, size * 0.07) }}>
+          <span className="font-display leading-none tabular-nums" style={{ fontSize: size * 0.26 }}>{pct === null ? "—" : `${pct}%`}</span>
+          <span className="mt-1 font-semibold text-muted-foreground" style={{ fontSize: Math.max(11, size * 0.075) }}>
             {celebrate ? "Everyone's in" : "Harmony"}
           </span>
         </span>
@@ -116,18 +115,21 @@ export function HarmonyRing({ value, size, celebrate, showLabel = false }: { val
 /** "Everyone's in" chip for the phone top bar. */
 export function EveryonesIn() {
   return (
-    <span role="status" className="animate-msg-in flex items-center gap-1 rounded-full bg-online/15 px-2 py-0.5 text-xs font-semibold text-online">
-      <Users className="h-3 w-3" aria-hidden /> Everyone's in
+    <span role="status" className="animate-msg-in flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-apricot px-2.5 py-0.5 text-xs font-bold text-foreground">
+      <Users className="size-3" aria-hidden /> Everyone's in
     </span>
   );
 }
 
 /* ---------- Light confetti (first words only) ---------- */
 
-export function Confetti({ colors }: { colors: string[] }) {
+const CONFETTI = ["var(--terracotta)", "var(--apricot)", "var(--brown)", "var(--spk-blue)", "var(--spk-sage)", "var(--spk-mauve)"];
+
+/** A light burst in the palette's colours (first words only). `colors` can add the members' colours to the mix. */
+export function Confetti({ colors = [] }: { colors?: string[] }) {
   const pieces = useMemo(() => Array.from({ length: 18 }, (_, i) => ({
     left: 30 + Math.random() * 40, dx: (Math.random() - 0.5) * 50, rot: (Math.random() - 0.5) * 720,
-    delay: Math.random() * 0.25, color: colors[i % colors.length] ?? "var(--primary)", round: i % 3 === 0,
+    delay: Math.random() * 0.25, color: [...CONFETTI, ...colors][i % (CONFETTI.length + colors.length)]!, round: i % 3 === 0,
   })), [colors]);
   if (reduceMotion()) return null;
   return (
@@ -242,31 +244,20 @@ export function ConnectionWeb({ members, life }: { members: Member[]; life: Retu
   return (
     <div className="relative mx-auto aspect-square h-full max-h-full max-w-full">
       <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-        <defs>
-          <filter id="web-glow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="0.8" /></filter>
-          {life.links.map((l) => {
-            const a = pos.get(l.a), b = pos.get(l.b);
-            if (!a || !b) return null;
-            return (
-              <linearGradient key={`${l.a}${l.b}`} id={`web-${l.a}-${l.b}`} gradientUnits="userSpaceOnUse" x1={a.x} y1={a.y} x2={b.x} y2={b.y}>
-                <stop offset="0" stopColor={members.find((m) => m.id === l.a)?.color} />
-                <stop offset="1" stopColor={members.find((m) => m.id === l.b)?.color} />
-              </linearGradient>
-            );
-          })}
-        </defs>
         {life.links.map((l) => {
           const a = pos.get(l.a), b = pos.get(l.b);
           if (!a || !b) return null;
+          const ca = members.find((m) => m.id === l.a)?.color ?? "var(--brown)";
+          const cb = members.find((m) => m.id === l.b)?.color ?? "var(--brown)";
+          // Flat: the two members' colours blended, pulled toward the ink so the line reads on the card.
+          const stroke = `color-mix(in oklab, color-mix(in oklab, ${ca} 50%, ${cb}) 45%, var(--foreground))`;
           const s = Math.sqrt(l.weight);
-          const width = 0.5 + Math.min(1.8, s * 0.35);
-          const opacity = 0.25 + Math.min(0.7, s * 0.14);
+          const width = 0.6 + Math.min(1.8, s * 0.35);
+          const opacity = 0.3 + Math.min(0.65, s * 0.14);
           const fresh = now - l.lastAt < 10_000;
           return (
-            <g key={`${l.a}${l.b}-${fresh ? l.lastAt : "s"}`} className={fresh ? "animate-link-flash" : undefined} style={{ ["--o" as string]: opacity, opacity }}>
-              <path d={path(a, b)} fill="none" stroke={`url(#web-${l.a}-${l.b})`} strokeWidth={width * 2.4} strokeLinecap="round" filter="url(#web-glow)" opacity={0.6} />
-              <path d={path(a, b)} fill="none" stroke={`url(#web-${l.a}-${l.b})`} strokeWidth={width} strokeLinecap="round" />
-            </g>
+            <path key={`${l.a}${l.b}-${fresh ? l.lastAt : "s"}`} d={path(a, b)} fill="none" strokeLinecap="round" strokeWidth={width}
+              className={fresh ? "animate-link-flash" : undefined} style={{ stroke, opacity, ["--o" as string]: opacity }} />
           );
         })}
       </svg>
@@ -278,8 +269,11 @@ export function ConnectionWeb({ members, life }: { members: Member[]; life: Retu
         return (
           <div key={m.id} className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1" style={{ left: `${p.x}%`, top: `${p.y}%` }}>
             <TableAvatar member={m} size={node} level={life.levels.get(m.id)} pop={life.pops.get(m.id)} />
-            <span className="max-w-[9rem] truncate text-lg font-semibold" style={{ color: m.color }}>{m.name}</span>
-            <BadgeRow badges={life.badges.get(m.id)} size={14} />
+            {/* A card-coloured backing so a link passing under the name never cuts through it. */}
+            <span className="flex flex-col items-center gap-1 rounded-2xl bg-card px-2 py-0.5">
+              <span className="speaker-ink max-w-[9rem] truncate text-lg font-semibold" style={{ "--speaker": m.color } as React.CSSProperties}>{m.name}</span>
+              <BadgeRow badges={life.badges.get(m.id)} size={14} />
+            </span>
           </div>
         );
       })}

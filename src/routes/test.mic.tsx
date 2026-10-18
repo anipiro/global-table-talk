@@ -345,17 +345,17 @@ function MicTestPage() {
         Records 3-second chunks, sends them to Gemini Transcribe, and times each one. Pass criteria: ≥90% word accuracy, median ≤3s, p90 ≤6s chunk latency.
       </p>
 
-      <div className={`mt-4 rounded-2xl p-3 text-center font-semibold ${
+      <div className={`mt-4 rounded-md p-3 text-center font-semibold ${
         status === "recording" ? "bg-primary/20 text-primary"
         : status === "idle" ? "bg-secondary text-muted-foreground"
-        : "bg-destructive/20 text-destructive-foreground"}`}>
+        : "bg-destructive/20 text-destructive"}`}>
         {STATUS_LABEL[status]}
       </div>
 
       <div className="mt-4 flex gap-2">
         {(["ka", "en", "ru"] as Lang[]).map((l) => (
           <button key={l} onClick={() => setLang(l)} disabled={status === "recording"}
-            className={`flex-1 rounded-full py-3 font-semibold ${lang === l ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
+            className={`flex-1 rounded-md py-3 font-semibold ${lang === l ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
             {l === "ka" ? "Georgian" : l === "en" ? "English" : "Russian"}
           </button>
         ))}
@@ -366,7 +366,7 @@ function MicTestPage() {
         onChange={(e) => setReference(e.target.value)}
         disabled={status === "recording"}
         placeholder="Reference phrase (optional, for word accuracy)"
-        className="mt-3 w-full rounded-2xl bg-secondary px-4 py-3 text-base outline-none placeholder:text-muted-foreground"
+        className="mt-3 w-full rounded-md bg-secondary px-4 py-3 text-base outline-none placeholder:text-muted-foreground"
       />
 
       {mics.length > 1 && (
@@ -377,7 +377,7 @@ function MicTestPage() {
             setMicDeviceId(e.target.value || null);
             addLog({ event: "session", detail: `Input switched to: ${e.target.selectedOptions[0]?.text ?? "default"}`, pass: true });
           }}
-          className="mt-3 w-full rounded-2xl bg-secondary px-4 py-3 text-base"
+          className="mt-3 w-full rounded-md bg-secondary px-4 py-3 text-base"
           aria-label="Choose microphone"
         >
           <option value="">Default microphone</option>
@@ -387,7 +387,7 @@ function MicTestPage() {
 
       <button
         onClick={status === "recording" ? stop : status === "interrupted" ? resume : start}
-        className={`mt-4 flex h-16 w-full items-center justify-center gap-2 rounded-full text-lg font-bold ${
+        className={`mt-4 flex h-16 w-full items-center justify-center gap-2 rounded-md text-lg font-bold ${
           status === "recording" ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"}`}
       >
         {status === "recording" ? <><Square /> Stop</> : status === "interrupted" ? <><RotateCcw /> Resume</> : <><Mic /> Record</>}
@@ -395,19 +395,19 @@ function MicTestPage() {
 
       <div className="mt-4 flex gap-2">
         <button onClick={simulateInterruption} disabled={status !== "recording"}
-          className="flex flex-1 items-center justify-center gap-2 rounded-full border border-destructive/50 py-3 text-sm font-semibold text-destructive-foreground disabled:opacity-40">
+          className="flex flex-1 items-center justify-center gap-2 rounded-md border border-destructive/50 py-3 text-sm font-semibold text-destructive disabled:opacity-40">
           <PhoneOff className="h-4 w-4" /> Simulate call
         </button>
         <button onClick={simulateDenial}
-          className="flex flex-1 items-center justify-center gap-2 rounded-full border border-destructive/50 py-3 text-sm font-semibold text-destructive-foreground">
+          className="flex flex-1 items-center justify-center gap-2 rounded-md border border-destructive/50 py-3 text-sm font-semibold text-destructive">
           <Ban className="h-4 w-4" /> Simulate denial
         </button>
       </div>
 
-      {error && <p className="mt-4 rounded-2xl bg-destructive/20 p-3 text-destructive-foreground">{error}</p>}
+      {error && <p className="mt-4 rounded-md bg-destructive/20 p-3 text-destructive">{error}</p>}
 
       {live && (
-        <div className="mt-6 rounded-3xl bg-card p-4">
+        <div className="mt-6 rounded-lg bg-card p-4">
           <p className="mb-1 text-sm font-semibold text-primary">Transcript</p>
           <p className="text-xl leading-snug">{live}</p>
         </div>
@@ -416,12 +416,12 @@ function MicTestPage() {
       {results.length > 0 && (
         <ul className="mt-6 flex flex-col gap-2 text-base">
           {results.map((r) => (
-            <li key={r.n} className="flex items-baseline justify-between gap-3 rounded-2xl bg-secondary p-3">
-              <span className={r.skipped ? "italic text-muted-foreground" : ""}>
+            <li key={r.n} className="flex items-baseline justify-between gap-3 rounded-md bg-secondary p-3">
+              <span className={r.skipped ? "text-muted-foreground" : ""}>
                 {r.skipped ? `Chunk ${r.n}: silent — skipped` : r.text}
               </span>
               {!r.skipped && (
-                <span className={`shrink-0 text-sm ${r.ms > P90_LAT_MS ? "font-bold text-destructive-foreground" : "text-muted-foreground"}`}>
+                <span className={`shrink-0 text-sm ${r.ms > P90_LAT_MS ? "font-bold text-destructive" : "text-muted-foreground"}`}>
                   {r.language ?? "?"} · {(r.ms / 1000).toFixed(1)}s
                 </span>
               )}
@@ -436,8 +436,8 @@ function MicTestPage() {
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold">Sessions</h2>
             <div className="flex gap-2">
-              <button onClick={exportCSV} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-2 text-sm"><Download className="h-4 w-4" /> CSV</button>
-              <button onClick={exportJSON} className="flex items-center gap-1 rounded-full bg-secondary px-3 py-2 text-sm"><Download className="h-4 w-4" /> JSON</button>
+              <button onClick={exportCSV} className="flex items-center gap-1 rounded-md bg-secondary px-3 py-2 text-sm"><Download className="h-4 w-4" /> CSV</button>
+              <button onClick={exportJSON} className="flex items-center gap-1 rounded-md bg-secondary px-3 py-2 text-sm"><Download className="h-4 w-4" /> JSON</button>
             </div>
           </div>
           <div className="mt-2 flex flex-col gap-3">
@@ -448,13 +448,13 @@ function MicTestPage() {
               const delta = (d: number, unit: string, goodWhenNegative: boolean) => {
                 if (!prev || d === 0) return null;
                 const good = goodWhenNegative ? d < 0 : d > 0;
-                return <span className={`ml-1 text-xs font-bold ${good ? "text-primary" : "text-destructive-foreground"}`}>{d > 0 ? "+" : ""}{unit === "%" ? (d * 100).toFixed(0) + unit : (d / 1000).toFixed(1) + unit}</span>;
+                return <span className={`ml-1 text-xs font-bold ${good ? "text-primary" : "text-destructive"}`}>{d > 0 ? "+" : ""}{unit === "%" ? (d * 100).toFixed(0) + unit : (d / 1000).toFixed(1) + unit}</span>;
               };
               return (
-                <div key={s.id} className={`rounded-2xl border p-4 text-sm ${st.pass ? "border-primary/40" : "border-destructive/40"}`}>
+                <div key={s.id} className={`rounded-md border p-4 text-sm ${st.pass ? "border-primary/40" : "border-destructive/40"}`}>
                   <div className="flex items-center justify-between">
                     <p className="font-semibold">{new Date(s.startedAt).toLocaleString()} · {s.lang}</p>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${st.pass ? "bg-primary/20 text-primary" : "bg-destructive/20 text-destructive-foreground"}`}>
+                    <span className={`rounded-sm px-2 py-0.5 text-xs font-bold ${st.pass ? "bg-primary/20 text-primary" : "bg-destructive/20 text-destructive"}`}>
                       {st.pass ? "PASS" : "FAIL"}
                     </span>
                   </div>
@@ -479,8 +479,8 @@ function MicTestPage() {
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold">Run log</h2>
           <div className="flex gap-2">
-            <button onClick={copyLog} aria-label="Copy log" className="rounded-full bg-secondary p-2"><Copy className="h-4 w-4" /></button>
-            <button onClick={() => { setLog([]); setSessions([]); localStorage.removeItem(LOG_KEY); localStorage.removeItem(SESSIONS_KEY); }} aria-label="Clear log" className="rounded-full bg-secondary p-2"><Trash2 className="h-4 w-4" /></button>
+            <button onClick={copyLog} aria-label="Copy log" className="rounded-md bg-secondary p-2"><Copy className="h-4 w-4" /></button>
+            <button onClick={() => { setLog([]); setSessions([]); localStorage.removeItem(LOG_KEY); localStorage.removeItem(SESSIONS_KEY); }} aria-label="Clear log" className="rounded-md bg-secondary p-2"><Trash2 className="h-4 w-4" /></button>
           </div>
         </div>
         {log.length === 0 ? (
@@ -490,7 +490,7 @@ function MicTestPage() {
             {[...log].reverse().map((e, i) => (
               <li key={i} className="flex gap-2 rounded-xl bg-secondary/60 px-3 py-2">
                 <span className="shrink-0 text-muted-foreground">{new Date(e.at).toLocaleTimeString()}</span>
-                <span className={`shrink-0 font-semibold ${e.pass === false ? "text-destructive-foreground" : e.pass ? "text-primary" : "text-muted-foreground"}`}>
+                <span className={`shrink-0 font-semibold ${e.pass === false ? "text-destructive" : e.pass ? "text-primary" : "text-muted-foreground"}`}>
                   {e.event}{e.pass === undefined ? "" : e.pass ? " ✓" : " ✗"}
                 </span>
                 <span className="break-all">{e.detail}</span>

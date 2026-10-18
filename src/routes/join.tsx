@@ -1,12 +1,14 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import { Screen } from "@/components/JoinForm";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/join")({
   head: () => ({
     meta: [
       { title: "Join a table — Gamige" },
-      { name: "description", content: "Enter the 4-letter table code to join a Gamige dinner." },
+      { name: "description", content: "Enter the 4-letter table code to join a Gamige table." },
       { property: "og:title", content: "Join a table — Gamige" },
       { property: "og:description", content: "Enter the 4-letter code to join." },
       { property: "og:type", content: "website" },
@@ -21,9 +23,17 @@ function JoinCode() {
   const nav = useNavigate();
   return (
     <Screen>
-      <Link to="/" className="text-muted-foreground">← Back</Link>
-      <h1 className="mt-8 text-4xl font-bold">Join a table</h1>
-      <p className="mt-2 text-lg text-muted-foreground">Ask the host for the 4-letter code, or scan their QR.</p>
+      <Link
+        to="/"
+        className="-ml-2 inline-flex min-h-11 items-center gap-2 self-start px-2 text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" aria-hidden />
+        Back
+      </Link>
+      <h1 className="mt-6 text-4xl font-semibold">Join a table</h1>
+      <p className="mt-2 font-display text-lg leading-snug text-muted-foreground">
+        Ask the host for the 4-letter code, or scan their QR.
+      </p>
       <form
         className="mt-10 flex flex-col gap-4"
         onSubmit={(e) => {
@@ -39,11 +49,11 @@ function JoinCode() {
           autoCapitalize="characters"
           placeholder="ABCD"
           aria-label="Table code"
-          className="rounded-3xl border bg-card py-6 text-center font-display text-6xl tracking-[0.3em] outline-none focus:ring-2 focus:ring-ring"
+          className="min-h-24 w-full rounded-lg border border-input bg-background py-4 pl-[0.3em] text-center font-display text-6xl uppercase tracking-[0.3em] transition-colors placeholder:text-input focus-visible:border-ring"
         />
-        <button disabled={code.length !== 4} className="rounded-full bg-primary py-5 text-xl font-semibold text-primary-foreground disabled:opacity-40">
+        <Button size="lg" disabled={code.length !== 4}>
           Continue
-        </button>
+        </Button>
       </form>
     </Screen>
   );

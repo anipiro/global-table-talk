@@ -50,7 +50,7 @@ export function VoteDots({ votes, optionId, byId }: { votes: PollVote[]; optionI
   return (
     <span className="flex items-center gap-1">
       {mine.map((v) => (
-        <span key={v.id} className="h-2.5 w-2.5 rounded-full" style={{ background: byId.get(v.member_id)?.color ?? "var(--muted-foreground)" }} title={byId.get(v.member_id)?.name} />
+        <span key={v.id} className="h-2.5 w-2.5 rounded-full" style={{ background: byId.get(v.member_id) ? `color-mix(in oklab, ${byId.get(v.member_id)!.color} 70%, var(--foreground))` : "var(--muted-foreground)" }} title={byId.get(v.member_id)?.name} />
       ))}
     </span>
   );
@@ -84,24 +84,24 @@ export function PollCard({
   return (
     <div
       role="status"
-      className={`animate-sheet-up pointer-events-auto rounded-3xl border bg-card p-4 shadow-xl ${open ? "border-primary/50" : "border-online/40"} ${big ? "text-[20px]" : "text-[17px]"}`}
+      className={`animate-sheet-up pointer-events-auto rounded-3xl border-2 border-input bg-card p-4 ${big ? "text-[20px]" : "text-[17px]"}`}
     >
-      <p className="mb-1 flex items-center justify-between gap-2 text-sm font-semibold text-primary">
-        <span className="flex items-center gap-2"><BarChart3 className="h-4 w-4" aria-hidden /> The agents are asking</span>
+      <p className="mb-1 flex items-center justify-between gap-2 text-xs font-bold tracking-wide text-muted-foreground">
+        <span className="flex items-center gap-1.5"><BarChart3 className="size-3.5" aria-hidden /> THE AGENTS ARE ASKING</span>
         <span className="flex items-center gap-2">
           {open && <Countdown closesAt={poll.closes_at} />}
           {onDismiss && (
             <button
               aria-label="Dismiss poll"
               onClick={() => onDismiss(poll.id)}
-              className="-m-1 rounded-full p-1 text-muted-foreground transition hover:text-foreground active:scale-90"
+              className="-m-3 flex size-11 items-center justify-center rounded-xl text-muted-foreground transition hover:bg-accent hover:text-foreground motion-safe:active:scale-90"
             >
-              <X className="h-4 w-4" aria-hidden />
+              <X className="size-4" aria-hidden />
             </button>
           )}
         </span>
       </p>
-      <p className="mb-3 font-semibold leading-snug">{pollText(poll.question_by_language, lang)}</p>
+      <p className="mb-3 font-display text-[1.9em] leading-none">{pollText(poll.question_by_language, lang)}</p>
       <div className="flex flex-col gap-2">
         {options.map((o) => {
           const chosen = myVote?.option_id === o.id;
@@ -111,9 +111,9 @@ export function PollCard({
               key={o.id}
               disabled={!open}
               onClick={() => void votePoll(poll.id, meId, o.id).catch(() => {})}
-              className={`flex items-center justify-between gap-2 rounded-2xl border px-4 py-3 text-left font-medium transition ${
-                chosen ? "border-primary bg-primary text-primary-foreground" : isResult ? "border-online bg-online/15" : "bg-secondary"
-              } ${open ? "active:scale-[0.98]" : "cursor-default"}`}
+              className={`flex min-h-12 items-center justify-between gap-2 rounded-md border-2 px-4 py-2.5 text-left font-semibold transition-[background-color,border-color] duration-150 motion-reduce:transition-none ${
+                chosen ? "border-primary bg-primary text-primary-foreground" : isResult ? "border-apricot bg-apricot text-foreground" : "border-input bg-card text-foreground hover:border-primary hover:bg-pick-hover"
+              } ${open ? "cursor-pointer motion-safe:active:scale-[0.98]" : "cursor-default"}`}
             >
               <span>{pollText(o.label_by_language, lang)}</span>
               <VoteDots votes={pollVotes} optionId={o.id} byId={byId} />
@@ -122,13 +122,13 @@ export function PollCard({
         })}
       </div>
       {!open && (
-        <p className="animate-glow mt-3 flex items-center gap-2 rounded-2xl bg-online/10 px-3 py-2 text-online">
-          <PartyPopper className="h-5 w-5 shrink-0" aria-hidden />
+        <p className="animate-msg-in mt-3 flex items-center gap-2 rounded-2xl bg-apricot px-3 py-2 text-foreground">
+          <PartyPopper className="size-5 shrink-0" aria-hidden />
           <span className="font-semibold">{resultText || "Decided!"}</span>
         </p>
       )}
       {open && (
-        <p className="mt-2 text-xs text-muted-foreground">
+        <p className="mt-2 text-sm text-muted-foreground">
           {pollVotes.length} of {members.filter((m) => m.approved).length} voted{myVote ? " · tap again to change" : ""}
         </p>
       )}
@@ -143,29 +143,29 @@ export function PollTakeover({ poll, votes, members }: { poll: Poll; votes: Poll
   const pollVotes = votes.filter((v) => v.poll_id === poll.id);
   const max = Math.max(1, ...options.map((o) => pollVotes.filter((v) => v.option_id === o.id).length));
   return (
-    <section className="animate-takeover flex min-h-0 flex-col gap-6 rounded-3xl bg-card p-8" aria-live="polite">
-      <h2 className="flex items-center justify-between text-lg uppercase tracking-widest text-primary">
-        <span className="flex items-center gap-2"><BarChart3 className="h-5 w-5" /> Live poll</span>
-        <Countdown closesAt={poll.closes_at} />
+    <section className="animate-takeover flex min-h-0 flex-col gap-6 rounded-lg border bg-card p-4 lg:p-6" aria-live="polite">
+      <h2 className="flex items-center justify-between text-xl font-semibold">
+        <span className="flex items-center gap-2"><BarChart3 className="size-5" aria-hidden /> Live poll</span>
+        <span className="font-sans text-lg"><Countdown closesAt={poll.closes_at} /></span>
       </h2>
-      <p className="text-[40px] font-semibold leading-tight">{pollText(poll.question_by_language, "en")}</p>
+      <p className="font-display text-[clamp(2.25rem,3.2vw,3.5rem)] leading-none">{pollText(poll.question_by_language, "en")}</p>
       <div className="flex min-h-0 flex-1 flex-col justify-center gap-5">
         {options.map((o) => {
           const n = pollVotes.filter((v) => v.option_id === o.id).length;
           return (
             <div key={o.id}>
-              <div className="mb-1 flex items-center justify-between text-2xl">
+              <div className="mb-2 flex items-center justify-between font-text text-[clamp(1.25rem,1.8vw,1.75rem)] font-semibold">
                 <span>{pollText(o.label_by_language, "en")}</span>
                 <VoteDots votes={pollVotes} optionId={o.id} byId={byId} />
               </div>
-              <div className="h-6 overflow-hidden rounded-full bg-secondary">
-                <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${(n / max) * 100}%` }} />
+              <div className="h-6 overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full bg-brown transition-[width] duration-500" style={{ width: `${(n / max) * 100}%` }} />
               </div>
             </div>
           );
         })}
       </div>
-      <p className="text-xl text-muted-foreground">{pollVotes.length} of {members.filter((m) => m.approved).length} voted</p>
+      <p className="font-text text-xl text-muted-foreground">{pollVotes.length} of {members.filter((m) => m.approved).length} voted</p>
     </section>
   );
 }

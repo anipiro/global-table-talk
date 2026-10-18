@@ -1,7 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { getMemberId } from "@/lib/room";
 import { fmtTime, useRoom } from "@/lib/useRoom";
+import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/history/$code")({
   ssr: false,
@@ -41,35 +43,40 @@ function HistoryPage() {
   }, [lines, translations, byId, me, q, speaker]);
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col">
-      <header className="sticky top-0 z-10 flex flex-col gap-3 border-b bg-background/95 px-4 py-3 backdrop-blur">
+    <main className="mx-auto flex min-h-dvh max-w-2xl flex-col sm:border-x">
+      <header className="sticky top-0 z-10 flex flex-col gap-3 border-b bg-background px-4 py-3">
         <div className="flex items-center justify-between">
-          <Link to="/room/$code" params={{ code }} className="text-muted-foreground">← Back to live</Link>
+          <Link to="/room/$code" params={{ code }} className="-ml-2 flex min-h-11 items-center gap-1 px-2 text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="size-4" aria-hidden /> Back to live
+          </Link>
           <span className="text-sm text-muted-foreground">{rows.length} lines</span>
         </div>
-        <input
+        <Input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search what was said…"
           aria-label="Search captions"
-          className="rounded-2xl border bg-card px-4 py-3 text-lg outline-none focus:ring-2 focus:ring-ring"
+          className="min-h-12 text-lg"
         />
-        <div className="flex gap-2 overflow-x-auto pb-1 text-sm">
+        <div className="flex gap-2 overflow-x-auto pb-1">
           {[{ id: "all", name: "Everyone", color: "" }, ...members].map((m) => (
-            <button key={m.id} onClick={() => setSpeaker(m.id)}
-              className={`shrink-0 rounded-full border px-3 py-1.5 ${speaker === m.id ? "bg-primary text-primary-foreground" : ""}`}
-              style={speaker !== m.id && m.color ? { color: m.color } : undefined}>
+            <button key={m.id} onClick={() => setSpeaker(m.id)} aria-pressed={speaker === m.id}
+              className={`min-h-11 shrink-0 rounded-md border px-4 text-base font-semibold ${speaker === m.id ? "border-primary bg-primary text-primary-foreground" : "speaker-ink border-input"}`}
+              style={speaker !== m.id && m.color ? ({ "--speaker": m.color, background: `color-mix(in oklab, ${m.color} 30%, var(--card))` } as React.CSSProperties) : undefined}>
               {m.name}
             </button>
           ))}
         </div>
       </header>
-      <ul className="flex flex-col gap-4 px-4 py-4 text-[20px]">
+      <ul className="flex flex-col gap-6 px-4 py-5 text-[20px]">
         {rows.map(({ l, sp, tr }) => (
-          <li key={l.id} className="rounded-2xl bg-card p-4">
-            <p className="text-sm"><span className="font-semibold" style={{ color: sp?.color }}>{sp?.name ?? "Unknown speaker"}{l.ambiguous ? "?" : ""}</span>{l.ambiguous && <span className="ml-1 rounded-full border border-primary/50 px-2 text-xs text-primary">unsure speaker</span>} <span className="text-muted-foreground">· {fmtTime(l.created_at)}</span></p>
-            <p className="mt-1 leading-snug">{tr ?? l.text}</p>
-            {tr && <p className="mt-1 text-base text-muted-foreground">{l.text}</p>}
+          <li key={l.id} className="speaker-rule" style={{ "--speaker": sp?.color } as React.CSSProperties}>
+            <p className="text-sm text-muted-foreground">
+              <span className="speaker-ink font-semibold" style={{ "--speaker": sp?.color } as React.CSSProperties}>{sp?.name ?? "Unknown speaker"}{l.ambiguous ? "?" : ""}</span> · {fmtTime(l.created_at)}
+              {l.ambiguous && <span className="text-primary"> · unsure speaker</span>}
+            </p>
+            <p lang={tr ? me?.language : l.language} className="mt-1 font-text">{tr ?? l.text}</p>
+            {tr && <p lang={l.language} className="mt-1 font-text text-base text-muted-foreground">{l.text}</p>}
           </li>
         ))}
         {rows.length === 0 && <p className="py-10 text-center text-muted-foreground">Nothing matches.</p>}

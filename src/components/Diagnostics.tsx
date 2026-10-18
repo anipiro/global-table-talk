@@ -11,7 +11,7 @@ function ConfBar({ value }: { value: number | null }) {
   const low = value < KNOWN_SPEAKER_CONFIDENCE;
   return (
     <span className="inline-flex items-center gap-1">
-      <span className="h-1.5 w-12 overflow-hidden rounded-full bg-background">
+      <span className="h-1.5 w-12 overflow-hidden rounded-sm bg-background">
         <span className={`block h-full ${low ? "bg-destructive" : "bg-primary"}`} style={{ width: `${Math.round(value * 100)}%` }} />
       </span>
       <span className="tabular-nums">{pctTxt(value)}</span>
@@ -66,7 +66,7 @@ export function Diagnostics({ lines, members }: { lines: Line[]; members: Member
         <ul className="flex flex-col gap-1">
           {perSpeaker.map((s) => (
             <li key={s.key} className="flex items-center gap-2 rounded-xl bg-secondary px-3 py-2">
-              <span className="flex-1 font-semibold" style={{ color: s.color }}>{s.name}</span>
+              <span className="speaker-ink flex-1 font-semibold" style={{ "--speaker": s.color } as React.CSSProperties}>{s.name}</span>
               <span className="text-muted-foreground">{s.count} lines</span>
               <span className="tabular-nums">{sec(s.delay?.median)}</span>
               <ConfBar value={s.conf} />
@@ -80,7 +80,7 @@ export function Diagnostics({ lines, members }: { lines: Line[]; members: Member
         <ul className="flex flex-col gap-1">
           {[...measured].reverse().slice(0, 12).map((l) => (
             <li key={l.id} className="flex items-center gap-2 rounded-xl bg-secondary px-3 py-2">
-              <span className="w-24 shrink-0 truncate font-semibold" style={{ color: byId.get(l.speaker_id ?? "")?.color }}>
+              <span className="speaker-ink w-24 shrink-0 truncate font-semibold" style={{ "--speaker": byId.get(l.speaker_id ?? "")?.color } as React.CSSProperties}>
                 {byId.get(l.speaker_id ?? "")?.name ?? "Unknown"}
               </span>
               <span className="min-w-0 flex-1 truncate">{l.text}</span>
@@ -98,7 +98,7 @@ export function Diagnostics({ lines, members }: { lines: Line[]; members: Member
           {[...mine].reverse().slice(0, 15).map((d) => (
             <li key={d.at + d.text} className="rounded-xl bg-secondary px-3 py-2">
               <div className="flex items-center gap-2">
-                <span className={`rounded-full px-2 text-xs font-semibold ${d.outcome === "kept" ? "bg-primary text-primary-foreground" : d.outcome === "unknown" ? "border border-primary/60 text-primary" : "bg-destructive/30"}`}>
+                <span className={`rounded-sm px-2 text-xs font-semibold ${d.outcome === "kept" ? "bg-primary text-primary-foreground" : d.outcome === "unknown" ? "border border-primary/60 text-primary" : "bg-destructive/30"}`}>
                   {d.outcome === "kept" ? "yours" : d.outcome === "unknown" ? "unknown" : "ignored"}
                 </span>
                 <span className="flex-1 truncate">{d.text || d.reason}</span>
@@ -117,7 +117,7 @@ export function Diagnostics({ lines, members }: { lines: Line[]; members: Member
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-secondary p-3 text-center">
+    <div className="rounded-md bg-secondary p-3 text-center">
       <p className="text-xl font-bold tabular-nums">{value}</p>
       <p className="text-xs text-muted-foreground">{label}</p>
     </div>
