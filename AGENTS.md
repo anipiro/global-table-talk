@@ -1,4 +1,5 @@
 # Gamige — technical rules
+- Caller-aborted AI requests return cancellation status 499 and never log runtime errors or retry — why: leaving the recap during painting is expected, not a screen-crashing failure.
 - Claude models use the gateway's native Messages provider in the shared streaming helper — why: the gateway rejects Claude requests on Chat Completions.
 - Shared Ground uses attributed recent speech and join facts through the existing cheap trigger/checker; unknown speakers and sensitive topics are excluded — why: spoken interests must be discoverable without checking every caption with an additional AI call.
 - Leaving disconnects this phone's mic, whisper and room subscription while retaining its member identity and historical rows — why: returning must preserve the seat and host ownership without deleting the night's records.

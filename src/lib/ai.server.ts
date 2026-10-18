@@ -3,6 +3,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { streamText, type ModelMessage } from "ai";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { isRequestCancellation } from "./request-cancellation";
 
 /** Gateway model per job — swap them here. Anything not listed falls back to `default`. */
 export const MODELS = {
@@ -110,7 +111,9 @@ export function aiStream(
     ...(anthropic ? { maxOutputTokens: 16000, maxRetries: 0 } : {}),
     instructions: system,
     messages,
-    onError: ({ error }) => console.error(`AI stream error (${model})`, error),
+    onError: ({ error }) => {
+      if (!isRequestCancellation(error, request.signal)) console.error(`AI stream error (${model})`, error);
+    },
     abortSignal: request.signal,
     ...(opts.onFinish ? { onFinish: ({ text }: { text: string }) => opts.onFinish?.(text) } : {}),
   });

@@ -5,6 +5,7 @@ import { paintTonight } from "@/server/images";
 import { settlePoll } from "@/server/polls";
 import { findSharedGround } from "@/server/sharedGround";
 import { runHealth } from "@/server/health";
+import { cancellationResponse, isRequestCancellation } from "@/lib/request-cancellation";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -44,6 +45,7 @@ async function handleTranscribe(request: Request) {
     const { text, language } = await transcribeAudio(request, file, hint);
     return json({ text, language: language ?? hint ?? null, model: MODELS.transcribe });
   } catch (e) {
+    if (isRequestCancellation(e, request.signal)) return cancellationResponse();
     console.error("transcribe error", e);
     return aiError(e);
   }
@@ -146,6 +148,7 @@ async function handle(request: Request) {
     }
     return json({ error: "Unknown task" }, 400);
   } catch (e) {
+    if (isRequestCancellation(e, request.signal)) return cancellationResponse();
     console.error("agent error", e);
     return aiError(e);
   }
@@ -157,8 +160,13 @@ export const Route = createFileRoute("/api/agent")({
       POST: ({ request }) => handle(request),
       // Open /api/agent?task=health in a browser to check every AI model after a push.
       GET: async ({ request }) => {
-        const q = new URL(request.url).searchParams;
-        return q.get("task") === "health" ? json(await runHealth(request, q.get("images") !== "0")) : json({ error: "Use POST" }, 405);
+        try {
+          const q = new URL(request.url).searchParams;
+          return q.get("task") === "health" ? json(await runHealth(request, q.get("images") !== "0")) : json({ error: "Use POST" }, 405);
+        } catch (e) {
+          if (isRequestCancellation(e, request.signal)) return cancellationResponse();
+          return aiError(e);
+        }
       },
     },
   },
