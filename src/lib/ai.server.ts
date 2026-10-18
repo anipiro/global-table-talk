@@ -18,6 +18,7 @@ export const MODELS = {
   toast: "anthropic/claude-sonnet-5",
   transcribe: "google/gemini-3.5-transcribe",
   image: "openai/gpt-image-2.5-sunburst",
+  memeImage: "openai/gpt-image-2.5-flare", // cheapest current low-quality tier, tied with Sunburst; faster
 } as const;
 
 /** Image settings per job (OpenAI Images API: quality low|medium|high, size 1024x1024|1536x1024|1024x1536). */
@@ -25,6 +26,7 @@ export const IMAGE = {
   painted: { quality: "high", size: "1536x1024" }, // "Tonight, painted" recap hero
   fallback: { quality: "low", size: "1024x1024" }, // when Wikipedia has no usable picture
   health: { quality: "low", size: "1024x1024" },
+  meme: { quality: "low", size: "1024x1024", model: MODELS.memeImage },
 } as const;
 
 const GATEWAY = "https://ai.gateway.lovable.dev/v1";
@@ -184,17 +186,18 @@ export async function transcribeAudio(
 export async function generateImage(
   request: Request,
   prompt: string,
-  settings: { quality: string; size: string },
+  settings: { quality: string; size: string; model?: string },
 ): Promise<{ bytes: Uint8Array; contentType: string }> {
   const apiKey = process.env["LOVABLE_API_KEY"];
   if (!apiKey) throw new Error("AI is not configured");
-  console.info(`[ai] ${MODELS.image} (${settings.quality})`);
+  const model = settings.model ?? MODELS.image;
+  console.info(`[ai] ${model} (${settings.quality})`);
   const res = await fetch(`${GATEWAY}/images/generations`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json", Authorization: `Bearer ${apiKey}`, "Lovable-API-Key": apiKey, "X-Lovable-AIG-SDK": "fetch",
     },
-    body: JSON.stringify({ model: MODELS.image, prompt, n: 1, quality: settings.quality, size: settings.size }),
+    body: JSON.stringify({ model, prompt, n: 1, quality: settings.quality, size: settings.size }),
     signal: request.signal,
   });
   if (!res.ok) {
