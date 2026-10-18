@@ -1,4 +1,5 @@
 # Gamige roadmap
+- [ ] Add occasional low-cost painted roast memes with room-wide limits; verify generation and regressions
 - [x] Guard painting cancellation in global request handling and silence client cancellation warnings; verify regression tests and preview
 - [x] Widen desktop recap without stretching images; preserve the mobile card (verified at 1280, 1038 and 390px)
 - [x] Start end-of-night painting alongside recap writing; verify scheduling and explain roast memes (10 targeted tests passed)
